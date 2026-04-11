@@ -1,0 +1,28 @@
+[
+ {
+  "id": 20,
+  "checker": "10011391",
+  "userChecker": {
+   "name": "FENNY APRILIANI PUTRI",
+   "userRoles": [
+    {
+     "id": 7,
+     "checkerRatings": [
+      {
+       "rating": {
+        "id": 6,
+        "rating": "ACP"
+       }
+      },
+      {
+       "rating": {
+        "id": 7,
+        "rating": "ACS"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ }
+]

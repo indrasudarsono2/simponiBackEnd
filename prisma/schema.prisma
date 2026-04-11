@@ -1,0 +1,772 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Region {
+  id        Int       @id @default(autoincrement())
+  region    String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  branches Branch[]
+}
+
+model Branch {
+  id        Int       @id @default(autoincrement())
+  regionId  Int?      @db.Int
+  branch    String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  region               Region?              @relation(fields: [regionId], references: [id])
+  branchUnits          BranchUnit[]
+  professionInBranches ProfessionInBranch[]
+  users                User[]
+}
+
+model BranchUnit {
+  id        Int       @id @default(autoincrement())
+  branchId  Int?      @db.Int
+  unit      String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  branch          Branch?          @relation(fields: [branchId], references: [id])
+  sectors         Sector[]
+  sessions        Session[]
+  multipleChoices MultipleChoice[]
+  essays          Essay[]
+  users           User[]
+  tokens          token?
+}
+
+model QuestionGroup {
+  id                    Int       @id @default(autoincrement())
+  kindOfQuestionId      Int?      @db.Int
+  subBranchUnitRatingId Int?      @db.Int
+  group                 String?   @db.Text
+  quantity              Int?      @db.Int
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  subBranchUnitRating SubBranchUnitRating? @relation(fields: [subBranchUnitRatingId], references: [id])
+  kindOfQuestion      KindOfQuestion?      @relation(fields: [kindOfQuestionId], references: [id])
+  essayQuestionGroups EssayQuestionGroup[]
+  mcQuestionGroups    McQuestionGroup[]
+}
+
+model MultipleChoice {
+  id           Int       @id @default(autoincrement())
+  branchUnitId Int?      @db.Int
+  question     String?   @db.Text
+  image        String?   @db.Text
+  a            String?   @db.Text
+  b            String?   @db.Text
+  c            String?   @db.Text
+  d            String?   @db.Text
+  key          String?   @db.VarChar(10)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  branchUnit               BranchUnit?                @relation(fields: [branchUnitId], references: [id])
+  multipleChoiceCorections MultipleChoiceCorrection[]
+  mcQuestionGroups         McQuestionGroup[]
+}
+
+model McQuestionGroup {
+  id               Int       @id @default(autoincrement())
+  sectorId         Int?      @db.Int
+  multipleChoiceId Int?      @db.Int
+  questionGroupId  Int?      @db.Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  sector         Sector?         @relation(fields: [sectorId], references: [id])
+  multipleChoice MultipleChoice? @relation(fields: [multipleChoiceId], references: [id])
+  questionGroup  QuestionGroup?  @relation(fields: [questionGroupId], references: [id])
+}
+
+model MultipleChoiceCorrection {
+  id               Int       @id @default(autoincrement())
+  appRatingId      Int?      @db.Int
+  multipleChoiceId Int?      @db.Int
+  answer           String?   @db.VarChar(5)
+  isTrue           Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  appRating      AppRating?      @relation(fields: [appRatingId], references: [id])
+  multipleChoice MultipleChoice? @relation(fields: [multipleChoiceId], references: [id])
+}
+
+model Essay {
+  id           Int       @id @default(autoincrement())
+  branchUnitId Int?      @db.Int
+  question     String?   @db.Text
+  image        String?   @db.Text
+  answer       String?   @db.Text
+  value        Int?      @db.Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  branchUnit          BranchUnit?          @relation(fields: [branchUnitId], references: [id])
+  essayCorrections    EssayCorrection[]
+  essayQuestionGroups EssayQuestionGroup[]
+}
+
+model EssayQuestionGroup {
+  id              Int       @id @default(autoincrement())
+  sectorId        Int?      @db.Int
+  essayId         Int?      @db.Int
+  questionGroupId Int?      @db.Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  sector        Sector?        @relation(fields: [sectorId], references: [id])
+  essay         Essay?         @relation(fields: [essayId], references: [id])
+  questionGroup QuestionGroup? @relation(fields: [questionGroupId], references: [id])
+}
+
+model EssayCorrection {
+  id            Int       @id @default(autoincrement())
+  appRatingId   Int?      @db.Int
+  essayId       Int?      @db.Int
+  groupMemberId Int?      @db.Int
+  checker       String?   @db.VarChar(150)
+  answer        String?   @db.Text()
+  score         Float?    @db.Float
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  appRating   AppRating?   @relation(fields: [appRatingId], references: [id])
+  essay       Essay?       @relation(fields: [essayId], references: [id])
+  groupMember GroupMember? @relation(fields: [groupMemberId], references: [id])
+  checkerUser User?        @relation("checkerEssay", fields: [checker], references: [nik])
+}
+
+model Rating {
+  id           Int       @id @default(autoincrement())
+  professionId Int?      @db.Int
+  rating       String?   @db.VarChar(150)
+  description  String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  subBranchUnitRatings SubBranchUnitRating[]
+  profession           Profession?           @relation(fields: [professionId], references: [id])
+  appRatings           AppRating[]
+  userRatings          userRating[]
+  competences          Competence[]
+  checkerRatings       CheckerRating[]
+}
+
+model PracticalTest {
+  id                Int       @id @default(autoincrement())
+  groupMemberId     Int?      @db.Int
+  checkerGroupId    Int?      @db.Int
+  appRatingId       Int?      @db.Int
+  kindOfPracticalId Int?      @db.Int
+  score             Float?    @db.Float
+  file              String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  groupMember     GroupMember?     @relation(fields: [groupMemberId], references: [id])
+  checkerGroup    CheckerGroup?    @relation(fields: [checkerGroupId], references: [id])
+  appRating       AppRating?       @relation(fields: [appRatingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  kindOfPractical KindOfPractical? @relation(fields: [kindOfPracticalId], references: [id])
+}
+
+model KindOfPractical {
+  id        Int       @id @default(autoincrement())
+  kind      String    @db.VarChar(100)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  practicalTests PracticalTest[]
+}
+
+model SubBranchUnitRating {
+  id        Int       @id @default(autoincrement())
+  sectorId  Int?      @db.Int
+  ratingId  Int?      @db.Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sector         Sector?         @relation(fields: [sectorId], references: [id])
+  rating         Rating?         @relation(fields: [ratingId], references: [id])
+  questionGroups QuestionGroup[]
+}
+
+model Sector {
+  id           Int       @id @default(autoincrement())
+  branchUnitId Int?      @db.Int
+  sector       String?   @db.VarChar(150)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  branchUnit           BranchUnit?           @relation(fields: [branchUnitId], references: [id])
+  users                User[]
+  subBranchUnitRatings SubBranchUnitRating[]
+  events               Event[]
+  eventQuestions       EventQuestion[]
+  essayQuestionGroups  EssayQuestionGroup[]
+  mcQuestionGroups     McQuestionGroup[]
+}
+
+model Session {
+  id           Int       @id @default(autoincrement())
+  branchUnitId Int?      @db.Int
+  session      String?   @db.VarChar(150)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  branchUnit BranchUnit? @relation(fields: [branchUnitId], references: [id])
+  events     Event[]
+}
+
+model Event {
+  id              Int       @id @default(autoincrement())
+  sessionId       Int?      @db.Int
+  sectorId        Int?      @db.Int
+  remarkDocId     Int?      @db.Int
+  event           String?   @db.VarChar(150)
+  formFillingDate DateTime?
+  startDate       DateTime?
+  finishDate      DateTime?
+  forExpiredDate  DateTime?
+  briefingFile    String?   @db.Text
+  passingGrade    Float?    @db.Float()
+  isPractical     Boolean   @default(false)
+  isSimulator     Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  session        Session?        @relation(fields: [sessionId], references: [id])
+  sector         Sector?         @relation(fields: [sectorId], references: [id])
+  remarkDoc      RemarkDoc?      @relation(fields: [remarkDocId], references: [id])
+  eventUsers     EventUser[]
+  groups         Group[]
+  eventQuestions EventQuestion[]
+  finalScores    FinalScore[]
+}
+
+model EventQuestion {
+  id               Int       @id @default(autoincrement())
+  sectorId         Int?      @db.Int
+  eventId          Int?      @db.Int
+  kindOfQuestionId Int?      @db.Int
+  quantity         Int?      @db.Int
+  persentage       Float?    @db.Float
+  minutes          Int?      @db.Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  sector         Sector?         @relation(fields: [sectorId], references: [id])
+  event          Event?          @relation(fields: [eventId], references: [id])
+  kindOfQuestion KindOfQuestion? @relation(fields: [kindOfQuestionId], references: [id])
+  monitorTimes   MonitorTime[]
+}
+
+model KindOfQuestion {
+  id        Int       @id @default(autoincrement())
+  question  String?   @db.VarChar(100)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  eventQuestions EventQuestion[]
+  questionGroups QuestionGroup[]
+}
+
+model EventUser {
+  id        Int       @id @default(autoincrement())
+  eventId   Int?      @db.Int
+  userNik   String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  event           Event?          @relation(fields: [eventId], references: [id])
+  user            User?           @relation(fields: [userNik], references: [nik])
+  applicationDocs ApplicationDoc?
+  attendaces      Attendance?
+}
+
+model Group {
+  id        Int       @id @default(autoincrement())
+  eventId   Int?      @db.Int
+  pic       String?   @db.VarChar(150)
+  group     String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  event         Event?         @relation(fields: [eventId], references: [id])
+  userPic       User?          @relation("PicGroup", fields: [pic], references: [nik])
+  checkerGroups CheckerGroup[]
+  groupMembers  GroupMember[]
+}
+
+model GroupMember {
+  id        Int       @id @default(autoincrement())
+  groupId   Int?      @db.Int
+  member    String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group            Group?            @relation(fields: [groupId], references: [id])
+  userMember       User?             @relation("GroupMember", fields: [member], references: [nik])
+  essayCorrections EssayCorrection[]
+  practicalTests   PracticalTest[]
+  verification     Verification?
+}
+
+model CheckerGroup {
+  id        Int       @id @default(autoincrement())
+  groupId   Int?      @db.Int
+  checker   String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group          Group?          @relation(fields: [groupId], references: [id])
+  userChecker    User?           @relation("CheckerGroup", fields: [checker], references: [nik])
+  practicalTests PracticalTest[]
+}
+
+model Medex {
+  id          Int       @id @default(autoincrement())
+  isConfirmed Boolean   @default(false)
+  institution String?   @db.VarChar(150)
+  userNik     String?   @db.VarChar(150)
+  released    DateTime?
+  expired     DateTime?
+  examiner    String?   @db.VarChar(150)
+  file        String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user            User?            @relation(fields: [userNik], references: [nik])
+  applicationDocs ApplicationDoc[]
+}
+
+model Ielp {
+  id          Int       @id @default(autoincrement())
+  isConfirmed Boolean   @default(false)
+  userNik     String?   @db.VarChar(150)
+  released    DateTime?
+  expired     DateTime?
+  rater       String?   @db.VarChar(150)
+  institution String?   @db.VarChar(150)
+  level       String?   @db.VarChar(150)
+  file        String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user            User?            @relation(fields: [userNik], references: [nik])
+  applicationDocs ApplicationDoc[]
+}
+
+model License {
+  id          Int       @id @default(autoincrement())
+  userNik     String?   @db.VarChar(150)
+  note        String?   @db.VarChar(150)
+  file        String?   @db.Text
+  expiredDate DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user            User?            @relation(fields: [userNik], references: [nik])
+  applicationDocs ApplicationDoc[]
+}
+
+model LogBookUser {
+  id        Int       @id @default(autoincrement())
+  userNik   String?   @db.VarChar(150)
+  note      String?   @db.VarChar(150)
+  file      String?   @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user            User?            @relation(fields: [userNik], references: [nik])
+  applicationDocs ApplicationDoc[]
+}
+
+model ApplicationDoc {
+  id             Int       @id @default(autoincrement())
+  doc            String?   @db.Text
+  number         String?   @db.VarChar(150)
+  eventUserId    Int?      @unique @db.Int
+  userNik        String?   @db.VarChar(150)
+  statusId       Int?      @db.Int
+  medexId        Int?      @db.Int
+  ielpId         Int?      @db.Int
+  briefingDate   DateTime?
+  confirmRating  Boolean   @default(false)
+  reason         String?   @db.Text
+  location       String?   @db.VarChar(150)
+  rating         String?   @db.Text
+  dateForExpired DateTime?
+  confirmOjt     Boolean   @default(false)
+  ojtNik         String?   @db.VarChar(150)
+  letterNumber   String?   @db.VarChar(150)
+  letterDate     DateTime?
+  controlHour    String?   @db.VarChar(150)
+  atsName        String?   @db.VarChar(150)
+  address        String?   @db.Text
+  isDrugs        Boolean   @default(false)
+  isFailed       Boolean   @default(false)
+  licenseId      Int?      @db.Int
+  logbookUserId  Int?      @db.Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  user          User?         @relation("UserApplications", fields: [userNik], references: [nik])
+  eventUser     EventUser?    @relation(fields: [eventUserId], references: [id])
+  status        status?       @relation(fields: [statusId], references: [id])
+  ojtUser       User?         @relation("OjtApplication", fields: [ojtNik], references: [nik])
+  medex         Medex?        @relation(fields: [medexId], references: [id])
+  ielp          Ielp?         @relation(fields: [ielpId], references: [id])
+  license       License?      @relation(fields: [licenseId], references: [id])
+  logbook       LogBookUser?  @relation(fields: [logbookUserId], references: [id])
+  appRatings    AppRating[]
+  verifications Verification?
+}
+
+model Verification {
+  id               Int       @id @default(autoincrement())
+  applicationDocId Int?      @unique @db.Int
+  groupMemberId    Int?      @unique @db.Int
+  verificationData String?   @db.Text
+  isValid          Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  applicationDoc ApplicationDoc? @relation(fields: [applicationDocId], references: [id])
+  groupMembers   GroupMember?    @relation(fields: [groupMemberId], references: [id])
+}
+
+model AppRating {
+  id               Int       @id @default(autoincrement())
+  applicationDocId Int?      @db.Int
+  ratingId         Int?      @db.Int
+  controlHour      String?   @db.VarChar(150)
+  statusId         Int?      @db.Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  applicationDoc           ApplicationDoc?            @relation(fields: [applicationDocId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  rating                   Rating?                    @relation(fields: [ratingId], references: [id])
+  status                   status?                    @relation(fields: [statusId], references: [id])
+  multipleChoiceCorections MultipleChoiceCorrection[]
+  essayCorrections         EssayCorrection[]
+  practicalTests           PracticalTest[]
+  finalScores              FinalScore[]
+  monitorTimes             MonitorTime[]
+}
+
+model User {
+  nik                  String    @id
+  licenseUserId        String?   @db.VarChar(150)
+  professionInBranchId Int?      @db.Int
+  sectorId             Int?      @db.Int
+  branchId             Int?      @db.Int
+  branchUnitId         Int?      @db.Int
+  name                 String?   @db.VarChar(150)
+  password             String?   @db.VarChar(200)
+  dateOfBirth          DateTime?
+  placeOfBirth         String?
+  personalAddress      String?   @db.Text
+  nationality          String?   @db.VarChar(100)
+  phoneNumber          String?   @db.VarChar(100)
+  genderId             Int?      @db.Int
+  email                String?   @db.VarChar(200)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  professionInBranch ProfessionInBranch? @relation(fields: [professionInBranchId], references: [id])
+  sector             Sector?             @relation(fields: [sectorId], references: [id])
+  gender             Gender?             @relation(fields: [genderId], references: [id])
+  branch             Branch?             @relation(fields: [branchId], references: [id])
+  branchUnit         BranchUnit?         @relation(fields: [branchUnitId], references: [id])
+  userRoles          UserRoles[]
+  eventUsers         EventUser[]
+  applicationDocs    ApplicationDoc[]    @relation("UserApplications")
+  ojtApplications    ApplicationDoc[]    @relation("OjtApplication")
+  medex              Medex[]
+  ielp               Ielp[]
+  license            License[]
+  logbookUsers       LogBookUser[]
+  groups             Group[]             @relation("PicGroup")
+  checkerGroups      CheckerGroup[]      @relation("CheckerGroup")
+  groupMembers       GroupMember[]       @relation("GroupMember")
+  checkerRooms       Room[]              @relation("Room")
+  checkerUsers       EssayCorrection[]   @relation("checkerEssay")
+  userRatings        userRating[]
+  competences        Competence[]
+}
+
+model UserRoles {
+  id        Int       @id @default(autoincrement())
+  userNik   String?
+  roleId    Int?      @db.Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user           User?           @relation(fields: [userNik], references: [nik])
+  roles          Roles?          @relation(fields: [roleId], references: [id])
+  checkerRatings CheckerRating[]
+}
+
+model CheckerRating {
+  id         Int  @id @default(autoincrement())
+  userRoleId Int? @db.Int
+  ratingId   Int? @db.Int
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  userRoles UserRoles? @relation(fields: [userRoleId], references: [id])
+  rating    Rating?    @relation(fields: [ratingId], references: [id])
+}
+
+model Roles {
+  id        Int       @id @default(autoincrement())
+  role      String?   @db.VarChar(100)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  userRoles UserRoles[]
+  rolesMenu RolesMenu[]
+}
+
+model RolesMenu {
+  id        Int       @id @default(autoincrement())
+  roleId    Int?      @db.Int
+  menuId    Int?      @db.Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  role Roles? @relation(fields: [roleId], references: [id])
+  menu Menu?  @relation(fields: [menuId], references: [id])
+}
+
+model Menu {
+  id        Int       @id @default(autoincrement())
+  menu      String?   @db.VarChar(100)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  rolesMenu RolesMenu[]
+}
+
+model Profession {
+  id          Int       @id @default(autoincrement())
+  profession  String?   @db.VarChar(150)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  professionInBranches ProfessionInBranch[]
+  ratings              Rating[]
+}
+
+model ProfessionInBranch {
+  id           Int       @id @default(autoincrement())
+  branchId     Int?      @db.Int
+  professionId Int?      @db.Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  branch     Branch?     @relation(fields: [branchId], references: [id])
+  profession Profession? @relation(fields: [professionId], references: [id])
+  users      User[]
+}
+
+model Gender {
+  id        Int       @id @default(autoincrement())
+  gender    String?   @db.VarChar(100)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users User[]
+}
+
+model RemarkDoc {
+  id        Int       @id @default(autoincrement())
+  remark    String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  events Event[]
+}
+
+model status {
+  id        Int       @id @default(autoincrement())
+  status    String?   @db.VarChar(150)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  applicationDocs ApplicationDoc[]
+  appRatings      AppRating[]
+  finalScores     FinalScore[]
+}
+
+model FinalScore {
+  id                  Int       @id @default(autoincrement())
+  eventId             Int?      @db.Int
+  appRatingId         Int?      @db.Int
+  statusId            Int?      @db.Int
+  essayScore          Float?    @db.Float
+  finalScore          Float?    @db.Float
+  multipleChoiceScore Float?    @db.Float
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  event       Event?       @relation(fields: [eventId], references: [id])
+  appRating   AppRating?   @relation(fields: [appRatingId], references: [id])
+  status      status?      @relation(fields: [statusId], references: [id])
+  userRatings userRating[]
+}
+
+model userRating {
+  id           Int       @id @default(autoincrement())
+  ratingId     Int?      @db.Int
+  userId       String?   @db.VarChar(150)
+  finalScoreId Int?      @db.Int
+  expireddate  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  rating     Rating?     @relation(fields: [ratingId], references: [id])
+  user       User?       @relation(fields: [userId], references: [nik])
+  finalScore FinalScore? @relation(fields: [finalScoreId], references: [id])
+}
+
+model Competence {
+  id          Int       @id @default(autoincrement())
+  userId      String?   @db.VarChar(150)
+  ratingId    Int?      @db.Int
+  institution String?   @db.VarChar(200)
+  released    DateTime?
+  file        String?   @db.Text()
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user   User?   @relation(fields: [userId], references: [nik])
+  rating Rating? @relation(fields: [ratingId], references: [id])
+}
+
+model token {
+  id           Int       @id @default(autoincrement())
+  branchUnitId Int?      @unique @db.Int
+  token        String?   @db.VarChar(255)
+  startDate    DateTime?
+  expiredDate  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  branchUnit BranchUnit? @relation(fields: [branchUnitId], references: [id])
+}
+
+model Room {
+  id         Int       @id @default(autoincrement())
+  checker    String?   @db.VarChar(100)
+  name       String?   @db.VarChar(150)
+  startDate  DateTime?
+  finishDate DateTime?
+  file       String    @db.Text()
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  checkerRoom User?        @relation("Room", fields: [checker], references: [nik])
+  attendances Attendance[]
+}
+
+model Attendance {
+  id          Int       @id @default(autoincrement())
+  eventUserId Int?      @unique @db.Int
+  roomId      Int?      @db.Int()
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  eventUser EventUser? @relation(fields: [eventUserId], references: [id])
+  room      Room?      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model VerificationItems {
+  id           Int       @id @default(autoincrement())
+  item         String?   @db.VarChar(220)
+  isPenerbitan Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+}
+
+model MonitorTime {
+  id              Int       @id @default(autoincrement())
+  appRatingId     Int?      @db.Int()
+  eventQuestionId Int?      @db.Int()
+  time            Float     @db.Float()
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  appRating     AppRating?     @relation(fields: [appRatingId], references: [id])
+  eventQuestion EventQuestion? @relation(fields: [eventQuestionId], references: [id])
+}

@@ -1,0 +1,73 @@
+{
+  "appRating": [
+    {
+      "statusId": 1,
+      "status": "REGISTERED",
+      "event": "Created when application doc inputed"
+    },
+    {
+      "statusId": 3,
+      "status": "CHECKING ESSAY",
+      "event": "Created when essay answers are submited to DB"
+    },
+    {
+      "statusId": 4,
+      "status": "CHECKED",
+      "event": "Created when essay answers have been checked by checker"
+    },
+    {
+      "statusId": 5,
+      "status": "RECHECK",
+      "event": "Created when first check value under passing grade"
+    },
+    {
+      "statusId": 6,
+      "status": "FAILED",
+      "event": "Created when second check value under passing grade"
+    },
+    {
+      "statusId": 7,
+      "status": "SUCCESS",
+      "event": "Created when first check or second check value above passing grade"
+    }
+  ],
+  "finalScore": [
+    {
+      "statusId": 3,
+      "status": "CHECKING ESSAY",
+      "event": "Created when essay answers are submited to DB"
+    },
+    {
+      "statusId": 4,
+      "status": "CHECKED",
+      "event": "Created when essay answers have been checked by checker"
+    },
+    {
+      "statusId": 5,
+      "status": "RECHECK",
+      "event": "Created when second check value above passing grade"
+    },
+    {
+      "statusId": 6,
+      "status": "FAILED",
+      "event": "Created when final score under passing grade"
+    },
+    {
+      "statusId": 7,
+      "status": "SUCCESS",
+      "event": "Created when first check or second check value above passing grade"
+    }
+  ],
+  "applicationDoc": [
+    {
+      "statusId": 1,
+      "status": "REGISTERED",
+      "event": "Created when application doc inputed"
+    },
+    {
+      "statusId": 2,
+      "status": "VERIFIED",
+      "event": "Created when checker verify the document"
+    }
+  ]
+}
