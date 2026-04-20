@@ -1,9 +1,65 @@
 import prisma from "../lib/prisma.js";
 import config from "../utils/config.json";
 
+const buildGroupedEssay = (questionGroup, essayQuestionGroup) => {
+  // Count selected questions per sector + questionGroup.
+  const selectedCount = new Map();
+  for (const item of essayQuestionGroup) {
+    const sectorId = item?.sector?.id;
+    const questionGroupId = item?.questionGroup?.id;
+
+    if (sectorId == null || questionGroupId == null) continue;
+
+    const key = `${sectorId}|${questionGroupId}`;
+    selectedCount.set(key, (selectedCount.get(key) || 0) + 1);
+  }
+
+  // Group by sector + rating.
+  const groupedMap = new Map();
+  for (const qg of questionGroup) {
+    const sectorId = qg?.subBranchUnitRating?.sector?.id;
+    const sectorName = qg?.subBranchUnitRating?.sector?.sector;
+    const rating = qg?.subBranchUnitRating?.rating?.rating;
+
+    if (sectorId == null || !sectorName || !rating) continue;
+
+    const mapKey = `${sectorId}|${rating}`;
+    if (!groupedMap.has(mapKey)) {
+      groupedMap.set(mapKey, {
+        sector: sectorName,
+        rating,
+        questionGroup: [],
+      });
+    }
+
+    const selected = selectedCount.get(`${sectorId}|${qg.id}`) || 0;
+    groupedMap.get(mapKey).questionGroup.push({
+      group: qg.group,
+      quantity: qg.quantity,
+      selected,
+    });
+  }
+
+  return [...groupedMap.values()]
+    .map((item) => ({
+      ...item,
+      questionGroup: item.questionGroup.sort((a, b) =>
+        String(a.group ?? "").localeCompare(String(b.group ?? ""))
+      ),
+    }))
+    .sort((a, b) => {
+      const sectorCompare = String(a.sector ?? "").localeCompare(
+        String(b.sector ?? "")
+      );
+      if (sectorCompare !== 0) return sectorCompare;
+      return String(a.rating ?? "").localeCompare(String(b.rating ?? ""));
+    });
+};
+
 const getEssayGroups = async (req, res) => {
   try {
     // const branchUnitId = 17
+    // const branchUnitId = 5
     const branchUnitId = req.user.branchUnitId
     const essay = await prisma.essay.findMany({
       where: {
@@ -23,6 +79,22 @@ const getEssayGroups = async (req, res) => {
         subBranchUnitRatings: {
           select: {
             id: true,
+            rating: {
+              where: {
+                deletedAt: null
+              },
+              select: {
+                rating: true,
+              }
+            }
+          }
+        },
+        essayQuestionGroups: {
+          where: {
+            deletedAt: null
+          },
+          select: {
+            id: true
           }
         },
         branchUnit: {
@@ -54,11 +126,15 @@ const getEssayGroups = async (req, res) => {
         deletedAt: null,
         subBranchUnitRatingId: {
           in: idSubBranchUnitRating
+        },
+        group:{
+          not: null
         }
       },
       select: {
         id: true,
         group: true,
+        quantity: true,
         subBranchUnitRating: {
           select: {
             rating: true,
@@ -76,6 +152,7 @@ const getEssayGroups = async (req, res) => {
         deletedAt: null
       },
       select: {
+        id: true,
         essayId: true,
         sector: {
           select: {
@@ -106,8 +183,9 @@ const getEssayGroups = async (req, res) => {
       }
     })
 
+    const grouped = buildGroupedEssay(questionGroup, essayQuestionGroup);
     // Logic to fetch regions (e.g., from a database)
-    res.json({ essay, questionGroup, essayQuestionGroup, sector });
+    res.json({ essay, questionGroup, essayQuestionGroup, sector, grouped });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

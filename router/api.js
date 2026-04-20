@@ -12,6 +12,8 @@ import * as ratingController from '../controller/ratingController.js';
 import * as branchUnitController from '../controller/branchUnitController.js';
 import * as sectorController from '../controller/sectorController.js';
 import * as ratingCheckerAdminController from '../controller/ratingCheckerAdminController.js';
+import * as mandatoryItemController from '../controller/mandatoryItemController.js'
+import * as mandatoryRatingController from '../controller/monitorRatingController.js'
 import * as questionGroupEssayController from '../controller/questionGroupEssayController.js';
 import * as essayController from '../controller/essayController.js';
 import * as questionGroupMultipleChoiceController from '../controller/questionGroupMultipleChoiceController.js';
@@ -41,13 +43,15 @@ import * as dashboardController from '../controller/dashboardController.js'
 import * as tokenController from '../controller/tokenController.js'
 import * as examinationController from '../controller/examintaionController.js'
 import * as roomController from '../controller/roomController.js'
-import upload, { uploadCompetence, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadRoom } from '../lib/multer.js'
+import * as performanceCheckController from '../controller/performanceCheckController.js'
+import * as practicalExamController from '../controller/practicalExamController.js'
+import upload, { uploadCompetence, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadRoom } from '../lib/multer.js'
 
 // Auth - Public route (no authentication required)
 router.post('/auth/login', authController.login)
 
 // Apply authentication middleware to all routes below this line
-router.use(authenticateToken)
+// router.use(authenticateToken)
 
 router.post('/postTime', monitorTime.postTime)
 
@@ -77,6 +81,15 @@ router.post('/ratings', ratingController.addRating);
 router.put('/ratings/:id', ratingController.getRatingById);
 router.delete('/ratings/:id', ratingController.deleteRatingById);
 
+router.get('/mandatoryItem', mandatoryItemController.getMandatoryItem)
+router.post('/mandatoryItem', mandatoryItemController.postMandatoryItem)
+router.put('/mandatoryItem/:id', mandatoryItemController.updateMandatoryItem)
+router.delete('/mandatoryItem/:id', mandatoryItemController.deleteMandatoryItem)
+
+router.get('/mandatoryRating', mandatoryRatingController.getMandatoryRating)
+router.post('/mandatoryRating', mandatoryRatingController.postMandatoryRating)
+router.delete('/mandatoryRating/:id', mandatoryRatingController.deleteMandatoryRating)
+
 router.get('/branchUnits', branchUnitController.getBranchUnits);
 router.get('/branchUnitsGetBranch', branchUnitController.branchUnitsGetBranch);
 router.post('/branchUnits', branchUnitController.addBranchUnit);
@@ -101,8 +114,8 @@ router.put('/questionGroupsEssay/:id', questionGroupEssayController.getQuestionG
 router.delete('/questionGroupsEssay/:id', questionGroupEssayController.deleteQuestionGroupId);
 
 router.get('/essays', essayController.getEssays);
-router.post('/essays', essayController.addEssays);
-router.put('/essays/:id', essayController.getUpdateEssayById);
+router.post('/essays', uploadEssay.any(), essayController.addEssays);
+router.put('/essays/:id', uploadEssay.any(), essayController.getUpdateEssayById);
 router.delete('/essays/:id', essayController.deleteEssayById);
 
 router.get('/essayGroups', essayGroupController.getEssayGroups);
@@ -114,8 +127,8 @@ router.put('/questionGroupsMultipleChoice/:id', questionGroupMultipleChoiceContr
 router.delete('/questionGroupsMultipleChoice/:id', questionGroupMultipleChoiceController.deleteQuestionGroupId);
 
 router.get('/multipleChoices', multipleChoiceController.getMultipleChoices);
-router.post('/multipleChoices', multipleChoiceController.addEssays);
-router.put('/multipleChoices/:id', multipleChoiceController.getUpdateMultipleChoiceById);
+router.post('/multipleChoices', uploadMultipleChoice.any(), multipleChoiceController.addMultipleChoice);
+router.put('/multipleChoices/:id', uploadMultipleChoice.any(), multipleChoiceController.getUpdateMultipleChoiceById);
 router.delete('/multipleChoices/:id', multipleChoiceController.deleteMultipleChoiceById);
 
 router.get('/multipleChoiceGroups', multipleChoiceGroupController.getMultipleChoiceGroups);
@@ -222,4 +235,12 @@ router.delete('/room/:id', roomController.deleteRoom)
 router.get('/examination', examinationController.getExamination)
 router.post('/examinationEssay', examinationController.getEssayQuestion)
 router.post('/examinationAnswer', examinationController.postEssayAnswer)
+router.post('/examinationMultipleChoice', examinationController.getMultipleChoiceQuestion)
+router.post('/examinationMultipleChoiceAnswer', examinationController.postMultipleChoiceAnswer)
+
+router.get('/performanceCheck', performanceCheckController.getEvent)
+router.post('/performanceCheck', performanceCheckController.postEssayAnswer)
+
+router.get('/practicalExam', practicalExamController.getPractical)
+router.put('/practicalExam/:id', uploadPracticalTest.any(), practicalExamController.putPractical)
 export default router;

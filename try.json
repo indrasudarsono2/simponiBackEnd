@@ -1,0 +1,520 @@
+{
+  "multipleChoice": [
+    {
+      "id": 1,
+      "branchUnitId": 5,
+      "question": "<p><strong>What lev</strong>el will JAKARTA <em>ACC provide w</em>hen arriving aircraft </p><ol><li><p>request descent clearance to aerodrome </p></li><li><p>under responsibility of TANJUNG PINANG APP if TANJUNG PINANG </p></li><li><p>APP doesn't provide a vacant level?</p></li></ol><p></p>",
+      "image": null,
+      "a": "FL240",
+      "b": "5 minutes spacing",
+      "c": "10Nm no closing speed",
+      "d": "fifteen (15)",
+      "key": "B",
+      "createdAt": "2026-03-03T09:25:32.306Z",
+      "updatedAt": "2026-03-03T09:25:32.306Z",
+      "deletedAt": null
+    },
+    {
+      "id": 3,
+      "branchUnitId": 5,
+      "question": "<p>Which ATS unit has to provide ATS service for aircraft at or below FL370 within Jakarta FIR where ATS is delegated to Singapore?</p>",
+      "image": null,
+      "a": "Singapore Sector 5",
+      "b": "Singapore Sector 6",
+      "c": "Kuching ACC Sector 1",
+      "d": "Tanjung Pinang North TMA",
+      "key": "C",
+      "createdAt": "2026-03-04T07:24:52.843Z",
+      "updatedAt": "2026-03-04T07:24:52.843Z",
+      "deletedAt": null
+    },
+    {
+      "id": 4,
+      "branchUnitId": 5,
+      "question": "<p>Which ATS unit that has responsibility providing ATS for aircraft on route L644 segment LIGVU - OMLIV at FL130?</p>",
+      "image": null,
+      "a": "M646",
+      "b": "UXEDA and GUTUP",
+      "c": "VERIN and GULGU",
+      "d": "B and C correct",
+      "key": "D",
+      "createdAt": "2026-03-04T07:25:33.718Z",
+      "updatedAt": "2026-03-04T07:25:33.718Z",
+      "deletedAt": null
+    },
+    {
+      "id": 5,
+      "branchUnitId": 5,
+      "question": "<p>Which one of this TCI between Jakarta ACC and Singapore ACC on route G579 at FL400?</p>",
+      "image": null,
+      "a": "ATETI, OSERU, AGOBA",
+      "b": "UKLIS and UXEDA",
+      "c": "G580",
+      "d": "ENVUM",
+      "key": "A",
+      "createdAt": "2026-03-04T07:26:11.135Z",
+      "updatedAt": "2026-03-04T07:26:11.135Z",
+      "deletedAt": null
+    },
+    {
+      "id": 6,
+      "branchUnitId": 5,
+      "question": "<p>Which one of this TCI is between Jakarta ACC and Singapore ACC at route B338 at FL390?</p>",
+      "image": null,
+      "a": "JUNHA",
+      "b": "UPVUN",
+      "c": "BOPVA",
+      "d": "Singapore Sector 5",
+      "key": "A",
+      "createdAt": "2026-03-04T07:26:50.075Z",
+      "updatedAt": "2026-03-13T07:12:20.262Z",
+      "deletedAt": null
+    }
+  ],
+  "questionGroup": [
+    {
+      "id": 22,
+      "group": "STRUKTUR RUANG UDARA",
+      "quantity": 15,
+      "subBranchUnitRating": {
+        "rating": {
+          "id": 6,
+          "professionId": 1,
+          "rating": "ACP",
+          "description": "Area Control Procedural",
+          "createdAt": "2026-03-01T09:38:10.462Z",
+          "updatedAt": "2026-03-01T09:38:10.462Z",
+          "deletedAt": null
+        },
+        "sector": {
+          "id": 1,
+          "branchUnitId": 5,
+          "sector": "WEST",
+          "createdAt": "2026-03-02T06:01:49.912Z",
+          "updatedAt": "2026-03-02T06:01:49.912Z",
+          "deletedAt": null
+        }
+      }
+    },
+    {
+      "id": 23,
+      "group": "WEATHER",
+      "quantity": 15,
+      "subBranchUnitRating": {
+        "rating": {
+          "id": 6,
+          "professionId": 1,
+          "rating": "ACP",
+          "description": "Area Control Procedural",
+          "createdAt": "2026-03-01T09:38:10.462Z",
+          "updatedAt": "2026-03-01T09:38:10.462Z",
+          "deletedAt": null
+        },
+        "sector": {
+          "id": 1,
+          "branchUnitId": 5,
+          "sector": "WEST",
+          "createdAt": "2026-03-02T06:01:49.912Z",
+          "updatedAt": "2026-03-02T06:01:49.912Z",
+          "deletedAt": null
+        }
+      }
+    },
+    {
+      "id": 24,
+      "group": "LLP",
+      "quantity": 15,
+      "subBranchUnitRating": {
+        "rating": {
+          "id": 6,
+          "professionId": 1,
+          "rating": "ACP",
+          "description": "Area Control Procedural",
+          "createdAt": "2026-03-01T09:38:10.462Z",
+          "updatedAt": "2026-03-01T09:38:10.462Z",
+          "deletedAt": null
+        },
+        "sector": {
+          "id": 1,
+          "branchUnitId": 5,
+          "sector": "WEST",
+          "createdAt": "2026-03-02T06:01:49.912Z",
+          "updatedAt": "2026-03-02T06:01:49.912Z",
+          "deletedAt": null
+        }
+      }
+    },
+    {
+      "id": 26,
+      "group": "STRUKTUR RUANG UDARA",
+      "quantity": 15,
+      "subBranchUnitRating": {
+        "rating": {
+          "id": 6,
+          "professionId": 1,
+          "rating": "ACP",
+          "description": "Area Control Procedural",
+          "createdAt": "2026-03-01T09:38:10.462Z",
+          "updatedAt": "2026-03-01T09:38:10.462Z",
+          "deletedAt": null
+        },
+        "sector": {
+          "id": 2,
+          "branchUnitId": 5,
+          "sector": "EAST",
+          "createdAt": "2026-03-02T07:38:44.482Z",
+          "updatedAt": "2026-03-18T06:17:17.558Z",
+          "deletedAt": null
+        }
+      }
+    },
+    {
+      "id": 27,
+      "group": "wffawgawgawgawga",
+      "quantity": 15,
+      "subBranchUnitRating": {
+        "rating": {
+          "id": 6,
+          "professionId": 1,
+          "rating": "ACP",
+          "description": "Area Control Procedural",
+          "createdAt": "2026-03-01T09:38:10.462Z",
+          "updatedAt": "2026-03-01T09:38:10.462Z",
+          "deletedAt": null
+        },
+        "sector": {
+          "id": 2,
+          "branchUnitId": 5,
+          "sector": "EAST",
+          "createdAt": "2026-03-02T07:38:44.482Z",
+          "updatedAt": "2026-03-18T06:17:17.558Z",
+          "deletedAt": null
+        }
+      }
+    },
+    {
+      "id": 29,
+      "group": "egsegegshshshtttttttttttttttt",
+      "quantity": 15,
+      "subBranchUnitRating": {
+        "rating": {
+          "id": 6,
+          "professionId": 1,
+          "rating": "ACP",
+          "description": "Area Control Procedural",
+          "createdAt": "2026-03-01T09:38:10.462Z",
+          "updatedAt": "2026-03-01T09:38:10.462Z",
+          "deletedAt": null
+        },
+        "sector": {
+          "id": 2,
+          "branchUnitId": 5,
+          "sector": "EAST",
+          "createdAt": "2026-03-02T07:38:44.482Z",
+          "updatedAt": "2026-03-18T06:17:17.558Z",
+          "deletedAt": null
+        }
+      }
+    }
+  ],
+  "multipleChoiceQuestionGroup": [
+    {
+      "id": 3,
+      "multipleChoiceId": 1,
+      "sector": {
+        "id": 1,
+        "sector": "WEST"
+      },
+      "questionGroup": {
+        "id": 23,
+        "group": "WEATHER",
+        "kindOfQuestion": {
+          "question": "MULTIPLE CHOICE"
+        },
+        "subBranchUnitRating": {
+          "rating": {
+            "rating": "ACP"
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "multipleChoiceId": 6,
+      "sector": {
+        "id": 1,
+        "sector": "WEST"
+      },
+      "questionGroup": {
+        "id": 22,
+        "group": "STRUKTUR RUANG UDARA",
+        "kindOfQuestion": {
+          "question": "MULTIPLE CHOICE"
+        },
+        "subBranchUnitRating": {
+          "rating": {
+            "rating": "ACP"
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "multipleChoiceId": 6,
+      "sector": {
+        "id": 1,
+        "sector": "WEST"
+      },
+      "questionGroup": {
+        "id": 23,
+        "group": "WEATHER",
+        "kindOfQuestion": {
+          "question": "MULTIPLE CHOICE"
+        },
+        "subBranchUnitRating": {
+          "rating": {
+            "rating": "ACP"
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "multipleChoiceId": 6,
+      "sector": {
+        "id": 2,
+        "sector": "EAST"
+      },
+      "questionGroup": {
+        "id": 26,
+        "group": "STRUKTUR RUANG UDARA",
+        "kindOfQuestion": {
+          "question": "MULTIPLE CHOICE"
+        },
+        "subBranchUnitRating": {
+          "rating": {
+            "rating": "ACP"
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "multipleChoiceId": 6,
+      "sector": {
+        "id": 1,
+        "sector": "WEST"
+      },
+      "questionGroup": {
+        "id": 24,
+        "group": "LLP",
+        "kindOfQuestion": {
+          "question": "MULTIPLE CHOICE"
+        },
+        "subBranchUnitRating": {
+          "rating": {
+            "rating": "ACP"
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "multipleChoiceId": 6,
+      "sector": {
+        "id": 2,
+        "sector": "EAST"
+      },
+      "questionGroup": {
+        "id": 27,
+        "group": "wffawgawgawgawga",
+        "kindOfQuestion": {
+          "question": "MULTIPLE CHOICE"
+        },
+        "subBranchUnitRating": {
+          "rating": {
+            "rating": "ACP"
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "multipleChoiceId": 6,
+      "sector": {
+        "id": 2,
+        "sector": "EAST"
+      },
+      "questionGroup": {
+        "id": 29,
+        "group": "egsegegshshshtttttttttttttttt",
+        "kindOfQuestion": {
+          "question": "MULTIPLE CHOICE"
+        },
+        "subBranchUnitRating": {
+          "rating": {
+            "rating": "ACP"
+          }
+        }
+      }
+    }
+  ],
+  "sector": [
+    {
+      "id": 1,
+      "sector": "WEST",
+      "subBranchUnitRatings": [
+        {
+          "id": 1,
+          "rating": {
+            "rating": "ACP"
+          }
+        },
+        {
+          "id": 2,
+          "rating": {
+            "rating": "ACS"
+          }
+        }
+      ],
+      "branchUnit": {
+        "unit": "ACC",
+        "branch": {
+          "branch": "JAKARTA"
+        }
+      },
+      "mcQuestionGroups": [
+        {
+          "id": 3
+        },
+        {
+          "id": 4
+        },
+        {
+          "id": 5
+        },
+        {
+          "id": 7
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "sector": "EAST",
+      "subBranchUnitRatings": [
+        {
+          "id": 3,
+          "rating": {
+            "rating": "ACP"
+          }
+        },
+        {
+          "id": 4,
+          "rating": {
+            "rating": "ACS"
+          }
+        },
+        {
+          "id": 12,
+          "rating": null
+        }
+      ],
+      "branchUnit": {
+        "unit": "ACC",
+        "branch": {
+          "branch": "JAKARTA"
+        }
+      },
+      "mcQuestionGroups": [
+        {
+          "id": 6
+        },
+        {
+          "id": 8
+        },
+        {
+          "id": 9
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "sector": "NORTH",
+      "subBranchUnitRatings": [
+        {
+          "id": 5,
+          "rating": {
+            "rating": "ACP"
+          }
+        },
+        {
+          "id": 6,
+          "rating": {
+            "rating": "ACS"
+          }
+        }
+      ],
+      "branchUnit": {
+        "unit": "ACC",
+        "branch": {
+          "branch": "JAKARTA"
+        }
+      },
+      "mcQuestionGroups": []
+    },
+    {
+      "id": 4,
+      "sector": "NORTH WEST",
+      "subBranchUnitRatings": [
+        {
+          "id": 7,
+          "rating": {
+            "rating": "ACP"
+          }
+        },
+        {
+          "id": 8,
+          "rating": {
+            "rating": "ACS"
+          }
+        }
+      ],
+      "branchUnit": {
+        "unit": "ACC",
+        "branch": {
+          "branch": "JAKARTA"
+        }
+      },
+      "mcQuestionGroups": []
+    },
+    {
+      "id": 5,
+      "sector": "NORTH EAST",
+      "subBranchUnitRatings": [
+        {
+          "id": 9,
+          "rating": {
+            "rating": "ACP"
+          }
+        },
+        {
+          "id": 10,
+          "rating": {
+            "rating": "ACS"
+          }
+        },
+        {
+          "id": 11,
+          "rating": null
+        }
+      ],
+      "branchUnit": {
+        "unit": "ACC",
+        "branch": {
+          "branch": "JAKARTA"
+        }
+      },
+      "mcQuestionGroups": []
+    }
+  ]
+}

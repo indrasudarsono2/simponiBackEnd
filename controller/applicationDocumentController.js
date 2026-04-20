@@ -50,6 +50,15 @@ const getApplicationDoc = async (req, res) => {
             id: true,
             userNik: true,
             applicationDocs: {
+              where: {
+                appRatings: {
+                  some: {
+                    statusId: {
+                      not: 6
+                    }
+                  }
+                }
+              },
               select: {
                 id: true
               }
@@ -132,10 +141,12 @@ const getApplicationDoc = async (req, res) => {
         }
       }
     })
-    
+
     const event = firstEvent.filter(e => {
-      // Check if there is any user in this event who HAS an applicationDoc
-      return e.eventUsers.some(user => user.applicationDocs === null);
+      // Include event when user has no application docs yet (null or empty array).
+      return e.eventUsers.some(
+        (user) => !user.applicationDocs || user.applicationDocs.length === 0
+      );
     });
   
     const applicationDoc = await prisma.applicationDoc.findMany({
@@ -287,7 +298,7 @@ const getApplicationDoc = async (req, res) => {
 const addApplicationDoc = async (req, res) => {
   try {
     const {eventId, groupMemberId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
-    
+
     const eventUser = await prisma.eventUser.findFirst({
       where: {
         id: parseInt(eventUserId),
@@ -472,7 +483,6 @@ const addApplicationDoc = async (req, res) => {
 
     res.status(201).json({ success: true });
   } catch (error) {
-    console.log(error)
     res.status(500).json({ message: error.message });
   }
 };

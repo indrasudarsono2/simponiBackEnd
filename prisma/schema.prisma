@@ -58,6 +58,7 @@ model QuestionGroup {
   id                    Int       @id @default(autoincrement())
   kindOfQuestionId      Int?      @db.Int
   subBranchUnitRatingId Int?      @db.Int
+  mandatoryRatingId     Int?      @db.Int
   group                 String?   @db.Text
   quantity              Int?      @db.Int
   createdAt             DateTime  @default(now())
@@ -66,8 +67,32 @@ model QuestionGroup {
 
   subBranchUnitRating SubBranchUnitRating? @relation(fields: [subBranchUnitRatingId], references: [id])
   kindOfQuestion      KindOfQuestion?      @relation(fields: [kindOfQuestionId], references: [id])
+  mandatoryRating     MandatoryRating?     @relation(fields: [mandatoryRatingId], references: [id])
   essayQuestionGroups EssayQuestionGroup[]
   mcQuestionGroups    McQuestionGroup[]
+}
+
+model MandatoryRating {
+  id              Int       @id @default(autoincrement())
+  ratingId        Int?      @db.Int
+  mandatoryItemId Int?      @db.Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  mandatoryItem  MandatoryItems? @relation(fields: [mandatoryItemId], references: [id])
+  rating         Rating?         @relation(fields: [ratingId], references: [id])
+  questionGroups QuestionGroup[]
+}
+
+model MandatoryItems {
+  id        Int       @id @default(autoincrement())
+  mandatory String?   @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mandatoryRatings MandatoryRating[]
 }
 
 model MultipleChoice {
@@ -107,6 +132,8 @@ model MultipleChoiceCorrection {
   id               Int       @id @default(autoincrement())
   appRatingId      Int?      @db.Int
   multipleChoiceId Int?      @db.Int
+  finalScoreId     Int?      @db.Int
+  groupMemberId    Int?      @db.Int
   answer           String?   @db.VarChar(5)
   isTrue           Boolean   @default(false)
   createdAt        DateTime  @default(now())
@@ -115,6 +142,8 @@ model MultipleChoiceCorrection {
 
   appRating      AppRating?      @relation(fields: [appRatingId], references: [id])
   multipleChoice MultipleChoice? @relation(fields: [multipleChoiceId], references: [id])
+  finalScore     FinalScore?     @relation(fields: [finalScoreId], references: [id])
+  groupMember    GroupMember?    @relation(fields: [groupMemberId], references: [id])
 }
 
 model Essay {
@@ -152,6 +181,7 @@ model EssayCorrection {
   appRatingId   Int?      @db.Int
   essayId       Int?      @db.Int
   groupMemberId Int?      @db.Int
+  finalScoreId  Int?      @db.Int
   checker       String?   @db.VarChar(150)
   answer        String?   @db.Text()
   score         Float?    @db.Float
@@ -163,6 +193,7 @@ model EssayCorrection {
   essay       Essay?       @relation(fields: [essayId], references: [id])
   groupMember GroupMember? @relation(fields: [groupMemberId], references: [id])
   checkerUser User?        @relation("checkerEssay", fields: [checker], references: [nik])
+  finalScore  FinalScore?  @relation(fields: [finalScoreId], references: [id])
 }
 
 model Rating {
@@ -180,6 +211,7 @@ model Rating {
   userRatings          userRating[]
   competences          Competence[]
   checkerRatings       CheckerRating[]
+  mandatoryRatings     MandatoryRating[]
 }
 
 model PracticalTest {
@@ -316,9 +348,9 @@ model EventUser {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  event           Event?          @relation(fields: [eventId], references: [id])
-  user            User?           @relation(fields: [userNik], references: [nik])
-  applicationDocs ApplicationDoc?
+  event           Event?           @relation(fields: [eventId], references: [id])
+  user            User?            @relation(fields: [userNik], references: [nik])
+  applicationDocs ApplicationDoc[]
   attendaces      Attendance?
 }
 
@@ -345,11 +377,13 @@ model GroupMember {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  group            Group?            @relation(fields: [groupId], references: [id])
-  userMember       User?             @relation("GroupMember", fields: [member], references: [nik])
-  essayCorrections EssayCorrection[]
-  practicalTests   PracticalTest[]
-  verification     Verification?
+  group                     Group?                     @relation(fields: [groupId], references: [id])
+  userMember                User?                      @relation("GroupMember", fields: [member], references: [nik])
+  essayCorrections          EssayCorrection[]
+  practicalTests            PracticalTest[]
+  verification              Verification[]
+  finalScores               FinalScore[]
+  multipleChoiceCorrections MultipleChoiceCorrection[]
 }
 
 model CheckerGroup {
@@ -431,7 +465,7 @@ model ApplicationDoc {
   id             Int       @id @default(autoincrement())
   doc            String?   @db.Text
   number         String?   @db.VarChar(150)
-  eventUserId    Int?      @unique @db.Int
+  eventUserId    Int?      @db.Int
   userNik        String?   @db.VarChar(150)
   statusId       Int?      @db.Int
   medexId        Int?      @db.Int
@@ -472,7 +506,7 @@ model ApplicationDoc {
 model Verification {
   id               Int       @id @default(autoincrement())
   applicationDocId Int?      @unique @db.Int
-  groupMemberId    Int?      @unique @db.Int
+  groupMemberId    Int?      @db.Int
   verificationData String?   @db.Text
   isValid          Boolean   @default(false)
   createdAt        DateTime  @default(now())
@@ -665,6 +699,7 @@ model FinalScore {
   id                  Int       @id @default(autoincrement())
   eventId             Int?      @db.Int
   appRatingId         Int?      @db.Int
+  groupMemberId       Int?      @db.Int
   statusId            Int?      @db.Int
   essayScore          Float?    @db.Float
   finalScore          Float?    @db.Float
@@ -673,10 +708,13 @@ model FinalScore {
   updatedAt           DateTime  @updatedAt
   deletedAt           DateTime?
 
-  event       Event?       @relation(fields: [eventId], references: [id])
-  appRating   AppRating?   @relation(fields: [appRatingId], references: [id])
-  status      status?      @relation(fields: [statusId], references: [id])
-  userRatings userRating[]
+  event                     Event?                     @relation(fields: [eventId], references: [id])
+  appRating                 AppRating?                 @relation(fields: [appRatingId], references: [id])
+  status                    status?                    @relation(fields: [statusId], references: [id])
+  groupMember               GroupMember?               @relation(fields: [groupMemberId], references: [id])
+  userRatings               userRating[]
+  essayCorrections          EssayCorrection[]
+  multipleChoiceCorrections MultipleChoiceCorrection[]
 }
 
 model userRating {

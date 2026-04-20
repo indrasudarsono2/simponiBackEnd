@@ -1,0 +1,13 @@
+[
+  {
+    "sector": "WEST",
+    "rating": "ACP",
+    "questionGroup": [
+      { "group": "STRUKTUR RUANG UDARA", "quantity": 15, "selected": 1 },
+      { "group": "WHEATHER", "quantity": 15, "selected": 2 },
+      { "group": "LLP", "quantity": 15, "selected": 1 }
+    ]
+  },
+  {},
+  {}
+]

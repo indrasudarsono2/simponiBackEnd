@@ -6,9 +6,10 @@ import fs from "fs";
 import path from "path";
 
 const getDashboardOperational = async (req, res) => {
-  // const sect = 1
+  // const sect = 8
   const sect = req.user.sectorId
   // const userN = "10011520"
+  // const userN = "10077770"
   const userN = req.user.nik
   // const prof = 1
   const prof = req.user.professionId
@@ -33,13 +34,23 @@ const getDashboardOperational = async (req, res) => {
         eventUsers: {
           where: {
             applicationDocs: {
-              statusId: 2
+              some: {
+                statusId: 2
+              }
             }
           },
           include: {
-            applicationDocs: true,
-            event: true
-          }
+            event: true,
+            applicationDocs: {
+              where: {
+                deletedAt: null
+              },
+              orderBy: {
+                createdAt: 'desc'
+              },
+              take: 1
+            }
+          },
         }
       },
     })

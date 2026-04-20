@@ -1,0 +1,44 @@
+[
+  {
+    "sector": "EAST",
+    "rating": "ACP",
+    "questionGroup": [
+      {
+        "group": "egsegegshshshtttttttttttttttt",
+        "quantity": 15,
+        "selected": 1
+      },
+      {
+        "group": "STRUKTUR RUANG UDARA",
+        "quantity": 15,
+        "selected": 1
+      },
+      {
+        "group": "wffawgawgawgawga",
+        "quantity": 15,
+        "selected": 1
+      }
+    ]
+  },
+  {
+    "sector": "WEST",
+    "rating": "ACP",
+    "questionGroup": [
+      {
+        "group": "LLP",
+        "quantity": 15,
+        "selected": 1
+      },
+      {
+        "group": "STRUKTUR RUANG UDARA",
+        "quantity": 15,
+        "selected": 1
+      },
+      {
+        "group": "WEATHER",
+        "quantity": 15,
+        "selected": 2
+      }
+    ]
+  }
+]

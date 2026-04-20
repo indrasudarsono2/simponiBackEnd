@@ -1,5 +1,7 @@
 import prisma from "../lib/prisma.js";
 import config from "../utils/config.json";
+import fs from "fs";
+import path from "path";
 
 const getEssays = async (req, res) => {
   // const branchUnitId = 17
@@ -34,15 +36,17 @@ const getEssays = async (req, res) => {
 
 const addEssays = async (req, res) => {
   try {
-    const { question, answer, image, value } = req.body;
+    const { question, answer, value } = req.body;
+    const files = req.files
+    const file = files && files.length > 0 ? files[0] : null
 
     await prisma.essay.create({
       data: {
         branchUnitId: req.user.branchUnitId,
         question: question,
         answer: answer,
-        image: image,
-        value: value,
+        value: parseInt(value),
+        image: file? `/uploads/essay/${file.filename}` : null
       }
     });
     
@@ -55,16 +59,39 @@ const addEssays = async (req, res) => {
 const getUpdateEssayById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { question, answer, image, value } = req.body;
+    const { question, answer, value } = req.body;
+    const files = req.files
+    const file = files && files.length > 0 ? files[0] : null
+
+    const existingEssay = await prisma.essay.findUnique({
+      where: {
+        id: parseInt(id),
+      },
+      select: {
+        image: true
+      }
+    })
+    
+    if(file && existingEssay && existingEssay.image){
+      const oldImage = path.join(process.cwd(), existingEssay.image)
+      if(fs.existsSync(oldImage)){
+        await fs.promises.unlink(oldImage)
+      }
+    }
+
+    const updateData = {
+      question: question,
+      answer: answer,
+      value: parseInt(value),
+    }
+
+    if(file){
+      updateData.image = `/uploads/essay/${file.filename}`
+    }
 
     await prisma.essay.update({
       where: { id: parseInt(id) },
-      data: {
-        question: question,
-        answer: answer,
-        image: image,
-        value: value
-      }
+      data: updateData
     });
     
     res.status(200).json({ success: true });

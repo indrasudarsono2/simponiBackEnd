@@ -1,5 +1,7 @@
 import prisma from "../lib/prisma.js";
 import config from "../utils/config.json";
+import fs from "fs";
+import path from "path";
 
 const getMultipleChoices = async (req, res) => {
   // const branchUnitId = 17
@@ -45,9 +47,11 @@ const getMultipleChoices = async (req, res) => {
   }
 };
 
-const addEssays = async (req, res) => {
+const addMultipleChoice = async (req, res) => {
   try {
-    const { question, a, b, c, d, image, key } = req.body;
+    const { question, a, b, c, d, key } = req.body;
+    const files = req.files
+    const file = files && files.length > 0 ? files[0] : null
 
     await prisma.multipleChoice.create({
       data: {
@@ -57,7 +61,7 @@ const addEssays = async (req, res) => {
         b: b,
         c: c,
         d: d,
-        image: image,
+        image: file? `/uploads/multipleChoice/${file.filename}` : null,
         key: key,
       }
     });
@@ -71,19 +75,42 @@ const addEssays = async (req, res) => {
 const getUpdateMultipleChoiceById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { question, a, b, c, d, image, key } = req.body;
+    const { question, a, b, c, d, key } = req.body;
+    const files = req.files
+    const file = files && files.length > 0 ? files[0] : null
 
-    await prisma.multipleChoice.update({
-      where: { id: parseInt(id) },
-      data: {
-        question: question,
+    const existingMultipleChoice = await prisma.multipleChoice.findUnique({
+      where: {
+        id: parseInt(id),
+      },
+      select: {
+        image: true
+      }
+    })
+
+    if(file && existingMultipleChoice && existingMultipleChoice.image){
+      const oldImage = path.join(process.cwd(), existingMultipleChoice.image)
+      if(fs.existsSync(oldImage)){
+        await fs.promises.unlink(oldImage)
+      }
+    }
+
+    const updateData = {
+      question: question,
         a: a,
         b: b,
         c: c,
         d: d,
-        image: image,
         key: key
-      }
+    }
+
+    if(file){
+      updateData.image = `/uploads/multipleChoice/${file.filename}`
+    }
+
+    await prisma.multipleChoice.update({
+      where: { id: parseInt(id) },
+      data: updateData
     });
 
     res.status(200).json({ success: true });
@@ -107,4 +134,4 @@ const deleteMultipleChoiceById = async (req, res) => {
   }
 };
 
-export { getMultipleChoices, addEssays, getUpdateMultipleChoiceById, deleteMultipleChoiceById };
+export { getMultipleChoices, addMultipleChoice, getUpdateMultipleChoiceById, deleteMultipleChoiceById };

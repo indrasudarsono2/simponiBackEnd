@@ -45,7 +45,10 @@ const getQuestionGroups = async (req, res) => {
           in: idSubBranchUnitRating
         },
         kindOfQuestionId: 2,
-        deletedAt: null
+        deletedAt: null,
+        group: {
+          not: null
+        }
       },
       include: {
         subBranchUnitRating: {

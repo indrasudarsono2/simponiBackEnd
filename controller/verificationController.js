@@ -11,7 +11,7 @@ const getVerificationInit = async (req, res) => {
   const userN = req.user.nik
   // const userN = "10077771"
   const branchUnitId = req.user.branchUnitId
-  // const branchUnitId = 6
+  // const branchUnitId = 17
   try {
 
     const group = await prisma.group.findMany({
@@ -55,7 +55,7 @@ const getVerificationInit = async (req, res) => {
 const getVerificationItem = async(req, res) => {
   try {
     const {remark} = req.body
-    
+   
     const whereClause = {
       deletedAt: null
     }
@@ -76,8 +76,8 @@ const getVerificationItem = async(req, res) => {
 
 const getVerification = async (req, res) => {
   const {eventId} = req.body
-  const userN = req.user.nik
   // const userN = "10077771"
+  const userN = req.user.nik
   // const eventId = 10
   try {
     const eventUsr = await prisma.group.findMany({
@@ -101,6 +101,7 @@ const getVerification = async (req, res) => {
         }
       }
     })
+    
     const eventUserId = eventUsr.map(data => data.event.eventUsers.map(eu => eu.id)).flat()
 
     const rating = await prisma.user.findFirst({
@@ -217,7 +218,17 @@ const getVerification = async (req, res) => {
                 },
               }
             },
-            verification: true
+            verification: {
+              select: {
+                applicationDoc: {
+                  select: {
+                    number: true
+                  }
+                },
+                verificationData: true,
+                updatedAt: true
+              }
+            }
           }
         }
       }
@@ -232,7 +243,6 @@ const getVerification = async (req, res) => {
 const postVerification = async(req, res) => {
   try {
     const {applicationDocId, groupMemberId, verificationItems} = req.body
-
     const verification = await prisma.verification.findFirst({
       where: {
         applicationDocId,
