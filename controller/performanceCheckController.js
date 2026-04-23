@@ -11,7 +11,7 @@ const getEvent = async (req, res) => {
   const sectorId = req.user.sectorId
   // const sectorId = 8
   const userN = req.user.nik
-  // const userN = "10077771"
+  // const userN = "10077770"
 
   try {
     const event = await prisma.event.findMany({
@@ -117,6 +117,23 @@ const getEvent = async (req, res) => {
                         }
                       }
                     }
+                  }
+                },
+                essayCorrections: {
+                  where: {
+                    deletedAt: null,
+                    checker: userN,
+                  },
+                  select: {
+                    id: true,
+                    essay: {
+                      select: {
+                        question: true,
+                        value: true
+                      }
+                    },
+                    answer: true,
+                    score: true,
                   }
                 }
               }

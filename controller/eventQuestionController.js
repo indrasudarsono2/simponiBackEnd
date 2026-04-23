@@ -3,9 +3,11 @@ import config from "../utils/config.json";
 
 const getEventQuestions = async (req, res) => {
   try {
+    const branchUnitId = req.user.branchUnitId;
+    // const branchUnitId = 17
    const allAtribute = await prisma.branchUnit.findFirst({
       where: {
-        id: req.user.branchUnitId
+        id: branchUnitId
       },
       select: {
         id: true,

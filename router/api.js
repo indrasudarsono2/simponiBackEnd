@@ -45,13 +45,14 @@ import * as examinationController from '../controller/examintaionController.js'
 import * as roomController from '../controller/roomController.js'
 import * as performanceCheckController from '../controller/performanceCheckController.js'
 import * as practicalExamController from '../controller/practicalExamController.js'
-import upload, { uploadCompetence, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadRoom } from '../lib/multer.js'
+import * as previewController from '../controller/previewController.js'
+import upload, { uploadCompetence, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
 
 // Auth - Public route (no authentication required)
 router.post('/auth/login', authController.login)
 
 // Apply authentication middleware to all routes below this line
-// router.use(authenticateToken)
+router.use(authenticateToken)
 
 router.post('/postTime', monitorTime.postTime)
 
@@ -243,4 +244,6 @@ router.post('/performanceCheck', performanceCheckController.postEssayAnswer)
 
 router.get('/practicalExam', practicalExamController.getPractical)
 router.put('/practicalExam/:id', uploadPracticalTest.any(), practicalExamController.putPractical)
+
+router.post('/preview', uploadPreview.any(), previewController.postPreview)
 export default router;

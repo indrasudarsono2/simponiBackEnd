@@ -56,7 +56,7 @@ const buildGroupedMultipleChoice = (questionGroup, multipleChoiceQuestionGroup) 
 const getMultipleChoiceGroups = async (req, res) => {
   // const branchUnitId = 17
   // const branchUnitId = 5
-    const branchUnitId = req.user.branchUnitId
+  const branchUnitId = req.user.branchUnitId
   try {
     const multipleChoice = await prisma.multipleChoice.findMany({
       where: {
@@ -185,6 +185,7 @@ const getMultipleChoiceGroups = async (req, res) => {
       multipleChoiceQuestionGroup
     );
 
+    
     res.json({ multipleChoice, questionGroup, multipleChoiceQuestionGroup, sector, grouped});
   } catch (error) {
     res.status(500).json({ message: error.message });

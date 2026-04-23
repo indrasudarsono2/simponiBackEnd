@@ -5,6 +5,7 @@ const getQuestionGroups = async (req, res) => {
   try {
     // const branchId = 6
     const branchId = req.user.branchId
+
     const sector = await prisma.sector.findMany({
       where: {
         branchUnit: {
@@ -65,7 +66,35 @@ const getQuestionGroups = async (req, res) => {
         }
       }
     });
-    res.json({sector,questionGroups});
+
+    const mandatoryRating = await prisma.mandatoryRating.findMany({
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        rating: {
+          where: {
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            rating: true
+          }
+        },
+        mandatoryItem: {
+          where: {
+            deletedAt: null
+          },
+          select: {
+            id: true,
+            mandatory: true,
+          }
+        }
+      }
+    })
+
+    res.json({sector,questionGroups, mandatoryRating});
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -73,8 +102,8 @@ const getQuestionGroups = async (req, res) => {
 
 const addQuestionGroup = async (req, res) => {
   try {
-    const { sectorId, ratingId, group, quantity } = req.body;
-   
+    const { sectorId, ratingId, group} = req.body;
+    
     const findSubBranchUnitRating = await prisma.subBranchUnitRating.findFirst({
       where: {
         sectorId: sectorId,
@@ -85,15 +114,16 @@ const addQuestionGroup = async (req, res) => {
         id: true,
       }
     });
-  
-    await prisma.questionGroup.create({
-      data: {
+    
+    await prisma.questionGroup.createMany({
+      data: group.map(g => ({
         subBranchUnitRatingId: findSubBranchUnitRating.id,
-        group: group,
-        quantity: quantity,
+        mandatoryRatingId: g.mandatoryRatingId,
+        group: g.mandatory,
+        quantity: g.quantity,
         kindOfQuestionId: 2
-      }
-    });
+      }))
+    })
     
     res.status(201).json({ success: true, message: `Branch Unit Rating added` });
   } catch (error) {

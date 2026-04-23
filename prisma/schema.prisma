@@ -309,6 +309,7 @@ model Event {
   groups         Group[]
   eventQuestions EventQuestion[]
   finalScores    FinalScore[]
+  previews       Preview[]
 }
 
 model EventQuestion {
@@ -384,6 +385,7 @@ model GroupMember {
   verification              Verification[]
   finalScores               FinalScore[]
   multipleChoiceCorrections MultipleChoiceCorrection[]
+  previews                  Preview[]
 }
 
 model CheckerGroup {
@@ -477,7 +479,7 @@ model ApplicationDoc {
   rating         String?   @db.Text
   dateForExpired DateTime?
   confirmOjt     Boolean   @default(false)
-  ojtNik         String?   @db.VarChar(150)
+  ojtLicenseId   String?   @map("ojtNik") @db.VarChar(150)
   letterNumber   String?   @db.VarChar(150)
   letterDate     DateTime?
   controlHour    String?   @db.VarChar(150)
@@ -494,7 +496,7 @@ model ApplicationDoc {
   user          User?         @relation("UserApplications", fields: [userNik], references: [nik])
   eventUser     EventUser?    @relation(fields: [eventUserId], references: [id])
   status        status?       @relation(fields: [statusId], references: [id])
-  ojtUser       User?         @relation("OjtApplication", fields: [ojtNik], references: [nik])
+  ojtUser       User?         @relation("OjtApplication", fields: [ojtLicenseId], references: [licenseUserId])
   medex         Medex?        @relation(fields: [medexId], references: [id])
   ielp          Ielp?         @relation(fields: [ielpId], references: [id])
   license       License?      @relation(fields: [licenseId], references: [id])
@@ -535,11 +537,12 @@ model AppRating {
   practicalTests           PracticalTest[]
   finalScores              FinalScore[]
   monitorTimes             MonitorTime[]
+  previews                 Preview[]
 }
 
 model User {
   nik                  String    @id
-  licenseUserId        String?   @db.VarChar(150)
+  licenseUserId        String?   @unique @db.VarChar(20)
   professionInBranchId Int?      @db.Int
   sectorId             Int?      @db.Int
   branchId             Int?      @db.Int
@@ -807,4 +810,19 @@ model MonitorTime {
 
   appRating     AppRating?     @relation(fields: [appRatingId], references: [id])
   eventQuestion EventQuestion? @relation(fields: [eventQuestionId], references: [id])
+}
+
+model Preview {
+  id            Int       @id @default(autoincrement())
+  appRatingId   Int?      @db.Int()
+  groupMemberId Int?      @db.Int()
+  eventId       Int?      @db.Int()
+  file          String    @db.Text()
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  appRating   AppRating?   @relation(fields: [appRatingId], references: [id])
+  groupMember GroupMember? @relation(fields: [groupMemberId], references: [id])
+  event       Event?       @relation(fields: [eventId], references: [id])
 }

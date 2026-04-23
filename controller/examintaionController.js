@@ -180,8 +180,8 @@ const getRandomMultipleChoiceByGroup = async ({ sectorId, questionGroupId, quant
 const getExamination = async (req, res) => {
   // const sect = 1
   // const sect = req.user.sectorId
-  const userN = "10077770"
-  // const userN = req.user.nik
+  // const userN = "10077770"
+  const userN = req.user.nik
   // const prof = 1
   // const prof = req.user.professionId
   try {
@@ -400,8 +400,16 @@ const getEssayQuestion = async (req, res) => {
                           }
                         }
                       }
+                    },
+                    monitorTimes: {
+                      where: {
+                        deletedAt: null,
+                      },
+                      select: {
+                        time: true
+                      }
                     }
-                  }
+                  },
                 }
               }
             }
@@ -451,8 +459,20 @@ const getEssayQuestion = async (req, res) => {
 
     const eventUserId = event.eventUsers[0].id
     const groupMemberId = event.groups[0].groupMembers[0].id
+    const eventDuration = event.eventQuestions.find(d => d.kindOfQuestionId === 1)?.minutes || 0
+    const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes : {time: 0};
+    const timeLeft = eventDuration-monitor.time
+    const randomNumbers = [];
 
-    res.json({essay, eventQuestion, appRatingId, monitorTime, eventUserId, groupMemberId, eventId})
+    for (let i = 0; i < 3; i++) {
+      // Math.random() * (max - min + 1) + min
+      const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
+      randomNumbers.push(pick);
+    }
+
+    randomNumbers.sort((a, b) => a - b);
+
+    res.json({essay, eventQuestion, appRatingId, monitorTime, eventUserId, groupMemberId, eventId, randomNumbers})
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -499,10 +519,10 @@ const getMultipleChoiceQuestion = async (req, res) => {
   const sect = req.user.sectorId
   // const sect = 8
   const nik = req.user.nik
-  // const nik = "10077770"
+  // const nik = "10077773"
   try {
     const {eventId, appRatingId} = req.body
-
+    // console.log(eventId, appRatingId)
     const event = await prisma.event.findUnique({
       where: {
         id: parseInt(eventId)
@@ -590,6 +610,14 @@ const getMultipleChoiceQuestion = async (req, res) => {
                           }
                         }
                       }
+                    },
+                    monitorTimes: {
+                      where: {
+                        deletedAt: null,
+                      },
+                      select: {
+                        time: true
+                      }
                     }
                   }
                 }
@@ -640,8 +668,21 @@ const getMultipleChoiceQuestion = async (req, res) => {
 
     const eventUserId = event.eventUsers[0].id
     const groupMemberId = event.groups[0].groupMembers[0].id
-    
-    res.json({multipleChoice, eventQuestion, appRatingId, monitorTime, eventUserId, groupMemberId, eventId})
+    const eventDuration = event.eventQuestions.find(d => d.kindOfQuestionId === 2)?.minutes || 0
+    const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] : {time: 0};
+    const timeLeft = eventDuration-monitor.time
+   
+    const randomNumbers = [];
+
+    for (let i = 0; i < 3; i++) {
+      // Math.random() * (max - min + 1) + min
+      const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
+      randomNumbers.push(pick);
+    }
+
+    randomNumbers.sort((a, b) => a - b);
+
+    res.json({multipleChoice, eventQuestion, appRatingId, monitorTime, eventUserId, groupMemberId, eventId, randomNumbers})
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -854,7 +895,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
         const ratId = finalScore[finalScore.length - 1].appRating.ratingId
         await inputUserRating(ratId, finalScoreId, event.forExpiredDate)
       }
-
+      const passingGrade = event.passingGrade
       // const json = {
       //   falseAnswer,
       //   finalValue,
@@ -862,7 +903,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
       // }
       // const string = JSON.stringify(json, null, 2)
       // fs.writeFileSync('../exam.json', string, 'utf-8');
-      res.status(200).json({falseAnswer, finalValue, essayCorrection});
+      res.status(200).json({falseAnswer, finalValue, essayCorrection, passingGrade});
     }else{
       const statusScore = mcValue < event.passingGrade ? 6 :
                           mcValue >= event.passingGrade && 

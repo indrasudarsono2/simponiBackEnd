@@ -9,7 +9,7 @@ dayjs.extend(utc);
 
 const getVerificationInit = async (req, res) => {
   const userN = req.user.nik
-  // const userN = "10077771"
+  // const userN = "10077770"
   const branchUnitId = req.user.branchUnitId
   // const branchUnitId = 17
   try {
@@ -55,7 +55,7 @@ const getVerificationInit = async (req, res) => {
 const getVerificationItem = async(req, res) => {
   try {
     const {remark} = req.body
-   
+
     const whereClause = {
       deletedAt: null
     }
@@ -76,9 +76,9 @@ const getVerificationItem = async(req, res) => {
 
 const getVerification = async (req, res) => {
   const {eventId} = req.body
-  // const userN = "10077771"
+  // const userN = "10077770"
   const userN = req.user.nik
-  // const eventId = 10
+  // const eventId = 11
   try {
     const eventUsr = await prisma.group.findMany({
       where: {
@@ -212,6 +212,12 @@ const getVerification = async (req, res) => {
                     user: {
                       include: {
                         gender: true,
+                      }
+                    },
+                    ojtUser: {
+                      select: {
+                        licenseUserId:true,
+                        name: true
                       }
                     }
                   }

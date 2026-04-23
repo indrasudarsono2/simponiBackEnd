@@ -12,7 +12,7 @@ const getRoom = async (req, res) => {
   // const sect = 8
   // const sect = req.user.sectorId
   const userN = req.user.nik
-  // const userN = "10077771"
+  // const userN = "10077770"
   // const userN = "10011520"
   // const prof = 1
   // const prof = req.user.professionId
@@ -29,10 +29,12 @@ const getRoom = async (req, res) => {
               some: {
                 deletedAt: null,
                 applicationDocs: {
-                  deletedAt: null,
-                  statusId: 2,
-                  briefingDate: {
-                    not: null
+                  some: {
+                    deletedAt: null,
+                    statusId: 2,
+                    briefingDate: {
+                      not: null
+                    }
                   }
                 }
               }
@@ -54,7 +56,9 @@ const getRoom = async (req, res) => {
               where: {
                 deletedAt: null,
                 applicationDocs: {
-                  isNot: null
+                  some: {
+                    deletedAt: null
+                  }
                 }
               },
               select: {

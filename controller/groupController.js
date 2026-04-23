@@ -7,9 +7,11 @@ import path from "path";
 
 const getGroups = async (req, res) => {
   try {
+    const branchUnitId = req.user.branchUnitId;
+    // const branchUnitId = 17
     const allAtribute = await prisma.branchUnit.findFirst({
       where: {
-        id: req.user.branchUnitId
+        id: branchUnitId
         // id: parseInt(config.branchUnitId)
       },
       select: {

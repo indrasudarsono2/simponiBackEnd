@@ -10,7 +10,7 @@ dayjs.extend(utc);
 const getPractical = async(req, res) => {
   try {
     const userN = req.user.nik
-    // const userN = "10077771"
+    // const userN = "10077770"
     const applicationDoc = await prisma.applicationDoc.findMany({
       where: {
         deletedAt: null,
@@ -44,6 +44,16 @@ const getPractical = async(req, res) => {
           }
         },
         appRatings: {
+          where: {
+            deletedAt: null,
+            finalScores: {
+              some: {
+                statusId: {
+                  in: [5,7]
+                }
+              }
+            }
+          },
           select: {
             id: true,
             rating: {
@@ -57,6 +67,9 @@ const getPractical = async(req, res) => {
             practicalTests: {
               where: {
                 deletedAt: null,
+                checkerGroup: {
+                  checker: userN
+                }
               },
               select: {
                 id: true,

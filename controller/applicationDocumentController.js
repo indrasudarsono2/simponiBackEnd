@@ -8,7 +8,7 @@ import path from "path";
 const getApplicationDoc = async (req, res) => {
   // const sect = 8
   const sect = req.user.sectorId
-  // const userN = "10077770"
+  // const userN = "10077772"
   const userN = req.user.nik
   // const prof = 1
   const prof = req.user.professionId
@@ -283,7 +283,8 @@ const getApplicationDoc = async (req, res) => {
         deletedAt: null,
         ratingId: {
           in: getRatingId
-        }
+        },
+        userId: userN
       },
     })
     const getRatingIdFromCompetence = competence.map(c => c.ratingId);
@@ -297,8 +298,9 @@ const getApplicationDoc = async (req, res) => {
 
 const addApplicationDoc = async (req, res) => {
   try {
-    const {eventId, groupMemberId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
-
+    const {eventId, groupMemberId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtLicenseId, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
+    const parsedOjtLicenseId = (ojtLicenseId ?? ojtNik) !== '' ? (ojtLicenseId ?? ojtNik) : null
+    
     const eventUser = await prisma.eventUser.findFirst({
       where: {
         id: parseInt(eventUserId),
@@ -431,7 +433,7 @@ const addApplicationDoc = async (req, res) => {
         letterNumber: letterNumber !== '' ? letterNumber : null,
         letterDate: letterDate !== '' ? dayjs.utc(letterDate).startOf('day').toDate() : null,
         controlHour: controlHour !== '' ? controlHour : null,
-        ojtNik: ojtNik !== '' ? ojtNik : null,
+        ojtLicenseId: parsedOjtLicenseId,
         isDrugs: isDrugs,
         isFailed: isFailed,
         statusId: 1,
@@ -483,6 +485,7 @@ const addApplicationDoc = async (req, res) => {
 
     res.status(201).json({ success: true });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: error.message });
   }
 };
@@ -490,7 +493,8 @@ const addApplicationDoc = async (req, res) => {
 const getApplicationDocById = async (req, res) => {
   try {
     const {id} = req.params
-    const {eventId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
+    const {eventId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtLicenseId, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
+    const parsedOjtLicenseId = (ojtLicenseId ?? ojtNik) !== '' ? (ojtLicenseId ?? ojtNik) : null
 
     const eventUser = await prisma.eventUser.findFirst({
       where: {
@@ -584,7 +588,7 @@ const getApplicationDocById = async (req, res) => {
       letterNumber: letterNumber !== '' ? letterNumber : null,
       letterDate: letterDate !== '' ? dayjs.utc(letterDate).startOf('day').toDate() : null,
       controlHour: controlHour !== '' ? controlHour : null,
-      ojtNik: ojtNik !== '' ? ojtNik : null,
+      ojtLicenseId: parsedOjtLicenseId,
       isDrugs: isDrugs,
       isFailed: isFailed,
       statusId: 1,
