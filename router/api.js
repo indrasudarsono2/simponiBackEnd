@@ -46,6 +46,11 @@ import * as roomController from '../controller/roomController.js'
 import * as performanceCheckController from '../controller/performanceCheckController.js'
 import * as practicalExamController from '../controller/practicalExamController.js'
 import * as previewController from '../controller/previewController.js'
+import * as scoreUserController from '../controller/scoreUserController.js'
+import * as scoreCheckerController from '../controller/scoreCheckerController.js'
+import * as dataCheckerController from '../controller/dataCheckerController.js'
+import * as checkerHistoryController from '../controller/checkerHistoryController.js'
+import * as checkerStatisticController from '../controller/checkerStatisticController.js'
 import upload, { uploadCompetence, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
 
 // Auth - Public route (no authentication required)
@@ -246,4 +251,25 @@ router.get('/practicalExam', practicalExamController.getPractical)
 router.put('/practicalExam/:id', uploadPracticalTest.any(), practicalExamController.putPractical)
 
 router.post('/preview', uploadPreview.any(), previewController.postPreview)
+
+router.get('/scoreUser', scoreUserController.getUserScore)
+router.get('/scoreUserPractical', scoreUserController.getUserScorePractical)
+
+router.get('/scoreChecker', scoreCheckerController.getUserCheckerScore)
+router.post('/scoreChecker', scoreCheckerController.postUserCheckerScore)
+router.post('/scoreCheckerEvidance', scoreCheckerController.postUserCheckerScoreEvidance)
+router.get('/scoreCheckerPractical', scoreCheckerController.getUserCheckerPractical)
+router.post('/scoreCheckerPractical', scoreCheckerController.postUserCheckerPractical)
+
+router.get('/dataCheckerIelp', dataCheckerController.getIelpCheckerData)
+router.get('/dataCheckerMedex', dataCheckerController.getMedexCheckerData)
+router.get('/dataCheckerCompetence', dataCheckerController.getCompetenceCheckerData)
+
+router.get('/checkerHistory', checkerHistoryController.getData)
+router.post('/checkerHistory', checkerHistoryController.postData)
+
+router.get('/checkerStatistic', checkerStatisticController.getMember)
+router.post('/checkerStatistic', checkerStatisticController.postMember)
+router.get('/checkerStatisticQuestion', checkerStatisticController.getQuestion)
+router.put('/checkerStatisticQuestion/:id', checkerStatisticController.getQuestionDetail)
 export default router;

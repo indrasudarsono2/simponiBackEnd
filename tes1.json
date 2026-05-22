@@ -1,26 +1,74 @@
 {
- "id": 20,
- "checker": "10011391",
- "userChecker": {
-  "name": "FENNY APRILIANI PUTRI",
-  "userRoles": [
-   {
-    "id": 7,
-    "checkerRatings": [
-     {
-      "rating": {
-       "id": 6,
-       "rating": "ACP"
+  "all": {
+    "rating": [
+      {
+        "rating": "TWR",
+        "statistic": [
+          {
+            "group": "AERODROME LAYOUT; PHYSICAL CHARACTERISTICS AND VISUAL AIDS",
+            "isTrue": 13,
+            "isFalse": 19,
+            "total": 32,
+            "percentageTrue": 40.625
+          },
+          {
+            "group": "AIRSPACE STRUCTURE",
+            "isTrue": 9,
+            "isFalse": 31,
+            "total": 40,
+            "percentageTrue": 22.5
+          },
+          {
+            "group": "AIR NAVIGATION FACILITIES",
+            "isTrue": 12,
+            "isFalse": 20,
+            "total": 32,
+            "percentageTrue": 37.5
+          },
+          {
+            "group": "AIR TRAFFIC CONTROL EQUIPMENT AND ITS USE",
+            "isTrue": 13,
+            "isFalse": 27,
+            "total": 40,
+            "percentageTrue": 32.5
+          },
+          {
+            "group": "APPLICABLE RULES, PROCEDURES AND SOURCE OF INFORMATION",
+            "isTrue": 7,
+            "isFalse": 33,
+            "total": 40,
+            "percentageTrue": 17.5
+          },
+          {
+            "group": "CHARACTERISTICS OF AIR TRAFFIC",
+            "isTrue": 7,
+            "isFalse": 41,
+            "total": 48,
+            "percentageTrue": 14.583333333333334
+          },
+          {
+            "group": "EMERGENCY AND SEARCH AND RESCUE PLANS",
+            "isTrue": 12,
+            "isFalse": 34,
+            "total": 46,
+            "percentageTrue": 26.08695652173913
+          },
+          {
+            "group": "TERRAIN AND PROMINENT LANDMARKS",
+            "isTrue": 11,
+            "isFalse": 34,
+            "total": 45,
+            "percentageTrue": 24.444444444444443
+          },
+          {
+            "group": "WEATHER PHENOMENA",
+            "isTrue": 12,
+            "isFalse": 25,
+            "total": 37,
+            "percentageTrue": 32.432432432432435
+          }
+        ]
       }
-     },
-     {
-      "rating": {
-       "id": 7,
-       "rating": "ACS"
-      }
-     }
     ]
-   }
-  ]
- }
+  }
 }

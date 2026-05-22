@@ -1,0 +1,2937 @@
+[
+  {
+    "id": 7,
+    "question": "<p>What is the primary purpose of the Minimum Sector Altitude (MSA) in the Bali TMA?</p>",
+    "a": "To define the maximum holding speed.",
+    "b": "To provide at least 1,000ft of obstacle clearance within a 25nm radius.",
+    "c": "To dictate the transition level for all arriving aircraft.",
+    "d": "To restrict VFR aircraft from entering the CTR.",
+    "multipleChoiceCorections": [
+      {
+        "id": 1,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 46,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 91,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 136,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 181,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 226,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 271,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 361,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 406,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 451,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 496,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "question": "<p>Which mountain peak poses the most significant terrain clearance challenge for the northern sector of the Bali TMA?</p>",
+    "a": "Mount Batur",
+    "b": "Mount Agung",
+    "c": "Mount Abang",
+    "d": "Mount Batukaru",
+    "multipleChoiceCorections": [
+      {
+        "id": 38,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 79,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 124,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 169,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 221,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 252,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 297,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 387,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 407,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 452,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 497,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "question": "<p>The transition altitude at I Gusti Ngurah Rai International Airport <strong>(WADD) </strong>is set at:</p>",
+    "a": "11,000 ft",
+    "b": "13,000 ft",
+    "c": "10,000 ft",
+    "d": "8,000 ft",
+    "multipleChoiceCorections": [
+      {
+        "id": 2,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 47,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 92,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 137,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 182,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 227,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 272,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 362,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 408,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 453,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 498,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "question": "<p>When an aircraft is being vectored, the controller must ensure terrain clearance until:</p>",
+    "a": "The aircraft reaches the destination.",
+    "b": "The aircraft is established on a pilot-interpreted signal (like ILS) or a cleared approach.",
+    "c": "The pilot reports \"field in sight.\"",
+    "d": "The aircraft is within 5nm of the runway.",
+    "multipleChoiceCorections": [
+      {
+        "id": 3,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 48,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 93,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 138,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 183,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 228,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 273,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 363,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 409,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 454,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 499,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "question": "<p>Which document contains the detailed VFR reporting points for the Bali Control Zone?</p>",
+    "a": "AIP Indonesia",
+    "b": "International Notams",
+    "c": "ICAO Doc 4444",
+    "d": "Airline Operations Manual",
+    "multipleChoiceCorections": [
+      {
+        "id": 4,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 49,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 94,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 139,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 184,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 229,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 274,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 364,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 410,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 455,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 500,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "question": "<p>The Bali TMA lateral boundaries are primarily designed to:</p>",
+    "a": "Include all islands in the Nusa Tenggara chain.",
+    "b": "Protect IFR arrival/departure paths and facilitate handovers with Makassar ACC.",
+    "c": "Mandate that all aircraft fly below 5,000 ft.",
+    "d": "Separate military aircraft from civil aircraft.",
+    "multipleChoiceCorections": [
+      {
+        "id": 5,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 50,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 95,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 140,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 185,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 230,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 275,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 365,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 411,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 456,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 501,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "question": "<p>Which adjacent unit coordinates directly with Bali Approach for high-level traffic?</p>",
+    "a": "Jakarta ACC",
+    "b": "Ujung Pandang (Makassar) ACC",
+    "c": "Darwin Center",
+    "d": "Singapore Approach",
+    "multipleChoiceCorections": [
+      {
+        "id": 6,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 51,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 96,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 141,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 186,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 231,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 276,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 366,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 412,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 457,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 502,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "question": "<p>If an aircraft is flying via a Standard Terminal Arrival Route (STAR), the controller should:</p>",
+    "a": "Always vector them off the STAR immediately.",
+    "b": "Maintain the aircraft on the profile unless tactical intervention is required.",
+    "c": "Let the pilot choose their own waypoints.",
+    "d": "Cancel the STAR once the aircraft descends below 15,000 ft.",
+    "multipleChoiceCorections": [
+      {
+        "id": 7,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 52,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 97,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 142,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 187,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 232,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 277,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 367,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 413,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 458,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 503,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "question": "<p>Why are \"Prohibited\" or \"Restricted\" areas strictly monitored in the Bali TMA?</p>",
+    "a": "To save fuel for the airlines.",
+    "b": "To protect ground installations, VIP areas, or sensitive airspace.",
+    "c": "To make the radar screen look organized.",
+    "d": "To limit the speed of incoming jets.",
+    "multipleChoiceCorections": [
+      {
+        "id": 8,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 53,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 98,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 143,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 188,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 233,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 278,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 368,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 414,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 459,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 504,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "question": "<p>In an emergency descent situation, the 25nm MSA circle is used as:</p>",
+    "a": "A recommendation for the best landing spot.",
+    "b": "A safety buffer to ensure the aircraft does not hit terrain while descending blindly.",
+    "c": "The maximum range for the aircraft's transponder.",
+    "d": "The location where all aircraft must dump fuel.",
+    "multipleChoiceCorections": [
+      {
+        "id": 9,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 54,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 99,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 144,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 189,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 234,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 279,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 369,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 420,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 465,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 510,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "question": "<p>What is the standard horizontal radar separation minima used within the Bali TMA?</p>",
+    "a": "3 NM",
+    "b": "5 NM",
+    "c": "10 NM",
+    "d": "2 NM",
+    "multipleChoiceCorections": [
+      {
+        "id": 10,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 55,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 100,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 145,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 190,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 235,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 280,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 370,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 421,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 466,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 511,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "question": "<p>When a \"Heavy\" aircraft (e.g., B777) precedes a \"Medium\" aircraft (e.g., A320), the wake turbulence separation on final is:</p>",
+    "a": "3 NM",
+    "b": "5 NM",
+    "c": "8 NM",
+    "d": "10 NM",
+    "multipleChoiceCorections": [
+      {
+        "id": 39,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 80,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 125,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 170,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 222,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 253,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 298,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 388,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 422,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 467,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 512,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "question": "<p>A \"Super\" wake turbulence category is specifically applied to which aircraft at WADD?</p>",
+    "a": "Boeing 747-8",
+    "b": "Airbus A380-800",
+    "c": "Antonov An-124",
+    "d": "Boeing 777-9",
+    "multipleChoiceCorections": [
+      {
+        "id": 11,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 56,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 101,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 146,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 191,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 236,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 281,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 371,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 423,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 468,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 513,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "question": "<p>When can \"Reduced Runway Separation\" be applied by a controller?</p>",
+    "a": "Only at night.",
+    "b": "When the runway is wet.",
+    "c": "When the preceding aircraft has passed the threshold or started its takeoff roll.",
+    "d": "Never in the Bali TMA.",
+    "multipleChoiceCorections": [
+      {
+        "id": 12,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 57,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 102,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 147,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 192,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 237,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 282,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 372,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 424,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 469,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 514,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "question": "<p>RVSM (Reduced Vertical Separation Minimum) applies between which flight levels?</p>",
+    "a": "FL100 and FL200",
+    "b": "FL290 and FL410 inclusive",
+    "c": "FL130 and FL250",
+    "d": "FL410 and FL600",
+    "multipleChoiceCorections": [
+      {
+        "id": 13,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 58,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 103,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 148,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 193,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 238,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 283,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 373,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 425,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 470,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 515,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 22,
+    "question": "<p>If two aircraft are departing on the same SID, what is the standard time separation if radar is not used?</p>",
+    "a": "1 minute",
+    "b": "2 minutes",
+    "c": "5 minutes",
+    "d": "10 minutes",
+    "multipleChoiceCorections": [
+      {
+        "id": 14,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 59,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 104,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 149,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 194,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 239,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 284,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 374,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 426,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 471,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 516,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "question": "<p>\"Essential Traffic Information\" is provided to pilots to:</p>",
+    "a": "Promote a specific airline.",
+    "b": "Inform them of other aircraft that may constitute a collision hazard.",
+    "c": "Tell them about the weather in Jakarta.",
+    "d": "Give them the gate number for arrival.",
+    "multipleChoiceCorections": [
+      {
+        "id": 15,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 60,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 105,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 150,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 195,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 240,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 285,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 375,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 427,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 472,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 517,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "question": "<p>What is the standard maximum speed for aircraft below 10,000ft in Class C/D airspace?</p><p></p>",
+    "a": "210 KIAS",
+    "b": "250 KIAS",
+    "c": "280 KIAS",
+    "d": "300 KIAS",
+    "multipleChoiceCorections": [
+      {
+        "id": 16,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 61,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 106,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 151,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 196,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 241,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 286,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 376,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 428,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 473,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 518,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 25,
+    "question": "<p>When vectoring, a controller's \"Minimum Vectoring Altitude\" (MVA) is:</p>",
+    "a": "Higher than the MSA.",
+    "b": "The lowest altitude a controller can assign while ensuring terrain clearance.",
+    "c": "Always 2,000 ft.",
+    "d": "Determined by the pilot.",
+    "multipleChoiceCorections": [
+      {
+        "id": 17,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 62,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 107,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 152,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 197,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 242,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 287,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 377,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 415,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 460,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 505,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 26,
+    "question": "<p>Vertical separation for IFR aircraft below FL290 is usually:</p>",
+    "a": "500 ft",
+    "b": "1,000 ft",
+    "c": "2,000 ft",
+    "d": "3,000 ft",
+    "multipleChoiceCorections": [
+      {
+        "id": 18,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 63,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 108,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 153,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 198,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 243,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 288,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 378,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 416,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 461,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 506,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 27,
+    "question": "<p>Coordination for an aircraft's descent from Cruise to TMA entry is done by:</p>",
+    "a": "Bali Tower.",
+    "b": "Makassar ACC and Bali Approach.",
+    "c": "The pilot and the airline dispatcher.",
+    "d": "The Ground controller.",
+    "multipleChoiceCorections": [
+      {
+        "id": 19,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 64,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 109,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 154,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 199,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 244,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 289,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 379,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 417,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 462,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 507,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "question": "<p>A \"Continuous Descent Operation\" (CDO) is a technique that minimizes:</p>",
+    "a": "Aircraft speed.",
+    "b": "Level flight segments, reducing noise and fuel burn.",
+    "c": "Radar visibility.",
+    "d": "Pilot workload but increases fuel burn.",
+    "multipleChoiceCorections": [
+      {
+        "id": 20,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 65,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 110,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 155,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 200,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 245,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 290,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 380,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 418,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 463,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 508,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 29,
+    "question": "<p>If the \"BALI\" holding pattern is at capacity, the Approach controller must:</p>",
+    "a": "Force planes to land on the grass.",
+    "b": "Coordinate with ACC for \"linear holding\" or speed control further out.",
+    "c": "Turn off the radio.",
+    "d": "Tell pilots to orbit over the volcano.",
+    "multipleChoiceCorections": [
+      {
+        "id": 21,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 66,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 111,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 156,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 201,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 246,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 291,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 381,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 419,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 464,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 509,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "question": "<p>An \"Expected Approach Time\" (EAT) must be issued to an aircraft if the delay is expected to exceed:</p>",
+    "a": "5 minutes",
+    "b": "10 minutes",
+    "c": "30 minutes",
+    "d": "60 minutes",
+    "multipleChoiceCorections": [
+      {
+        "id": 22,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 67,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 112,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 157,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 202,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 247,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 292,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 382,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 435,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 480,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 525,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "question": "<p>Granting a \"Direct To\" (Short-cut) request in the Bali TMA requires the controller to first check:</p>",
+    "a": "The aircraft's fuel price.",
+    "b": "The Minimum Vectoring Altitude (MVA) for that specific area.",
+    "c": "The passenger count.",
+    "d": "If the pilot is friendly.",
+    "multipleChoiceCorections": [
+      {
+        "id": 23,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 68,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 113,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 158,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 203,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 248,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 293,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 383,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 436,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 481,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 526,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "question": "<p>The \"Point Merge\" system (if used) helps controllers by:</p>",
+    "a": "Eliminating the need for a runway.",
+    "b": "Providing a structured way to sequence arrivals using arcs.",
+    "c": "Forcing all planes to fly at the same altitude.",
+    "d": "Making the pilots navigate using only stars.",
+    "multipleChoiceCorections": [
+      {
+        "id": 24,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 69,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 114,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 159,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 204,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 249,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 294,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 384,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 437,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 482,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 527,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "question": "<p>The primary objective of an Approach Controller is:</p>",
+    "a": "To sell duty-free items.",
+    "b": "To achieve a safe, orderly, and expeditious flow of air traffic.",
+    "c": "To guide aircraft to the parking gate.",
+    "d": "To manage the airport's lighting system.",
+    "multipleChoiceCorections": [
+      {
+        "id": 25,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 70,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 115,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 160,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 205,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 250,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 295,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 385,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 438,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 483,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 528,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "question": "<p>Following a \"Missed Approach,\" the controller's first priority is:</p>",
+    "a": "To ask why the pilot missed.",
+    "b": "To ensure the aircraft is climbing and separated from other traffic.",
+    "c": "To fill out an incident report.",
+    "d": "To cancel the flight plan.",
+    "multipleChoiceCorections": [
+      {
+        "id": 40,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 81,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 126,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 171,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 223,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 254,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 299,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 389,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 439,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 484,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 529,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 35,
+    "question": "<p>At what point does the Approach controller typically hand off an arriving aircraft to the Tower?</p>",
+    "a": "At the Top of Descent.",
+    "b": "When the aircraft is established on final and at a specified distance/fix.",
+    "c": "After the aircraft has landed.",
+    "d": "When the pilot sees the beach.",
+    "multipleChoiceCorections": [
+      {
+        "id": 41,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 82,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 127,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 172,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 224,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 255,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 300,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 390,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 440,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 485,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 530,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 36,
+    "question": "<p>Standard hand-off sequence for a departing aircraft at WADD is:</p>",
+    "a": "GND -> TWR -> APP -> ACC",
+    "b": "TWR -> GND -> ACC -> APP",
+    "c": "APP -> TWR -> GND -> ACC",
+    "d": "ACC -> APP -> TWR -> GND",
+    "multipleChoiceCorections": [
+      {
+        "id": 42,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 83,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 128,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 173,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 225,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 256,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 301,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 391,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 445,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 490,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 535,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 37,
+    "question": "<p>Which transponder code indicates a complete \"Loss of Communication\"?</p>",
+    "a": "7500",
+    "b": "7600",
+    "c": "7700",
+    "d": "2000",
+    "multipleChoiceCorections": [
+      {
+        "id": 43,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 84,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 129,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 174,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 257,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 302,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 392,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 446,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 491,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 536,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 38,
+    "question": "<p>Which transponder code is used for an \"Unlawful Interference\" (Hijack)?</p>",
+    "a": "7500",
+    "b": "7600",
+    "c": "7700",
+    "d": "7000",
+    "multipleChoiceCorections": [
+      {
+        "id": 44,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 85,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 130,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 175,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 206,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 258,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 303,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 393,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 447,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 492,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 537,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 39,
+    "question": "<p>If an aircraft declares a \"MAYDAY,\" the controller should:</p>",
+    "a": "Tell the pilot to wait.",
+    "b": "Give that aircraft priority over all other traffic.",
+    "c": "Ask them to switch to a different frequency immediately.",
+    "d": "Inform the airline that the flight is cancelled.",
+    "multipleChoiceCorections": [
+      {
+        "id": 45,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 86,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 131,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 176,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 207,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 259,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 304,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 394,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 448,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 493,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 538,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 40,
+    "question": "<p>A \"Safety Alert\" is issued by ATC when:</p>",
+    "a": "The weather is sunny.",
+    "b": "An aircraft is in unsafe proximity to terrain, obstacles, or other aircraft.",
+    "c": "The pilot's license is about to expire.",
+    "d": "A flight is arriving early.",
+    "multipleChoiceCorections": [
+      {
+        "id": 87,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 132,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 177,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 208,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 260,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 305,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 395,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 449,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 494,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 539,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 41,
+    "question": "<p>If volcanic ash from Mt. Agung is reported in the TMA, the controller should:</p>",
+    "a": "Direct all aircraft into the ash cloud to test it.",
+    "b": "Provide the latest reports and assist pilots in avoiding the affected areas.",
+    "c": "Ignore it unless a pilot complains.",
+    "d": "Close the tower and go home.",
+    "multipleChoiceCorections": [
+      {
+        "id": 26,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 88,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 133,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 178,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 209,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 261,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 306,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 396,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 450,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 495,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 540,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 42,
+    "question": "<p>A \"MAYDAY FUEL\" declaration requires the controller to:</p>",
+    "a": "Tell the aircraft to hold for 20 minutes.",
+    "b": "Provide immediate priority to the nearest suitable airport.",
+    "c": "Check if the pilot has a credit card for fuel.",
+    "d": "Ask the aircraft to fly at a higher altitude.",
+    "multipleChoiceCorections": [
+      {
+        "id": 27,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 89,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 134,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 179,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 210,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 262,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 307,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 397,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 429,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 474,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 519,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 43,
+    "question": "<p>In the event of a \"Bird Strike\" on departure, the controller should:</p>",
+    "a": "Ask the pilot to bring the bird to the office.",
+    "b": "Coordinate an immediate return or standby for emergency instructions.",
+    "c": "Clear a second aircraft to take off immediately.",
+    "d": "Do nothing unless the engine stops.",
+    "multipleChoiceCorections": [
+      {
+        "id": 28,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 90,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 135,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 180,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 211,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 263,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 308,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 398,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 430,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 475,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 520,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 44,
+    "question": "<p>An \"Emergency Descent\" by a jet aircraft usually involves:</p>",
+    "a": "A slow, gradual climb.",
+    "b": "A rapid descent to 10,000 ft or the lowest safe altitude.",
+    "c": "Turning off the transponder.",
+    "d": "Flying to a different country.",
+    "multipleChoiceCorections": [
+      {
+        "id": 29,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 212,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 264,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 309,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 399,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 431,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 476,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 521,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 45,
+    "question": "<p>If an aircraft \"strays\" into a Prohibited Area, the controller must:</p>",
+    "a": "Warn the aircraft and give instructions to clear the area immediately.",
+    "b": "Delete the aircraft from the radar.",
+    "c": "Call the pilot's family.",
+    "d": "Wait for the military to take over.",
+    "multipleChoiceCorections": [
+      {
+        "id": 30,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 71,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 116,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 161,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 213,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 265,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 310,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 400,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 432,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 477,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 522,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 46,
+    "question": "<p>If the main radar system fails, the controller must transition to:</p>",
+    "a": "Procedural (non-radar) separation.",
+    "b": "Visual separation by looking out the window.",
+    "c": "Asking pilots to use their cell phones.",
+    "d": "Closing the entire FIR.",
+    "multipleChoiceCorections": [
+      {
+        "id": 31,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 72,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 117,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 162,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 214,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 266,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 311,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 401,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 433,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 478,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 523,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  },
+  {
+    "id": 47,
+    "question": "<p>During the Northwest Monsoon, the prevailing wind at WADD usually favors:</p>",
+    "a": "Runway 09",
+    "b": "Runway 27",
+    "c": "Runway 13",
+    "d": "Runway 31",
+    "multipleChoiceCorections": [
+      {
+        "id": 32,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 73,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 118,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 163,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 215,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 267,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 312,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 402,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 434,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 479,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 524,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 48,
+    "question": "<p>Why must the \"ILS Critical Area\" be clear when an aircraft is on auto-land?</p>",
+    "a": "To keep the runway clean.",
+    "b": "To prevent interference with the localizer and glide slope signals.",
+    "c": "To allow ground vehicles to race.",
+    "d": "To save electricity.",
+    "multipleChoiceCorections": [
+      {
+        "id": 33,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 74,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 119,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 164,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 216,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 268,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 313,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 403,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 443,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 487,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 534,
+        "isTrue": false,
+        "answer": "D"
+      }
+    ]
+  },
+  {
+    "id": 49,
+    "question": "<p>Primary Surveillance Radar (PSR) differs from Secondary (SSR) because:</p>",
+    "a": "PSR requires a transponder.",
+    "b": "PSR detects the \"skin\" reflection of the aircraft without needing a transponder.",
+    "c": "SSR is only for weather.",
+    "d": "PSR is much newer than SSR.",
+    "multipleChoiceCorections": [
+      {
+        "id": 34,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 75,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 120,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 165,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 217,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 269,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 314,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 404,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 444,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 488,
+        "isTrue": false,
+        "answer": "C"
+      }
+    ]
+  },
+  {
+    "id": 50,
+    "question": "<p>To \"Identify\" an aircraft using the \"Squawk Ident\" method, the controller looks for:</p>",
+    "a": "The aircraft to turn 90 degrees.",
+    "b": "The data block or target to flash or change appearance on the radar.",
+    "c": "The pilot to wave their wings.",
+    "d": "The altitude to change.",
+    "multipleChoiceCorections": [
+      {
+        "id": 35,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 76,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 121,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 166,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 218,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 270,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 315,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 405,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 441,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 532,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 51,
+    "question": "<p>What information is <em>not</em> typically found on the ATIS (Automatic Terminal Information Service)?</p>",
+    "a": "Current weather (METAR).",
+    "b": "Runway in use.",
+    "c": "Captain's name and age.",
+    "d": "Transition level.",
+    "multipleChoiceCorections": [
+      {
+        "id": 36,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 77,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 122,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 167,
+        "isTrue": false,
+        "answer": "A"
+      },
+      {
+        "id": 219,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 489,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 531,
+        "isTrue": true,
+        "answer": "B"
+      }
+    ]
+  },
+  {
+    "id": 52,
+    "question": "<p>APA ARtimya Multiple CHoice Question</p>",
+    "a": "A",
+    "b": "B",
+    "c": "C",
+    "d": "D",
+    "multipleChoiceCorections": [
+      {
+        "id": 37,
+        "isTrue": true,
+        "answer": "A"
+      },
+      {
+        "id": 78,
+        "isTrue": true,
+        "answer": "A"
+      },
+      {
+        "id": 123,
+        "isTrue": true,
+        "answer": "A"
+      },
+      {
+        "id": 168,
+        "isTrue": true,
+        "answer": "A"
+      },
+      {
+        "id": 220,
+        "isTrue": false,
+        "answer": "C"
+      },
+      {
+        "id": 251,
+        "isTrue": true,
+        "answer": "A"
+      },
+      {
+        "id": 296,
+        "isTrue": true,
+        "answer": "A"
+      },
+      {
+        "id": 386,
+        "isTrue": true,
+        "answer": "A"
+      },
+      {
+        "id": 442,
+        "isTrue": true,
+        "answer": "B"
+      },
+      {
+        "id": 486,
+        "isTrue": false,
+        "answer": "D"
+      },
+      {
+        "id": 533,
+        "isTrue": false,
+        "answer": "A"
+      }
+    ]
+  }
+]
