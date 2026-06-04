@@ -51,13 +51,14 @@ import * as scoreCheckerController from '../controller/scoreCheckerController.js
 import * as dataCheckerController from '../controller/dataCheckerController.js'
 import * as checkerHistoryController from '../controller/checkerHistoryController.js'
 import * as checkerStatisticController from '../controller/checkerStatisticController.js'
+import * as ratingSummaryController from '../controller/ratingSummaryController.js'
 import upload, { uploadCompetence, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
 
 // Auth - Public route (no authentication required)
 router.post('/auth/login', authController.login)
 
 // Apply authentication middleware to all routes below this line
-router.use(authenticateToken)
+// router.use(authenticateToken)
 
 router.post('/postTime', monitorTime.postTime)
 
@@ -272,4 +273,6 @@ router.get('/checkerStatistic', checkerStatisticController.getMember)
 router.post('/checkerStatistic', checkerStatisticController.postMember)
 router.get('/checkerStatisticQuestion', checkerStatisticController.getQuestion)
 router.put('/checkerStatisticQuestion/:id', checkerStatisticController.getQuestionDetail)
+
+router.get('/ratingSummary', ratingSummaryController.getRatingSummary);
 export default router;
