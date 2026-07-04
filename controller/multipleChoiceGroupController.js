@@ -62,6 +62,7 @@ const getMultipleChoiceGroups = async (req, res) => {
       where: {
         branchUnitId: branchUnitId,
         deletedAt: null,
+        isActive: true,
       }
     })
 
@@ -146,7 +147,11 @@ const getMultipleChoiceGroups = async (req, res) => {
         sectorId: {
           in: idSector
         },
-        deletedAt: null
+        deletedAt: null,
+        multipleChoice: {
+          deletedAt: null,
+          isActive: true,
+        },
       },
       select: {
         id:true,
@@ -196,6 +201,22 @@ const addMultipleChoiceGroups = async (req, res) => {
   try {
     const now = new Date();
     const { multipleChoiceId, questionGroupId, sectorId } = req.body;
+    const multipleChoice = await prisma.multipleChoice.findFirst({
+      where: {
+        id: multipleChoiceId,
+        branchUnitId: req.user.branchUnitId,
+        deletedAt: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!multipleChoice) {
+      return res.status(400).json({ message: "Only active multiple choice questions can be assigned to groups." });
+    }
+
     const checkMultipleChoice = await prisma.mcQuestionGroup.findMany({
       where: {
         multipleChoiceId: multipleChoiceId,

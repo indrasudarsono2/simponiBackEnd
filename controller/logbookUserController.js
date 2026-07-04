@@ -7,12 +7,13 @@ import path from "path";
 
 const getLogbookUser = async (req, res) => {
   try {
+    const whereClause = {
+      deletedAt: null,
+      userNik: req.user.nik,
+    };
+
     const logbook = await prisma.logBookUser.findMany({
-      where: {
-        deletedAt: null,
-        userNik: req.user.nik
-        // userNik: "10011520"
-      },
+      where: whereClause,
       orderBy: {
         createdAt: 'desc'
       }

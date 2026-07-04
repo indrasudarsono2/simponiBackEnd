@@ -13,6 +13,10 @@ const getRandomEssayByGroup = async ({ sectorId, questionGroupId, quantity }) =>
     deletedAt: null,
     sectorId,
     questionGroupId,
+    essay: {
+      deletedAt: null,
+      isActive: true,
+    },
   };
 
   const total = await prisma.essayQuestionGroup.count({
@@ -93,6 +97,10 @@ const getRandomMultipleChoiceByGroup = async ({ sectorId, questionGroupId, quant
     deletedAt: null,
     sectorId,
     questionGroupId,
+    multipleChoice: {
+      deletedAt: null,
+      isActive: true,
+    },
   };
 
   const total = await prisma.mcQuestionGroup.count({
@@ -462,14 +470,14 @@ const getEssayQuestion = async (req, res) => {
     const eventDuration = event.eventQuestions.find(d => d.kindOfQuestionId === 1)?.minutes || 0
     const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes : {time: 0};
     const timeLeft = eventDuration-monitor.time
-    const randomNumbers = [];
-    // const randomNumbers = [1,2,3];
+    // const randomNumbers = [];
+    const randomNumbers = [1,2,3];
     
-    for (let i = 0; i < 3; i++) {
-      // Math.random() * (max - min + 1) + min
-      const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
-      randomNumbers.push(pick);
-    }
+    // for (let i = 0; i < 3; i++) {
+    //   // Math.random() * (max - min + 1) + min
+    //   const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
+    //   randomNumbers.push(pick);
+    // }
 
     randomNumbers.sort((a, b) => a - b);
 
@@ -673,14 +681,14 @@ const getMultipleChoiceQuestion = async (req, res) => {
     const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] : {time: 0};
     const timeLeft = eventDuration-monitor.time
    
-    const randomNumbers = [];
-    // const randomNumbers = [1,2,3];
+    // const randomNumbers = [];
+    const randomNumbers = [1,2,3];
 
-    for (let i = 0; i < 3; i++) {
-      // Math.random() * (max - min + 1) + min
-      const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
-      randomNumbers.push(pick);
-    }
+    // for (let i = 0; i < 3; i++) {
+    //   // Math.random() * (max - min + 1) + min
+    //   const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
+    //   randomNumbers.push(pick);
+    // }
 
     randomNumbers.sort((a, b) => a - b);
 

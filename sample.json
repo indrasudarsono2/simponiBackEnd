@@ -1,0 +1,352 @@
+{
+  "selectedDutyReport": {
+    "id": 21,
+    "supervisorId": 4,
+    "shiftNameId": 1,
+    "onGoingIssueId": null,
+    "supervisor": "10077771",
+    "others": null,
+    "shiftDate": "2026-06-25",
+    "createdAt": "2026-06-24T23:10:51.487Z",
+    "updatedAt": "2026-06-24T23:10:51.487Z",
+    "deletedAt": null,
+    "supervisorCwp": {
+      "id": 4,
+      "branchUnitId": 17,
+      "supervisor": "APP",
+      "createdAt": "2026-06-24T10:39:00.888Z",
+      "updatedAt": "2026-06-24T10:39:00.888Z",
+      "deletedAt": null,
+      "cwpSupervisors": [
+        {
+          "id": 11,
+          "cwpId": 3,
+          "supervisorId": 4,
+          "createdAt": "2026-06-24T10:39:00.888Z",
+          "updatedAt": "2026-06-24T10:39:00.888Z",
+          "deletedAt": null,
+          "cwp": {
+            "id": 3,
+            "ratingId": 5,
+            "cwp": "TERMINAL EAST",
+            "createdAt": "2026-06-20T14:39:46.966Z",
+            "updatedAt": "2026-06-20T14:39:46.966Z",
+            "deletedAt": null,
+            "rating": {
+              "id": 5,
+              "professionId": 1,
+              "rating": "APS",
+              "description": "Approach Control Surveillance",
+              "createdAt": "2026-03-01T09:37:54.345Z",
+              "updatedAt": "2026-03-01T09:37:54.345Z",
+              "deletedAt": null
+            },
+            "cwpFrequencies": [
+              {
+                "id": 5,
+                "cwpId": 3,
+                "frequency": "121.0",
+                "isPrimary": true,
+                "createdAt": "2026-06-24T02:47:37.678Z",
+                "updatedAt": "2026-06-24T02:47:37.678Z",
+                "deletedAt": null
+              },
+              {
+                "id": 6,
+                "cwpId": 3,
+                "frequency": "122.2",
+                "isPrimary": false,
+                "createdAt": "2026-06-24T02:47:37.678Z",
+                "updatedAt": "2026-06-24T02:47:37.678Z",
+                "deletedAt": null
+              }
+            ]
+          }
+        },
+        {
+          "id": 12,
+          "cwpId": 4,
+          "supervisorId": 4,
+          "createdAt": "2026-06-24T10:39:00.888Z",
+          "updatedAt": "2026-06-24T10:39:00.888Z",
+          "deletedAt": null,
+          "cwp": {
+            "id": 4,
+            "ratingId": 4,
+            "cwp": "TERMINAL EAST ASSISTANCE",
+            "createdAt": "2026-06-20T14:40:04.696Z",
+            "updatedAt": "2026-06-20T14:49:06.504Z",
+            "deletedAt": null,
+            "rating": {
+              "id": 4,
+              "professionId": 1,
+              "rating": "APP",
+              "description": "Approach Control Procedural",
+              "createdAt": "2026-03-01T09:37:42.298Z",
+              "updatedAt": "2026-03-01T09:37:42.298Z",
+              "deletedAt": null
+            },
+            "cwpFrequencies": [
+              {
+                "id": 7,
+                "cwpId": 4,
+                "frequency": "125.1",
+                "isPrimary": true,
+                "createdAt": "2026-06-24T02:47:56.332Z",
+                "updatedAt": "2026-06-24T02:47:56.332Z",
+                "deletedAt": null
+              },
+              {
+                "id": 8,
+                "cwpId": 4,
+                "frequency": "126.1",
+                "isPrimary": false,
+                "createdAt": "2026-06-24T02:47:56.332Z",
+                "updatedAt": "2026-06-24T02:47:56.332Z",
+                "deletedAt": null
+              }
+            ]
+          }
+        },
+        {
+          "id": 13,
+          "cwpId": 1,
+          "supervisorId": 4,
+          "createdAt": "2026-06-24T10:39:00.888Z",
+          "updatedAt": "2026-06-24T10:39:00.888Z",
+          "deletedAt": null,
+          "cwp": {
+            "id": 1,
+            "ratingId": 5,
+            "cwp": "TERMINAL WEST",
+            "createdAt": "2026-06-20T14:39:11.410Z",
+            "updatedAt": "2026-06-20T14:40:24.676Z",
+            "deletedAt": null,
+            "rating": {
+              "id": 5,
+              "professionId": 1,
+              "rating": "APS",
+              "description": "Approach Control Surveillance",
+              "createdAt": "2026-03-01T09:37:54.345Z",
+              "updatedAt": "2026-03-01T09:37:54.345Z",
+              "deletedAt": null
+            },
+            "cwpFrequencies": [
+              {
+                "id": 9,
+                "cwpId": 1,
+                "frequency": "127.1",
+                "isPrimary": true,
+                "createdAt": "2026-06-24T02:48:12.715Z",
+                "updatedAt": "2026-06-24T02:48:12.715Z",
+                "deletedAt": null
+              },
+              {
+                "id": 10,
+                "cwpId": 1,
+                "frequency": "127.9",
+                "isPrimary": false,
+                "createdAt": "2026-06-24T02:48:12.715Z",
+                "updatedAt": "2026-06-24T02:48:12.715Z",
+                "deletedAt": null
+              }
+            ]
+          }
+        },
+        {
+          "id": 14,
+          "cwpId": 2,
+          "supervisorId": 4,
+          "createdAt": "2026-06-24T10:39:00.888Z",
+          "updatedAt": "2026-06-24T10:39:00.888Z",
+          "deletedAt": null,
+          "cwp": {
+            "id": 2,
+            "ratingId": 4,
+            "cwp": "TERMINAL WEST ASSISTANCE",
+            "createdAt": "2026-06-20T14:39:29.969Z",
+            "updatedAt": "2026-06-20T14:49:13.081Z",
+            "deletedAt": null,
+            "rating": {
+              "id": 4,
+              "professionId": 1,
+              "rating": "APP",
+              "description": "Approach Control Procedural",
+              "createdAt": "2026-03-01T09:37:42.298Z",
+              "updatedAt": "2026-03-01T09:37:42.298Z",
+              "deletedAt": null
+            },
+            "cwpFrequencies": [
+              {
+                "id": 12,
+                "cwpId": 2,
+                "frequency": "129.9",
+                "isPrimary": true,
+                "createdAt": "2026-06-24T02:48:44.636Z",
+                "updatedAt": "2026-06-24T02:48:44.636Z",
+                "deletedAt": null
+              },
+              {
+                "id": 13,
+                "cwpId": 2,
+                "frequency": "130.1",
+                "isPrimary": false,
+                "createdAt": "2026-06-24T02:48:44.636Z",
+                "updatedAt": "2026-06-24T02:48:44.636Z",
+                "deletedAt": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "shiftName": {
+      "id": 1,
+      "branchUnitId": 17,
+      "shift": "A",
+      "createdAt": "2026-06-23T15:00:03.596Z",
+      "updatedAt": "2026-06-23T15:00:59.388Z",
+      "deletedAt": null,
+      "shifts": [
+        {
+          "id": 4,
+          "shiftNameId": 1,
+          "start": "23:00",
+          "duration": 120,
+          "end": "01:00",
+          "isControl": true,
+          "createdAt": "2026-06-23T15:00:59.388Z",
+          "updatedAt": "2026-06-23T15:00:59.388Z",
+          "deletedAt": null
+        },
+        {
+          "id": 3,
+          "shiftNameId": 1,
+          "start": "01:00",
+          "duration": 120,
+          "end": "03:00",
+          "isControl": false,
+          "createdAt": "2026-06-23T15:00:59.388Z",
+          "updatedAt": "2026-06-23T15:00:59.388Z",
+          "deletedAt": null
+        },
+        {
+          "id": 5,
+          "shiftNameId": 1,
+          "start": "03:00",
+          "duration": 120,
+          "end": "05:00",
+          "isControl": true,
+          "createdAt": "2026-06-23T15:00:59.388Z",
+          "updatedAt": "2026-06-23T15:00:59.388Z",
+          "deletedAt": null
+        }
+      ]
+    },
+    "onGoingIssue": null,
+    "spv": {
+      "name": "CITTA",
+      "nik": "10077771"
+    }
+  },
+  "frequencyApiUrl": "http://localhost:3001/api/dutyReports/21/frequencies",
+  "rawFrequencyResponse": null,
+  "renderedRows": [
+    {
+      "cwpId": 3,
+      "cwp": "TERMINAL EAST",
+      "rating": "APS",
+      "cwpFrequencyId": 5,
+      "frequency": "121.0",
+      "isPrimary": true,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    },
+    {
+      "cwpId": 3,
+      "cwp": "TERMINAL EAST",
+      "rating": "APS",
+      "cwpFrequencyId": 6,
+      "frequency": "122.2",
+      "isPrimary": false,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    },
+    {
+      "cwpId": 4,
+      "cwp": "TERMINAL EAST ASSISTANCE",
+      "rating": "APP",
+      "cwpFrequencyId": 7,
+      "frequency": "125.1",
+      "isPrimary": true,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    },
+    {
+      "cwpId": 4,
+      "cwp": "TERMINAL EAST ASSISTANCE",
+      "rating": "APP",
+      "cwpFrequencyId": 8,
+      "frequency": "126.1",
+      "isPrimary": false,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    },
+    {
+      "cwpId": 1,
+      "cwp": "TERMINAL WEST",
+      "rating": "APS",
+      "cwpFrequencyId": 9,
+      "frequency": "127.1",
+      "isPrimary": true,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    },
+    {
+      "cwpId": 1,
+      "cwp": "TERMINAL WEST",
+      "rating": "APS",
+      "cwpFrequencyId": 10,
+      "frequency": "127.9",
+      "isPrimary": false,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    },
+    {
+      "cwpId": 2,
+      "cwp": "TERMINAL WEST ASSISTANCE",
+      "rating": "APP",
+      "cwpFrequencyId": 12,
+      "frequency": "129.9",
+      "isPrimary": true,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    },
+    {
+      "cwpId": 2,
+      "cwp": "TERMINAL WEST ASSISTANCE",
+      "rating": "APP",
+      "cwpFrequencyId": 13,
+      "frequency": "130.1",
+      "isPrimary": false,
+      "statusFrequencyId": null,
+      "statusFreqId": null,
+      "status": null,
+      "remark": ""
+    }
+  ]
+}

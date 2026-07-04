@@ -5,7 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../generated/prisma"
 }
 
@@ -35,6 +35,11 @@ model Branch {
   branchUnits          BranchUnit[]
   professionInBranches ProfessionInBranch[]
   users                User[]
+  onGoingIssues        OnGoingIssue[]
+  briefings            Briefing[]
+  escalationActors     EscalationActor[]
+  escalations          Escalation[]
+  escalationLevels     EscalationLevel[]
 }
 
 model BranchUnit {
@@ -51,7 +56,9 @@ model BranchUnit {
   multipleChoices MultipleChoice[]
   essays          Essay[]
   users           User[]
+  shiftNames      ShiftName[]
   tokens          token?
+  supervisors     Supervisor[]
 }
 
 model QuestionGroup {
@@ -96,20 +103,26 @@ model MandatoryItems {
 }
 
 model MultipleChoice {
-  id           Int       @id @default(autoincrement())
-  branchUnitId Int?      @db.Int
-  question     String?   @db.Text
-  image        String?   @db.Text
-  a            String?   @db.Text
-  b            String?   @db.Text
-  c            String?   @db.Text
-  d            String?   @db.Text
-  key          String?   @db.VarChar(10)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id                     Int       @id @default(autoincrement())
+  branchUnitId           Int?      @db.Int
+  parentMultipleChoiceId Int?      @db.Int
+  versionGroupId         Int?      @db.Int
+  version                Int       @default(1) @db.Int
+  isActive               Boolean   @default(true)
+  question               String?   @db.Text
+  image                  String?   @db.Text
+  a                      String?   @db.Text
+  b                      String?   @db.Text
+  c                      String?   @db.Text
+  d                      String?   @db.Text
+  key                    String?   @db.VarChar(10)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
 
   branchUnit               BranchUnit?                @relation(fields: [branchUnitId], references: [id])
+  parentMultipleChoice     MultipleChoice?            @relation("MultipleChoiceVersions", fields: [parentMultipleChoiceId], references: [id])
+  childMultipleChoices     MultipleChoice[]           @relation("MultipleChoiceVersions")
   multipleChoiceCorections MultipleChoiceCorrection[]
   mcQuestionGroups         McQuestionGroup[]
 }
@@ -147,17 +160,23 @@ model MultipleChoiceCorrection {
 }
 
 model Essay {
-  id           Int       @id @default(autoincrement())
-  branchUnitId Int?      @db.Int
-  question     String?   @db.Text
-  image        String?   @db.Text
-  answer       String?   @db.Text
-  value        Int?      @db.Int
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id             Int       @id @default(autoincrement())
+  branchUnitId   Int?      @db.Int
+  parentEssayId  Int?      @db.Int
+  versionGroupId Int?      @db.Int
+  version        Int       @default(1) @db.Int
+  isActive       Boolean   @default(true)
+  question       String?   @db.Text
+  image          String?   @db.Text
+  answer         String?   @db.Text
+  value          Int?      @db.Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
   branchUnit          BranchUnit?          @relation(fields: [branchUnitId], references: [id])
+  parentEssay         Essay?               @relation("EssayVersions", fields: [parentEssayId], references: [id])
+  childEssays         Essay[]              @relation("EssayVersions")
   essayCorrections    EssayCorrection[]
   essayQuestionGroups EssayQuestionGroup[]
 }
@@ -212,6 +231,7 @@ model Rating {
   competences          Competence[]
   checkerRatings       CheckerRating[]
   mandatoryRatings     MandatoryRating[]
+  cwp                  Cwp[]
 }
 
 model PracticalTest {
@@ -270,6 +290,7 @@ model Sector {
   eventQuestions       EventQuestion[]
   essayQuestionGroups  EssayQuestionGroup[]
   mcQuestionGroups     McQuestionGroup[]
+  sectorCwps           SectorCwp[]
 }
 
 model Session {
@@ -560,26 +581,35 @@ model User {
   updatedAt            DateTime  @updatedAt
   deletedAt            DateTime?
 
-  professionInBranch ProfessionInBranch? @relation(fields: [professionInBranchId], references: [id])
-  sector             Sector?             @relation(fields: [sectorId], references: [id])
-  gender             Gender?             @relation(fields: [genderId], references: [id])
-  branch             Branch?             @relation(fields: [branchId], references: [id])
-  branchUnit         BranchUnit?         @relation(fields: [branchUnitId], references: [id])
-  userRoles          UserRoles[]
-  eventUsers         EventUser[]
-  applicationDocs    ApplicationDoc[]    @relation("UserApplications")
-  ojtApplications    ApplicationDoc[]    @relation("OjtApplication")
-  medex              Medex[]
-  ielp               Ielp[]
-  license            License[]
-  logbookUsers       LogBookUser[]
-  groups             Group[]             @relation("PicGroup")
-  checkerGroups      CheckerGroup[]      @relation("CheckerGroup")
-  groupMembers       GroupMember[]       @relation("GroupMember")
-  checkerRooms       Room[]              @relation("Room")
-  checkerUsers       EssayCorrection[]   @relation("checkerEssay")
-  userRatings        userRating[]
-  competences        Competence[]
+  professionInBranch    ProfessionInBranch? @relation(fields: [professionInBranchId], references: [id])
+  sector                Sector?             @relation(fields: [sectorId], references: [id])
+  gender                Gender?             @relation(fields: [genderId], references: [id])
+  branch                Branch?             @relation(fields: [branchId], references: [id])
+  branchUnit            BranchUnit?         @relation(fields: [branchUnitId], references: [id])
+  userRoles             UserRoles[]
+  eventUsers            EventUser[]
+  applicationDocs       ApplicationDoc[]    @relation("UserApplications")
+  ojtApplications       ApplicationDoc[]    @relation("OjtApplication")
+  medex                 Medex[]
+  ielp                  Ielp[]
+  license               License[]
+  logbookUsers          LogBookUser[]
+  groups                Group[]             @relation("PicGroup")
+  checkerGroups         CheckerGroup[]      @relation("CheckerGroup")
+  groupMembers          GroupMember[]       @relation("GroupMember")
+  checkerRooms          Room[]              @relation("Room")
+  checkerUsers          EssayCorrection[]   @relation("checkerEssay")
+  dutyReports           DutyReport[]        @relation("supervisorDuty")
+  userRatings           userRating[]
+  competences           Competence[]
+  onGoingIssues         OnGoingIssue[]      @relation("reporterOnGoingIssue")
+  briefings             Briefing[]          @relation("SpeakerBriefing")
+  briefingReads         BriefingRead[]      @relation("ReaderBriefing")
+  medicalChecksDoctor   MedicalCheck[]      @relation("DoctorMedicalCheck")
+  medicalChecksEmployee MedicalCheck[]      @relation("EmployeeMedicalCheck")
+  escalationActors      EscalationActor[]
+  logBooks              LogBook[]
+  supervisorLogBooks    LogBook[]           @relation("SupervisorLogBook")
 }
 
 model UserRoles {
@@ -661,9 +691,10 @@ model ProfessionInBranch {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  branch     Branch?     @relation(fields: [branchId], references: [id])
-  profession Profession? @relation(fields: [professionId], references: [id])
-  users      User[]
+  branch               Branch?               @relation(fields: [branchId], references: [id])
+  profession           Profession?           @relation(fields: [professionId], references: [id])
+  users                User[]
+  briefingDestinations BriefingDestination[]
 }
 
 model Gender {
@@ -825,4 +856,432 @@ model Preview {
   appRating   AppRating?   @relation(fields: [appRatingId], references: [id])
   groupMember GroupMember? @relation(fields: [groupMemberId], references: [id])
   event       Event?       @relation(fields: [eventId], references: [id])
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+model DutyReport {
+  id             Int       @id @default(autoincrement())
+  supervisorId   Int?      @db.Int()
+  shiftNameId    Int?      @db.Int()
+  onGoingIssueId Int?      @db.Int()
+  supervisor     String?   @db.VarChar(150)
+  shiftDate      DateTime? @db.Date()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  supervisorCwp Supervisor?   @relation(fields: [supervisorId], references: [id])
+  shiftName     ShiftName?    @relation(fields: [shiftNameId], references: [id])
+  onGoingIssue  OnGoingIssue? @relation(fields: [onGoingIssueId], references: [id])
+  spv           User?         @relation("supervisorDuty", fields: [supervisor], references: [nik])
+
+  statusFrequencies StatusFrequency[]
+  lhdReports        LhdReport[]
+  logBooks          LogBook[]
+  onGoingIssueLinks DutyReportOnGoingIssue[]
+}
+
+model DutyReportOnGoingIssue {
+  id             Int       @id @default(autoincrement())
+  dutyReportId   Int       @db.Int()
+  onGoingIssueId Int       @db.Int()
+  attachedAt     DateTime  @default(now())
+  deletedAt      DateTime?
+
+  dutyReport   DutyReport   @relation(fields: [dutyReportId], references: [id])
+  onGoingIssue OnGoingIssue @relation(fields: [onGoingIssueId], references: [id])
+
+  @@unique([dutyReportId, onGoingIssueId])
+  @@index([onGoingIssueId])
+}
+
+model LhdReport {
+  id           Int       @id @default(autoincrement())
+  dutyReportId Int?      @db.Int()
+  lhdId        Int?      @db.Int()
+  message      String?   @db.Text()
+  time         DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  dutyReport DutyReport? @relation(fields: [dutyReportId], references: [id])
+  lhdBook    LhdBook?    @relation(fields: [lhdId], references: [id])
+}
+
+model LhdBook {
+  id   Int     @id @default(autoincrement())
+  code String? @db.VarChar(20)
+  lhd  String? @db.VarChar(150)
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  deletedAt  DateTime?
+  lhdReports LhdReport[]
+}
+
+model StatusFrequency {
+  id             Int     @id @default(autoincrement())
+  dutyReportId   Int?    @db.Int()
+  statusFreqId   Int?    @db.Int()
+  cwpFrequencyId Int?    @db.Int()
+  remark         String? @db.Text()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  dutyReport   DutyReport?   @relation(fields: [dutyReportId], references: [id])
+  statusFreq   StatusFreq?   @relation(fields: [statusFreqId], references: [id])
+  cwpFrequency CwpFrequency? @relation(fields: [cwpFrequencyId], references: [id])
+}
+
+model StatusFreq {
+  id     Int     @id @default(autoincrement())
+  status String? @db.VarChar(150)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  statusFrequencies StatusFrequency[]
+}
+
+model CwpFrequency {
+  id        Int      @id @default(autoincrement())
+  cwpId     Int?     @db.Int()
+  frequency String?  @db.VarChar(20)
+  isPrimary Boolean? @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  statusFrequencies StatusFrequency[]
+  cwp               Cwp?              @relation(fields: [cwpId], references: [id])
+}
+
+model SectorCwp {
+  id       Int  @id @default(autoincrement())
+  cwpId    Int? @db.Int()
+  sectorId Int? @db.Int()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  cwp    Cwp?    @relation(fields: [cwpId], references: [id])
+  sector Sector? @relation(fields: [sectorId], references: [id])
+}
+
+model Cwp {
+  id       Int     @id @default(autoincrement())
+  ratingId Int?    @db.Int()
+  cwp      String? @db.VarChar(30)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  rating         Rating?         @relation(fields: [ratingId], references: [id])
+  sectorCwps     SectorCwp[]
+  cwpFrequencies CwpFrequency[]
+  logBooks       LogBook[]
+  cwpSupervisors CwpSupervisor[]
+}
+
+model ShiftName {
+  id           Int       @id @default(autoincrement())
+  branchUnitId Int?      @db.Int()
+  shift        String?   @db.VarChar(150)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  shifts      Shift[]
+  dutyReports DutyReport[]
+  branchUnit  BranchUnit?  @relation(fields: [branchUnitId], references: [id])
+}
+
+model Shift {
+  id          Int       @id @default(autoincrement())
+  shiftNameId Int?      @db.Int()
+  start       DateTime? @db.Time()
+  duration    Float?    @db.Float()
+  end         DateTime? @db.Time()
+  isControl   Boolean   @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  shiftName ShiftName? @relation(fields: [shiftNameId], references: [id])
+  logBooks  LogBook[]
+}
+
+model OnGoingIssue {
+  id                    Int       @id @default(autoincrement())
+  equipmentId           Int?      @db.Int()
+  branchId              Int?      @db.Int()
+  reporter              String?   @db.VarChar(150)
+  other                 String?   @db.Text()
+  start                 DateTime?
+  finish                DateTime?
+  isClosed              Boolean   @default(false)
+  escalationEnabled     Boolean   @default(true)
+  escalationCancelledAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  dutyReports     DutyReport[]
+  dutyReportLinks DutyReportOnGoingIssue[]
+  equipment       Equipment?               @relation(fields: [equipmentId], references: [id])
+  branch          Branch?                  @relation(fields: [branchId], references: [id])
+  reporterUser    User?                    @relation("reporterOnGoingIssue", fields: [reporter], references: [nik])
+
+  messages    Message[]
+  escalations Escalation[]
+
+  @@index([isClosed, deletedAt, start])
+}
+
+model Equipment {
+  id        Int     @id @default(autoincrement())
+  equipment String? @db.VarChar(150)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  onGoingIssues OnGoingIssue[]
+}
+
+model Message {
+  id             Int     @id @default(autoincrement())
+  onGoingIssueId Int?    @db.Int()
+  message        String? @db.Text()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  escalations  Escalation[]
+  onGoingIssue OnGoingIssue? @relation(fields: [onGoingIssueId], references: [id])
+}
+
+model Escalation {
+  id                Int       @id @default(autoincrement())
+  escalationLevelId Int?      @db.Int()
+  messageId         Int?      @db.Int()
+  onGoingIssueId    Int?      @db.Int()
+  branchId          Int?      @db.Int()
+  dueAt             DateTime?
+  triggeredAt       DateTime?
+  status            String    @default("QUEUED") @db.VarChar(30)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  escalationLevel EscalationLevel?  @relation(fields: [escalationLevelId], references: [id])
+  message         Message?          @relation(fields: [messageId], references: [id])
+  onGoingIssue    OnGoingIssue?     @relation(fields: [onGoingIssueId], references: [id])
+  branch          Branch?           @relation(fields: [branchId], references: [id])
+  emails          EscalationEmail[]
+
+  @@unique([onGoingIssueId, escalationLevelId])
+  @@index([status, triggeredAt])
+}
+
+model EscalationEmail {
+  id             Int       @id @default(autoincrement())
+  escalationId   Int       @db.Int()
+  recipientNik   String?   @db.VarChar(150)
+  recipientEmail String    @db.VarChar(200)
+  subject        String    @db.VarChar(255)
+  body           String    @db.Text()
+  status         String    @default("PENDING") @db.VarChar(30)
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  lockedAt       DateTime?
+  sentAt         DateTime?
+  lastError      String?   @db.Text()
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  escalation Escalation @relation(fields: [escalationId], references: [id], onDelete: Cascade)
+
+  @@unique([escalationId, recipientEmail])
+  @@index([status, nextAttemptAt])
+}
+
+model EscalationActor {
+  id                Int     @id @default(autoincrement())
+  branchId          Int?    @db.Int()
+  actor             String? @db.VarChar(150)
+  escalationLevelId Int?    @db.Int()
+  remark            String? @db.Text()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  escalationLevel EscalationLevel? @relation(fields: [escalationLevelId], references: [id])
+  branch          Branch?          @relation(fields: [branchId], references: [id])
+  escalationActor User?            @relation(fields: [actor], references: [nik])
+}
+
+model EscalationLevel {
+  id       Int  @id @default(autoincrement())
+  branchId Int? @db.Int()
+  level    Int? @db.Int()
+  time     Int? @db.Int()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  escalations      Escalation[]
+  escalationActors EscalationActor[]
+  branch           Branch?           @relation(fields: [branchId], references: [id])
+}
+
+model Briefing {
+  id               Int      @id @default(autoincrement())
+  kindOfBriefingId Int?     @db.Int()
+  branchId         Int?     @db.Int()
+  speaker          String?  @db.VarChar(150)
+  isAll            Boolean? @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  kindOfBriefing       KindOfBriefing?       @relation(fields: [kindOfBriefingId], references: [id])
+  speakerUser          User?                 @relation("SpeakerBriefing", fields: [speaker], references: [nik])
+  brach                Branch?               @relation(fields: [branchId], references: [id])
+  contentOfBriefings   ContentOfBriefing[]
+  briefingDestinations BriefingDestination[]
+  briefingReads        BriefingRead[]
+}
+
+model BriefingRead {
+  id         Int     @id @default(autoincrement())
+  briefingId Int?    @db.Int()
+  reader     String? @db.VarChar(150)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  briefing   Briefing? @relation(fields: [briefingId], references: [id])
+  readerUser User?     @relation("ReaderBriefing", fields: [reader], references: [nik])
+}
+
+model KindOfBriefing {
+  id   Int     @id @default(autoincrement())
+  kind String? @db.VarChar(150)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  briefings Briefing[]
+}
+
+model ContentOfBriefing {
+  id                Int     @id @default(autoincrement())
+  briefingId        Int?    @db.Int()
+  contentOfBriefing String? @db.Text()
+  file              String? @db.Text()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  briefing Briefing? @relation(fields: [briefingId], references: [id])
+}
+
+model BriefingDestination {
+  id                   Int  @id @default(autoincrement())
+  professionInBranchId Int? @db.Int()
+  briefingId           Int? @db.Int()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  professionInBranch ProfessionInBranch? @relation(fields: [professionInBranchId], references: [id])
+  briefing           Briefing?           @relation(fields: [briefingId], references: [id])
+}
+
+model MedicalCheck {
+  id                Int      @id @default(autoincrement())
+  doctor            String?  @db.VarChar(150)
+  employee          String?  @db.VarChar(150)
+  bloodPressure     String?  @db.VarChar(50)
+  unNormalCondition String?  @db.Text()
+  isFit             Boolean? @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  doctorUser   User? @relation("DoctorMedicalCheck", fields: [doctor], references: [nik])
+  employeeUser User? @relation("EmployeeMedicalCheck", fields: [employee], references: [nik])
+}
+
+model LogBook {
+  id           Int       @id @default(autoincrement())
+  userNik      String?   @db.VarChar(150)
+  supervisor   String?   @db.VarChar(150)
+  cwpId        Int?      @db.Int()
+  dutyReportId Int?      @db.Int()
+  shiftId      Int?      @db.Int()
+  isFinal      Boolean   @default(false)
+  timeIn       DateTime?
+  timeOut      DateTime?
+  duration     Float?    @db.Float()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user              User?       @relation(fields: [userNik], references: [nik])
+  cwp               Cwp?        @relation(fields: [cwpId], references: [id])
+  dutyReport        DutyReport? @relation(fields: [dutyReportId], references: [id])
+  supervisorLogBook User?       @relation("SupervisorLogBook", fields: [supervisor], references: [nik])
+  shift             Shift?      @relation(fields: [shiftId], references: [id])
+}
+
+model Supervisor {
+  id           Int     @id @default(autoincrement())
+  branchUnitId Int?    @db.Int()
+  supervisor   String? @db.VarChar(150)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  cwpSupervisors CwpSupervisor[]
+  dutyReports    DutyReport[]
+  branchUnit     BranchUnit?     @relation(fields: [branchUnitId], references: [id])
+}
+
+model CwpSupervisor {
+  id           Int  @id @default(autoincrement())
+  cwpId        Int? @db.Int()
+  supervisorId Int? @db.Int()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  cwp        Cwp?        @relation(fields: [cwpId], references: [id])
+  supervisor Supervisor? @relation(fields: [supervisorId], references: [id])
 }

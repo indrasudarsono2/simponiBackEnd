@@ -39,6 +39,9 @@ const login = async (req, res) => {
               select: {
                 role: true,
                 rolesMenu: {
+                  where: {
+                    deletedAt: null
+                  },
                   select: {
                     menu: {
                       select: {
@@ -82,7 +85,7 @@ const login = async (req, res) => {
       branchId: user.branchId,
       branchUnitId: user.branchUnitId,
       sectorId: user.sectorId,
-      professionInBranchInd: user.professionInBranchId,
+      professionInBranchId: user.professionInBranchId,
       professionId: user.professionInBranch ? user.professionInBranch.professionId : null,
       roleNames: roleNames
     };

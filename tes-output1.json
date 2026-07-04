@@ -1,0 +1,470 @@
+{
+  "dailyReport": [
+    {
+      "id": 28,
+      "onGoingIssue": null,
+      "others": null,
+      "spv": {
+        "name": "CITTA"
+      },
+      "supervisorCwp": {
+        "id": 4,
+        "supervisor": "APP",
+        "cwpSupervisors": [
+          {
+            "id": 11,
+            "cwp": {
+              "id": 3,
+              "cwp": "TERMINAL EAST",
+              "rating": {
+                "rating": "APS"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 5,
+                  "frequency": "121.0",
+                  "isPrimary": true
+                },
+                {
+                  "id": 6,
+                  "frequency": "122.2",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 12,
+            "cwp": {
+              "id": 4,
+              "cwp": "TERMINAL EAST ASSISTANCE",
+              "rating": {
+                "rating": "APP"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 7,
+                  "frequency": "125.1",
+                  "isPrimary": true
+                },
+                {
+                  "id": 8,
+                  "frequency": "126.1",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 13,
+            "cwp": {
+              "id": 1,
+              "cwp": "TERMINAL WEST",
+              "rating": {
+                "rating": "APS"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 9,
+                  "frequency": "127.1",
+                  "isPrimary": true
+                },
+                {
+                  "id": 10,
+                  "frequency": "127.9",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 14,
+            "cwp": {
+              "id": 2,
+              "cwp": "TERMINAL WEST ASSISTANCE",
+              "rating": {
+                "rating": "APP"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 11,
+                  "frequency": "129.9",
+                  "isPrimary": true
+                },
+                {
+                  "id": 12,
+                  "frequency": "129.9",
+                  "isPrimary": true
+                },
+                {
+                  "id": 13,
+                  "frequency": "130.1",
+                  "isPrimary": false
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "shiftName": {
+        "id": 1,
+        "shift": "A",
+        "shifts": [
+          {
+            "id": 3,
+            "start": "1970-01-01T23:00:00.000Z",
+            "end": "1970-01-01T01:00:00.000Z",
+            "duration": 120,
+            "isControl": true
+          },
+          {
+            "id": 4,
+            "start": "1970-01-01T01:00:00.000Z",
+            "end": "1970-01-01T03:00:00.000Z",
+            "duration": 120,
+            "isControl": false
+          },
+          {
+            "id": 5,
+            "start": "1970-01-01T03:00:00.000Z",
+            "end": "1970-01-01T05:00:00.000Z",
+            "duration": 120,
+            "isControl": true
+          }
+        ]
+      },
+      "statusFrequencies": [],
+      "logBooks": []
+    },
+    {
+      "id": 31,
+      "onGoingIssue": null,
+      "others": null,
+      "spv": {
+        "name": "CITTA"
+      },
+      "supervisorCwp": {
+        "id": 4,
+        "supervisor": "APP",
+        "cwpSupervisors": [
+          {
+            "id": 11,
+            "cwp": {
+              "id": 3,
+              "cwp": "TERMINAL EAST",
+              "rating": {
+                "rating": "APS"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 5,
+                  "frequency": "121.0",
+                  "isPrimary": true
+                },
+                {
+                  "id": 6,
+                  "frequency": "122.2",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 12,
+            "cwp": {
+              "id": 4,
+              "cwp": "TERMINAL EAST ASSISTANCE",
+              "rating": {
+                "rating": "APP"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 7,
+                  "frequency": "125.1",
+                  "isPrimary": true
+                },
+                {
+                  "id": 8,
+                  "frequency": "126.1",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 13,
+            "cwp": {
+              "id": 1,
+              "cwp": "TERMINAL WEST",
+              "rating": {
+                "rating": "APS"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 9,
+                  "frequency": "127.1",
+                  "isPrimary": true
+                },
+                {
+                  "id": 10,
+                  "frequency": "127.9",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 14,
+            "cwp": {
+              "id": 2,
+              "cwp": "TERMINAL WEST ASSISTANCE",
+              "rating": {
+                "rating": "APP"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 11,
+                  "frequency": "129.9",
+                  "isPrimary": true
+                },
+                {
+                  "id": 12,
+                  "frequency": "129.9",
+                  "isPrimary": true
+                },
+                {
+                  "id": 13,
+                  "frequency": "130.1",
+                  "isPrimary": false
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "shiftName": {
+        "id": 2,
+        "shift": "B",
+        "shifts": [
+          {
+            "id": 6,
+            "start": "1970-01-01T01:00:00.000Z",
+            "end": "1970-01-01T03:00:00.000Z",
+            "duration": 120,
+            "isControl": true
+          },
+          {
+            "id": 7,
+            "start": "1970-01-01T03:00:00.000Z",
+            "end": "1970-01-01T05:00:00.000Z",
+            "duration": 120,
+            "isControl": false
+          },
+          {
+            "id": 8,
+            "start": "1970-01-01T05:00:00.000Z",
+            "end": "1970-01-01T07:00:00.000Z",
+            "duration": 120,
+            "isControl": true
+          }
+        ]
+      },
+      "statusFrequencies": [
+        {
+          "id": 17,
+          "statusFreq": {
+            "status": "3 BY 5"
+          },
+          "remark": "<p>a</p>",
+          "cwpFrequencyId": 5,
+          "cwpFrequency": {
+            "id": 5,
+            "frequency": "121.0",
+            "isPrimary": true,
+            "cwp": {
+              "id": 3,
+              "cwp": "TERMINAL EAST"
+            }
+          }
+        }
+      ],
+      "logBooks": []
+    },
+    {
+      "id": 32,
+      "onGoingIssue": null,
+      "others": null,
+      "spv": {
+        "name": "ARMITA"
+      },
+      "supervisorCwp": {
+        "id": 4,
+        "supervisor": "APP",
+        "cwpSupervisors": [
+          {
+            "id": 11,
+            "cwp": {
+              "id": 3,
+              "cwp": "TERMINAL EAST",
+              "rating": {
+                "rating": "APS"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 5,
+                  "frequency": "121.0",
+                  "isPrimary": true
+                },
+                {
+                  "id": 6,
+                  "frequency": "122.2",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 12,
+            "cwp": {
+              "id": 4,
+              "cwp": "TERMINAL EAST ASSISTANCE",
+              "rating": {
+                "rating": "APP"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 7,
+                  "frequency": "125.1",
+                  "isPrimary": true
+                },
+                {
+                  "id": 8,
+                  "frequency": "126.1",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 13,
+            "cwp": {
+              "id": 1,
+              "cwp": "TERMINAL WEST",
+              "rating": {
+                "rating": "APS"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 9,
+                  "frequency": "127.1",
+                  "isPrimary": true
+                },
+                {
+                  "id": 10,
+                  "frequency": "127.9",
+                  "isPrimary": false
+                }
+              ]
+            }
+          },
+          {
+            "id": 14,
+            "cwp": {
+              "id": 2,
+              "cwp": "TERMINAL WEST ASSISTANCE",
+              "rating": {
+                "rating": "APP"
+              },
+              "cwpFrequencies": [
+                {
+                  "id": 11,
+                  "frequency": "129.9",
+                  "isPrimary": true
+                },
+                {
+                  "id": 12,
+                  "frequency": "129.9",
+                  "isPrimary": true
+                },
+                {
+                  "id": 13,
+                  "frequency": "130.1",
+                  "isPrimary": false
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "shiftName": {
+        "id": 3,
+        "shift": "C",
+        "shifts": [
+          {
+            "id": 9,
+            "start": "1970-01-01T07:00:00.000Z",
+            "end": "1970-01-01T08:30:00.000Z",
+            "duration": 90,
+            "isControl": true
+          },
+          {
+            "id": 10,
+            "start": "1970-01-01T08:30:00.000Z",
+            "end": "1970-01-01T10:00:00.000Z",
+            "duration": 90,
+            "isControl": false
+          },
+          {
+            "id": 11,
+            "start": "1970-01-01T10:00:00.000Z",
+            "end": "1970-01-01T11:30:00.000Z",
+            "duration": 90,
+            "isControl": true
+          }
+        ]
+      },
+      "statusFrequencies": [
+        {
+          "id": 18,
+          "statusFreq": {
+            "status": "4 BY 5"
+          },
+          "remark": "<p>goood</p>",
+          "cwpFrequencyId": 5,
+          "cwpFrequency": {
+            "id": 5,
+            "frequency": "121.0",
+            "isPrimary": true,
+            "cwp": {
+              "id": 3,
+              "cwp": "TERMINAL EAST"
+            }
+          }
+        }
+      ],
+      "logBooks": [
+        {
+          "id": 10,
+          "user": {
+            "name": "DAPOT"
+          },
+          "supervisorLogBook": {
+            "name": "ARMITA"
+          },
+          "shift": {
+            "id": 9,
+            "shiftName": {
+              "shift": "C"
+            }
+          },
+          "timeIn": "2026-06-26T07:10:00.000Z",
+          "timeOut": "2026-06-26T08:30:00.000Z",
+          "cwp": {
+            "id": 3,
+            "cwp": "TERMINAL EAST"
+          }
+        }
+      ]
+    }
+  ]
+}

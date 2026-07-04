@@ -2,6 +2,9 @@
 import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 import cors from 'cors';
 import apiRouter from './router/api.js';
@@ -21,6 +24,19 @@ app.use('/uploads', express.static('uploads'));
 // 4. Routes
 app.get('/', (req, res) => {
   res.send('Hello World');
+});
+
+// Temporary public debug endpoint: returns captured duty report JSON
+app.get('/api/debug/dutyReports', (req, res) => {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const raw = readFileSync(join(__dirname, 'tes-output1.json'), 'utf8');
+    const data = JSON.parse(raw);
+    res.json({ debug: true, source: 'tes-output1.json', data });
+  } catch (err) {
+    res.status(500).json({ debug: false, error: err.message });
+  }
 });
 
 app.use('/api', apiRouter);

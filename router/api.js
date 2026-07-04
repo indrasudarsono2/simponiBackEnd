@@ -27,11 +27,14 @@ import * as groupController from '../controller/groupController.js'
 import * as eventQuestionController from '../controller/eventQuestionController.js'
 import * as licenseUserController from '../controller/licenseUserController.js'
 import * as logbookUserController from '../controller/logbookUserController.js'
+import * as eLogbookUserController from '../controller/eLogbookUserController.js'
+
 import * as ielpUserController from '../controller/ielpUserController.js'
 import * as medexUserController from '../controller/medexUserController.js'
 import * as competenceUserController from '../controller/competenceUserController.js'
 import * as userGeneralController from '../controller/userGeneralController.js'
 import * as userRoleGeneralController from '../controller/userRoleGeneralController.js'
+import * as userRoleBranchController from '../controller/userRoleBranchController.js'
 import * as userRoleBranchUnitController from '../controller/userRoleBranchUnitController.js'
 import * as userBranchController from '../controller/userBranchController.js'
 import * as checkerRatingController from '../controller/checkerRatingController.js'
@@ -52,13 +55,32 @@ import * as dataCheckerController from '../controller/dataCheckerController.js'
 import * as checkerHistoryController from '../controller/checkerHistoryController.js'
 import * as checkerStatisticController from '../controller/checkerStatisticController.js'
 import * as ratingSummaryController from '../controller/ratingSummaryController.js'
-import upload, { uploadCompetence, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
+import * as briefingController from '../controller/briefingController.js'
+import * as medicalCheckController from '../controller/medicalCheckController.js'
+import * as escalationLevelController from '../controller/escalationLevelController.js'
+import * as escalationActorController from '../controller/escalationActorController.js'
+import * as cwpController from '../controller/cwpController.js'
+import * as cwpSectorController from '../controller/cwpSectorController.js'
+import * as cwpFrequencyController from '../controller/cwpFrequencyController.js'
+import * as cwpSupervisorController from '../controller/cwpSupervisorController.js'
+import * as rolesManagementController from '../controller/rolesManagementController.js'
+import * as shiftController from '../controller/shiftController.js'
+import * as dutyReportController from '../controller/dutyReportController.js'
+import * as positionLogController from '../controller/positionLogController.js'
+import * as dailyLogbookController from '../controller/dailyLogbookController.js'
+import * as dailyLogbookGaController from '../controller/dailyLogbookGaController.js'
+import * as personalLogbookController from '../controller/personalLogbookController.js'
+import * as personalLogbookGaController from '../controller/personalLogbookGaController.js'
+import * as onGoingIssueController from '../controller/onGoingIssueController.js'
+import * as lhdReportController from '../controller/lhdReportController.js'
+
+import upload, { uploadBriefing, uploadCompetence, uploadCsv, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
 
 // Auth - Public route (no authentication required)
 router.post('/auth/login', authController.login)
 
 // Apply authentication middleware to all routes below this line
-// router.use(authenticateToken)
+router.use(authenticateToken)
 
 router.post('/postTime', monitorTime.postTime)
 
@@ -66,6 +88,10 @@ router.get('/profile', profileController.getProfile);
 router.put('/profile/:id', profileController.editProfile)
 
 router.get('/dashboardOperational', dashboardController.getDashboardOperational)
+router.get('/dashboardGeneralAdmin', dashboardController.getDashboardGeneralAdmin)
+router.get('/dashboardBranchAdmin', dashboardController.getDashboardBranchAdmin)
+router.get('/dashboardBranchUnitAdmin', dashboardController.getDashboardBranchUnitAdmin)
+router.get('/dashboardBriefings', authenticateToken, dashboardController.getDashboardBriefings)
 router.post('/dashboardToken', dashboardController.postDashboardToken)
 
 router.get('/regions', regionalController.getRegions);
@@ -122,6 +148,7 @@ router.delete('/questionGroupsEssay/:id', questionGroupEssayController.deleteQue
 
 router.get('/essays', essayController.getEssays);
 router.post('/essays', uploadEssay.any(), essayController.addEssays);
+router.post('/essays/import-csv', uploadCsv.any(), essayController.importEssaysCsv);
 router.put('/essays/:id', uploadEssay.any(), essayController.getUpdateEssayById);
 router.delete('/essays/:id', essayController.deleteEssayById);
 
@@ -135,6 +162,8 @@ router.delete('/questionGroupsMultipleChoice/:id', questionGroupMultipleChoiceCo
 
 router.get('/multipleChoices', multipleChoiceController.getMultipleChoices);
 router.post('/multipleChoices', uploadMultipleChoice.any(), multipleChoiceController.addMultipleChoice);
+router.post('/multipleChoices/import-csv', uploadCsv.any(), multipleChoiceController.importMultipleChoicesCsv);
+router.post('/multipleChoice/import-csv', uploadCsv.any(), multipleChoiceController.importMultipleChoicesCsv);
 router.put('/multipleChoices/:id', uploadMultipleChoice.any(), multipleChoiceController.getUpdateMultipleChoiceById);
 router.delete('/multipleChoices/:id', multipleChoiceController.deleteMultipleChoiceById);
 
@@ -176,6 +205,9 @@ router.post('/logbookUser', uploadlogbookUser.any(), logbookUserController.addLo
 router.put('/logbookUser/:id', uploadlogbookUser.any(), logbookUserController.getLogbookById)
 router.delete('/logbookUser/:id', logbookUserController.deleteLogbookById)
 
+router.get('/eLogbookUser', eLogbookUserController.getELogbookUser)
+
+
 router.get('/ielpUser', ielpUserController.getIelpUser)
 router.post('/ielpUser', uploadIelp.any(), ielpUserController.addIelpUser)
 router.put('/ielpUser/:id', uploadIelp.any(), ielpUserController.getIelpById)
@@ -199,6 +231,13 @@ router.delete('/userGeneral/:id', userGeneralController.deleteUserById)
 router.get('/userRoleGeneral', userRoleGeneralController.getUserRoleGeneral)
 router.put('/userRoleGeneral/:id', userRoleGeneralController.getUpdateData)
 
+router.get('/rolesManagement', rolesManagementController.getRolesManagement)
+router.get('/rolesManagement/menus', rolesManagementController.getMenuOptions)
+router.put('/rolesManagement/:roleId/menus', rolesManagementController.updateRoleMenus)
+
+router.get('/userRoleBranch', userRoleBranchController.getUserRoleBranch)
+router.put('/userRoleBranch/:id', userRoleBranchController.getUpdateData)
+
 router.get('/userRoleBranchUnit', userRoleBranchUnitController.getUserRoleBranchUnit)
 router.put('/userRoleBranchUnit/:id', userRoleBranchUnitController.getUpdateData)
 
@@ -214,10 +253,10 @@ router.put('/userBranchUnit/:id', userBranchUnitController.updatedata)
 router.get('/checkerRating', checkerRatingController.getChecker)
 router.post('/checkerRating', checkerRatingController.postCheckerRating)
 
-router.get('/professionInBranch', professionInBranchController.getProfessions)
-router.post('/professionInBranch', professionInBranchController.addProfession)
-router.put('/professionInBranch/:id', professionInBranchController.getProfessionById)
-router.delete('/professionInBranch/:id', professionInBranchController.deleteProfessionById)
+router.get('/professionInBranch', authenticateToken, professionInBranchController.getProfessions)
+router.post('/professionInBranch', authenticateToken, professionInBranchController.addProfession)
+router.put('/professionInBranch/:id', authenticateToken, professionInBranchController.getProfessionById)
+router.delete('/professionInBranch/:id', authenticateToken, professionInBranchController.deleteProfessionById)
 
 router.get('/applicationDocument', applicationDocumentController.getApplicationDoc)
 router.post('/applicationDocument', applicationDocumentController.addApplicationDoc)
@@ -275,4 +314,81 @@ router.get('/checkerStatisticQuestion', checkerStatisticController.getQuestion)
 router.put('/checkerStatisticQuestion/:id', checkerStatisticController.getQuestionDetail)
 
 router.get('/ratingSummary', ratingSummaryController.getRatingSummary);
+
+router.get('/medicalCheck/my', medicalCheckController.getMyMedicalChecks)
+router.post('/medicalCheck', medicalCheckController.createMedicalCheck)
+router.get('/medicalCheck/monitor', medicalCheckController.getBranchMedicalChecks)
+router.put('/medicalCheck/:id/verify', medicalCheckController.verifyMedicalCheck)
+
+router.get('/escalationLevels', escalationLevelController.getEscalationLevels)
+router.post('/escalationLevels', escalationLevelController.addEscalationLevel)
+router.put('/escalationLevels/:id', escalationLevelController.updateEscalationLevel)
+router.delete('/escalationLevels/:id', escalationLevelController.deleteEscalationLevel)
+
+router.get('/escalationActors', escalationActorController.getEscalationActors)
+router.get('/escalationActors/users', escalationActorController.getEscalationActorUsers)
+router.put('/escalationActors/:levelId', escalationActorController.updateEscalationActorsByLevel)
+
+router.get('/cwps', cwpController.getCwps)
+router.get('/cwps/ratings', cwpController.getRelatedRatings)
+router.post('/cwps', cwpController.addCwp)
+router.put('/cwps/:id', cwpController.updateCwp)
+router.delete('/cwps/:id', cwpController.deleteCwp)
+
+router.get('/cwpSectors', cwpSectorController.getSectorCwps)
+router.get('/cwpSectors/options', cwpSectorController.getSectorCwpOptions)
+router.put('/cwpSectors/:sectorId', cwpSectorController.updateSectorCwps)
+
+router.get('/cwpFrequencies', cwpFrequencyController.getCwpFrequencies)
+router.put('/cwpFrequencies/:cwpId', cwpFrequencyController.updateCwpFrequencies)
+
+router.get('/cwpSupervisors', cwpSupervisorController.getCwpSupervisors)
+router.post('/cwpSupervisors', cwpSupervisorController.addCwpSupervisor)
+router.put('/cwpSupervisors/:id', cwpSupervisorController.updateCwpSupervisor)
+router.delete('/cwpSupervisors/:id', cwpSupervisorController.deleteCwpSupervisor)
+
+router.get('/shifts', shiftController.getShifts)
+router.post('/shifts', shiftController.addShift)
+router.put('/shifts/:id', shiftController.updateShift)
+router.delete('/shifts/:id', shiftController.deleteShift)
+
+router.get('/dutyReports/my', dutyReportController.getMyDutyReports)
+router.get('/dutyReports/recap', dutyReportController.getDutyReportRecap)
+router.get('/dutyReports', dutyReportController.getDutyReports)
+router.post('/dutyReports/supervisor', dutyReportController.createSupervisorDutyReport)
+router.get('/dutyReports/:id/deletion-summary', dutyReportController.getDutyReportDeletionSummary)
+router.delete('/dutyReports/:id', dutyReportController.deleteDutyReport)
+router.get('/onGoingIssues', onGoingIssueController.getOnGoingIssues)
+router.post('/onGoingIssues', onGoingIssueController.createOnGoingIssue)
+router.post('/onGoingIssues/:id/messages', onGoingIssueController.addOnGoingIssueMessage)
+router.patch('/onGoingIssues/:id/close', onGoingIssueController.closeOnGoingIssue)
+router.patch('/onGoingIssues/:id/escalation/cancel', onGoingIssueController.cancelOnGoingIssueEscalation)
+router.patch('/onGoingIssues/:id/escalations/:levelId/cancel', onGoingIssueController.cancelOnGoingIssueEscalationLevel)
+router.post('/dutyReports/:dutyReportId/issues', onGoingIssueController.attachOnGoingIssue)
+router.delete('/dutyReports/:dutyReportId/issues/:onGoingIssueId', onGoingIssueController.detachOnGoingIssue)
+router.get('/lhdBooks', lhdReportController.getLhdBooks)
+router.get('/dutyReports/:dutyReportId/lhdReports', lhdReportController.getDutyReportLhdReports)
+router.post('/dutyReports/:dutyReportId/lhdReports', lhdReportController.createLhdReport)
+router.put('/dutyReports/:dutyReportId/lhdReports/:lhdReportId', lhdReportController.updateLhdReport)
+router.delete('/dutyReports/:dutyReportId/lhdReports/:lhdReportId', lhdReportController.deleteLhdReport)
+router.get('/statusFreqs', dutyReportController.getStatusFreqOptions)
+router.get('/dutyReports/:dutyReportId/frequencies', dutyReportController.getDutyReportFrequencies)
+router.put('/dutyReports/:dutyReportId/frequencies/:cwpFrequencyId', dutyReportController.saveDutyReportFrequency)
+router.get('/positionLogs/:dutyReportId', positionLogController.getPositionLogSetup)
+router.post('/positionLogs/:dutyReportId', positionLogController.savePositionLogs)
+
+router.get('/dailyLogbook', dailyLogbookController.getDailyLogbook)
+router.get('/dailyLogbookGa', dailyLogbookGaController.getDailyLogbook)
+
+router.get('/personalLogbook/users', personalLogbookController.getUsersByBranchUnit)
+router.get('/personalLogbook', personalLogbookController.getPersonalLogbook)
+
+router.get('/personalLogbookGa/users-by-branch/:branchId', personalLogbookGaController.getUsersByBranch)
+router.post('/personalLogbookGa', personalLogbookGaController.getPersonalLogbook)
+
+///////////////////////////////////////////////////////SUPERVISOR
+router.post('/briefings', authenticateToken, briefingController.getBriefings)
+router.post('/briefings/create', authenticateToken, uploadBriefing.any(), briefingController.addBriefing)
+router.put('/briefings/:id', authenticateToken, uploadBriefing.any(), briefingController.updateBriefing)
+router.delete('/briefings/:id', authenticateToken, briefingController.deleteBriefing)
 export default router;

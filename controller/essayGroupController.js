@@ -65,6 +65,7 @@ const getEssayGroups = async (req, res) => {
       where: {
         branchUnitId: branchUnitId,
         deletedAt: null,
+        isActive: true,
       }
     })
 
@@ -149,7 +150,11 @@ const getEssayGroups = async (req, res) => {
         sectorId: {
           in: idSector
         },
-        deletedAt: null
+        deletedAt: null,
+        essay: {
+          deletedAt: null,
+          isActive: true,
+        },
       },
       select: {
         id: true,
@@ -195,6 +200,22 @@ const addEssayGroups = async (req, res) => {
   try {
     const now = new Date();
     const { essayId, questionGroupId, sectorId } = req.body;
+    const essay = await prisma.essay.findFirst({
+      where: {
+        id: essayId,
+        branchUnitId: req.user.branchUnitId,
+        deletedAt: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!essay) {
+      return res.status(400).json({ message: "Only active essays can be assigned to groups." });
+    }
+
     const checkEssay = await prisma.essayQuestionGroup.findMany({
       where: {
         essayId: essayId,
