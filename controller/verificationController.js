@@ -249,44 +249,74 @@ const getVerification = async (req, res) => {
 const postVerification = async(req, res) => {
   try {
     const {applicationDocId, groupMemberId, verificationItems} = req.body
-    const verification = await prisma.verification.findFirst({
-      where: {
-        applicationDocId,
-        groupMemberId
-      }
-    })
+    const parsedApplicationDocId = Number(applicationDocId);
+    const parsedGroupMemberId = Number(groupMemberId);
 
-    if(verification) {
-      await prisma.verification.update({
-        where: {
-          id: verification.id
-        },
-        data: {
+    if (!Number.isInteger(parsedApplicationDocId) || parsedApplicationDocId <= 0) {
+      return res.status(400).json({ message: "A valid application document is required." });
+    }
+    if (!Number.isInteger(parsedGroupMemberId) || parsedGroupMemberId <= 0) {
+      return res.status(400).json({ message: "A valid group member is required." });
+    }
+    if (!Array.isArray(verificationItems) || verificationItems.length === 0) {
+      return res.status(400).json({ message: "Verification items are required." });
+    }
+
+    const [applicationDoc, groupMember] = await Promise.all([
+      prisma.applicationDoc.findFirst({
+        where: { id: parsedApplicationDocId, deletedAt: null },
+        select: {
+          id: true,
+          eventUser: { select: { eventId: true } }
+        }
+      }),
+      prisma.groupMember.findFirst({
+        where: { id: parsedGroupMemberId, deletedAt: null },
+        select: {
+          id: true,
+          group: { select: { eventId: true, pic: true, deletedAt: true } }
+        }
+      })
+    ]);
+
+    if (!applicationDoc) {
+      return res.status(404).json({ message: "Application document was not found." });
+    }
+    if (!groupMember?.group || groupMember.group.deletedAt) {
+      return res.status(404).json({ message: "Group member was not found." });
+    }
+    if (Number(applicationDoc.eventUser?.eventId) !== Number(groupMember.group.eventId)) {
+      return res.status(409).json({ message: "The application document and group member belong to different events." });
+    }
+    if (groupMember.group.pic !== req.user.nik) {
+      return res.status(403).json({ message: "You are not authorized to verify this group member." });
+    }
+
+    await prisma.$transaction([
+      prisma.applicationDoc.update({
+        where: { id: parsedApplicationDocId },
+        data: { statusId: 2 }
+      }),
+      prisma.verification.upsert({
+        where: { applicationDocId: parsedApplicationDocId },
+        update: {
+          groupMemberId: parsedGroupMemberId,
           verificationData: JSON.stringify(verificationItems),
-        }
-      })
-    }else{
-      await prisma.applicationDoc.update({
-        where: {
-          id: applicationDocId
+          isValid: true,
+          deletedAt: null
         },
-        data: {
-          statusId: 2
-        }
-      })
-      
-      await prisma.verification.create({
-        data: {
-          applicationDocId,
-          groupMemberId,
+        create: {
+          applicationDocId: parsedApplicationDocId,
+          groupMemberId: parsedGroupMemberId,
           verificationData: JSON.stringify(verificationItems),
           isValid: true
         }
       })
-    }
+    ]);
 
     res.json({ success: true });
   } catch (error) {
+    console.error("Failed to submit verification:", error);
     res.status(500).json({ message: error.message });
   }
 }

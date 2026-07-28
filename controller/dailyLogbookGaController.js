@@ -293,6 +293,15 @@ const getDailyLogbook = async (req, res) => {
           },
           orderBy: [{ time: "asc" }, { createdAt: "asc" }],
         },
+        otherReports: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            time: true,
+            report: true,
+          },
+          orderBy: [{ time: "asc" }, { createdAt: "asc" }],
+        },
       },
       orderBy: {
         shiftDate: "asc",

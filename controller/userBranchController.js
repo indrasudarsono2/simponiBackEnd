@@ -78,13 +78,16 @@ const getUserBranch = async (req, res) => {
 const assignUser = async (req, res) => {
   try {
     const {professionInBranchId, userNikList} = req.body
+    const profession = await prisma.professionInBranch.findFirst({ where: { id: Number(professionInBranchId), branchId: req.user.branchId, deletedAt: null }, select: { id: true } });
+    if (!profession) return res.status(404).json({ message: "Profession not found in your branch." });
     
    await prisma.user.updateMany({
     where: {
       deletedAt: null,
       nik: {
         in: userNikList
-      }
+      },
+      branchId: req.user.branchId
     },
     data: {
       professionInBranchId: parseInt(professionInBranchId)
@@ -107,6 +110,12 @@ const updatedata = async (req, res) => {
   try {
     const { id } = req.params;
     const {professionInBranchId, branchUnitId} = req.body
+    const [user, profession, unit] = await Promise.all([
+      prisma.user.findFirst({ where: { nik: id, branchId: req.user.branchId, deletedAt: null }, select: { nik: true } }),
+      prisma.professionInBranch.findFirst({ where: { id: Number(professionInBranchId), branchId: req.user.branchId, deletedAt: null }, select: { id: true } }),
+      prisma.branchUnit.findFirst({ where: { id: Number(branchUnitId), branchId: req.user.branchId, deletedAt: null }, select: { id: true } }),
+    ]);
+    if (!user || !profession || !unit) return res.status(404).json({ message: "Scoped user, profession, or branch unit not found." });
     
     await prisma.user.update({
       where: { nik: id },
@@ -125,13 +134,16 @@ const updatedata = async (req, res) => {
 const assignBranchUnit = async(req, res) => {
   try {
     const {branchUnitId, userNikList} = req.body
+    const unit = await prisma.branchUnit.findFirst({ where: { id: Number(branchUnitId), branchId: req.user.branchId, deletedAt: null }, select: { id: true } });
+    if (!unit) return res.status(404).json({ message: "Branch unit not found in your branch." });
     
    await prisma.user.updateMany({
     where: {
       deletedAt: null,
       nik: {
         in: userNikList
-      }
+      },
+      branchId: req.user.branchId
     },
     data: {
       branchUnitId: parseInt(branchUnitId)

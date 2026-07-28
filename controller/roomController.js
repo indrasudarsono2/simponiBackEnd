@@ -211,6 +211,7 @@ const editRoom = async(req, res) => {
     const room = await prisma.room.findUnique({
       where: {
         id: parseInt(id),
+        checker: userN,
       },
       select: {
         file: true
@@ -239,6 +240,7 @@ const editRoom = async(req, res) => {
       payload.file = file ? `/uploads/room/${file.filename}` : null
     }
 
+    if (!room) return res.status(404).json({ message: "Room not found." });
     await prisma.room.update({
       where: {
         id: parseInt(id)
@@ -255,15 +257,18 @@ const editRoom = async(req, res) => {
 const deleteRoom =  async (req, res) => {
   try {
     const {id} =  req.params
+    const userN = req.user.nik
     const room = await prisma.room.findUnique({
       where: {
         id: parseInt(id)
+        ,checker: userN
       },
       select: {
         file: true
       }
     })
    
+    if (!room) return res.status(404).json({ message: "Room not found." });
     if(room.file){
       const oldFilePath = path.join(process.cwd(), room.file);
       if(fs.existsSync(oldFilePath)){

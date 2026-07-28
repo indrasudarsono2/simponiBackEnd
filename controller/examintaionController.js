@@ -185,6 +185,56 @@ const getRandomMultipleChoiceByGroup = async ({ sectorId, questionGroupId, quant
   return [...firstBatch, ...secondBatch];
 };
 
+const getRandomMatsQuestions = async ({ appRatingId, eventId }) => {
+  const existingSelections = await prisma.matsQuestionSelection.findMany({
+    where: { appRatingId, eventId },
+    select: {
+      multipleChoice: {
+        select: { id: true, branchUnitId: true, question: true, a: true, b: true, c: true, d: true, image: true },
+      },
+    },
+    orderBy: { slot: "asc" },
+  });
+  if (existingSelections.length > 0) {
+    return {
+      quantity: existingSelections.length,
+      questions: existingSelections.map(({ multipleChoice }) => ({ multipleChoice })),
+    };
+  }
+
+  const configuration = await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
+  const quantity = Number(configuration?.quantity) || 0;
+  if (quantity <= 0) return { quantity: 0, questions: [] };
+
+  const candidates = await prisma.multipleChoice.findMany({
+    where: { isMats: true, isActive: true, deletedAt: null },
+    select: { id: true, branchUnitId: true, question: true, a: true, b: true, c: true, d: true, image: true },
+  });
+  if (candidates.length < quantity) {
+    throw new Error(`MATS requires ${quantity} questions, but only ${candidates.length} active questions are available.`);
+  }
+
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [candidates[index], candidates[randomIndex]] = [candidates[randomIndex], candidates[index]];
+  }
+  const selected = candidates.slice(0, quantity);
+  await prisma.matsQuestionSelection.createMany({
+    data: selected.map(({ id: multipleChoiceId }, slot) => ({ appRatingId, eventId, multipleChoiceId, slot })),
+    skipDuplicates: true,
+  });
+  const persisted = await prisma.matsQuestionSelection.findMany({
+    where: { appRatingId, eventId },
+    select: {
+      multipleChoice: {
+        select: { id: true, branchUnitId: true, question: true, a: true, b: true, c: true, d: true, image: true },
+      },
+    },
+    orderBy: { slot: "asc" },
+  });
+  return { quantity: persisted.length, questions: persisted.map(({ multipleChoice }) => ({ multipleChoice })) };
+};
+
 const getExamination = async (req, res) => {
   // const sect = 1
   // const sect = req.user.sectorId
@@ -286,9 +336,19 @@ const getExamination = async (req, res) => {
                     statusId: true,
                     finalScores: {
                       where: {
+                        deletedAt: null,
+                        isInvalidated: false,
                         statusId: {
                           notIn: [5, 6, 7]
                         }
+                      }
+                    },
+                    examinationInvalidations: {
+                      orderBy: { createdAt: "desc" },
+                      take: 1,
+                      select: {
+                        id: true,
+                        createdAt: true
                       }
                     }
                   }
@@ -643,8 +703,7 @@ const getMultipleChoiceQuestion = async (req, res) => {
 
     if (
       !event?.eventUsers?.[0] ||
-      !event?.groups?.[0]?.groupMembers?.[0] ||
-      takeIt.length === 0
+      !event?.groups?.[0]?.groupMembers?.[0]
     ) {
       return res.status(404).json({
         message: "Application document data not found for this event user.",
@@ -661,6 +720,17 @@ const getMultipleChoiceQuestion = async (req, res) => {
       
       takeIt[i].multipleChoice = randomItem
       multipleChoice.push(takeIt[i])
+    }
+
+    const mats = await getRandomMatsQuestions({ appRatingId, eventId: event.id });
+    if (mats.quantity > 0) {
+      multipleChoice.push({
+        id: "MATS",
+        group: "MATS",
+        quantity: mats.quantity,
+        isMats: true,
+        multipleChoice: mats.questions,
+      });
     }
 
     const eventQuestion = event.eventQuestions.find(d => d.kindOfQuestionId === 2);
@@ -709,6 +779,8 @@ const postMultipleChoiceAnswer = async (req, res) => {
       select: {
         id: true,
         passingGrade: true,
+        isPractical: true,
+        isSimulator: true,
         eventQuestions: {
           where: {
             deletedAt: null
@@ -723,14 +795,34 @@ const postMultipleChoiceAnswer = async (req, res) => {
       }
     })
 
-    const mcId = multipleChoice.map(d => d.multipleChoiceId)
+    if (!Array.isArray(multipleChoice) || multipleChoice.length === 0) {
+      return res.status(400).json({ message: "Multiple-choice answers are required." });
+    }
+    const mcId = multipleChoice.map(d => Number(d.multipleChoiceId));
+    if (mcId.some((id) => !Number.isInteger(id) || id <= 0) || new Set(mcId).size !== mcId.length) {
+      return res.status(400).json({ message: "Invalid or duplicate multiple-choice question IDs." });
+    }
     const persentage = event.eventQuestions.find(d => d.kindOfQuestionId ===2)
+    if (!persentage) return res.status(400).json({ message: "Multiple-choice event configuration not found." });
 
     const multipleChoiceDatadbm = await prisma.multipleChoice.findMany({
       where: {
         id: {
           in: mcId
         },
+        OR: [
+          {
+            isMats: true,
+            branchUnitId: null,
+            matsSelections: { some: { appRatingId, eventId } },
+          },
+          {
+            isMats: false,
+            branchUnitId: req.user.branchUnitId,
+            deletedAt: null,
+            isActive: true,
+          },
+        ],
       },
       select: {
         id: true,
@@ -739,15 +831,29 @@ const postMultipleChoiceAnswer = async (req, res) => {
         b: true,
         c: true,
         d: true,
-        key: true
+        key: true,
+        isMats: true
       }
     })
+
+    if (multipleChoiceDatadbm.length !== mcId.length) {
+      return res.status(400).json({ message: "One or more submitted questions are not valid for this examination." });
+    }
+    const selectedMats = await prisma.matsQuestionSelection.findMany({
+      where: { appRatingId, eventId }, select: { multipleChoiceId: true },
+    });
+    const submittedMatsIds = multipleChoiceDatadbm.filter((item) => item.isMats).map((item) => item.id).sort((a, b) => a - b);
+    const selectedMatsIds = selectedMats.map((item) => item.multipleChoiceId).sort((a, b) => a - b);
+    if (submittedMatsIds.length !== selectedMatsIds.length || submittedMatsIds.some((id, index) => id !== selectedMatsIds[index])) {
+      return res.status(400).json({ message: "The submitted MATS questions do not match those assigned to this examination." });
+    }
 
     const correction = (multipleChoiceDatadbm, multipleChoice) => {
       let trueOption = 0;
       let falseAnswer = []
       for (let i in multipleChoice){
-        const now = multipleChoiceDatadbm.find(d => d.id === multipleChoice[i].multipleChoiceId)
+        const now = multipleChoiceDatadbm.find(d => d.id === Number(multipleChoice[i].multipleChoiceId))
+        if (!now) continue;
         if(now.key === multipleChoice[i].answer){
           trueOption++
           multipleChoice[i].isTrue = true
@@ -796,7 +902,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
         }
       }
       const finalScr = createFinalScore[`${fnlScore}`]
-      await prisma.appRating.update({
+      return prisma.appRating.update({
         where: {
           id: appRatingId
         },
@@ -807,10 +913,21 @@ const postMultipleChoiceAnswer = async (req, res) => {
             deleteMany: {}
           }
         },
+        include: {
+          finalScores: {
+            where: { deletedAt: null, isInvalidated: false },
+            orderBy: { id: "desc" },
+            take: 1
+          }
+        }
       })
     }
 
     const inputUserRating = async (ratingId, finalScoreId, expDate) => {
+      const existing = await prisma.userRating.findFirst({
+        where: { finalScoreId, deletedAt: null }
+      });
+      if (existing) return existing;
       await prisma.userRating.create({
         data: {
           rating: {
@@ -833,12 +950,25 @@ const postMultipleChoiceAnswer = async (req, res) => {
       })
     }
 
+    const requiresPractical = event.isPractical || event.isSimulator;
+    const waitingPracticalStatus = requiresPractical
+      ? await prisma.status.findFirst({
+          where: { status: "WAITING PRACTICAL", deletedAt: null },
+          select: { id: true }
+        })
+      : null;
+    if (requiresPractical && !waitingPracticalStatus) {
+      return res.status(500).json({ message: "WAITING PRACTICAL status is not configured." });
+    }
+
     const {trueOption, falseAnswer} = correction(multipleChoiceDatadbm, multipleChoice);
     const mcValue = trueOption/multipleChoice.length * 100 * persentage.persentage
     const finalScore = await prisma.finalScore.findMany({
       where: {
         eventId,
-        appRatingId
+        appRatingId,
+        deletedAt: null,
+        isInvalidated: false
       },
       orderBy: {
         id: 'asc'
@@ -862,15 +992,22 @@ const postMultipleChoiceAnswer = async (req, res) => {
       const fnlScore = "update"
       const finalScoreId = finalScore[finalScore.length-1].id;
       const essayScore = finalScore[finalScore.length - 1].essayScore
-      const statusScore = finalValue < event.passingGrade ? 6 :
+      const theoryPassed = finalValue >= event.passingGrade;
+      const calculatedStatusScore = finalValue < event.passingGrade ? 6 :
                           finalValue >= event.passingGrade &&
                           finalScore[0].statusId !== 6 ? 7 :
                           finalValue >= event.passingGrade &&
                           finalScore[0].statusId === 6 ? 5 : null;
-      const statusAppRating = finalScore.length === 1 && finalValue >= event.passingGrade ? 7 :
+      const calculatedAppRatingStatus = finalScore.length === 1 && finalValue >= event.passingGrade ? 7 :
                               finalScore.length === 1 && finalValue < event.passingGrade ? 5:
                               finalScore.length > 1 && finalValue >= event.passingGrade ? 7:
                               finalScore.length > 1 && finalValue < event.passingGrade ? 6 : null;
+      const statusScore = theoryPassed && requiresPractical
+        ? waitingPracticalStatus.id
+        : calculatedStatusScore;
+      const statusAppRating = theoryPassed && requiresPractical
+        ? waitingPracticalStatus.id
+        : calculatedAppRatingStatus;
       await inputAppRating(appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore, finalScoreId)
       
       const essayCorrection = await prisma.essayCorrection.findMany({
@@ -901,7 +1038,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
         }
       })
 
-      if(finalValue > event.passingGrade){
+      if(theoryPassed && !requiresPractical){
         const ratId = finalScore[finalScore.length - 1].appRating.ratingId
         await inputUserRating(ratId, finalScoreId, event.forExpiredDate)
       }
@@ -913,22 +1050,36 @@ const postMultipleChoiceAnswer = async (req, res) => {
       // }
       // const string = JSON.stringify(json, null, 2)
       // fs.writeFileSync('../exam.json', string, 'utf-8');
-      res.status(200).json({falseAnswer, finalValue, essayCorrection, passingGrade});
+      res.status(200).json({falseAnswer, finalValue, essayCorrection, passingGrade, awaitingPractical: theoryPassed && requiresPractical});
     }else{
-      const statusScore = mcValue < event.passingGrade ? 6 :
+      const previousStatusId = finalScore[0]?.statusId;
+      const theoryPassed = mcValue >= event.passingGrade;
+      const calculatedStatusScore = mcValue < event.passingGrade ? 6 :
                           mcValue >= event.passingGrade && 
-                          finalScore[0].statusId !== 6 ? 7 : 
+                          previousStatusId !== 6 ? 7 : 
                           mcValue >= event.passingGrade &&
-                          finalScore[0].statusId === 6 ? 5 : null;
-      const statusAppRating = finalScore.length === 1 && mcValue >= event.passingGrade ? 7 :
+                          previousStatusId === 6 ? 5 : null;
+      const calculatedAppRatingStatus = finalScore.length === 1 && mcValue >= event.passingGrade ? 7 :
                               finalScore.length === 1 && mcValue < event.passingGrade ? 5:
-                              finalScore.length > 1 && mcValue >= passingGrade ? 7:
+                              finalScore.length > 1 && mcValue >= event.passingGrade ? 7:
                               finalScore.length > 1 && mcValue < event.passingGrade ? 6 : null;
+      const statusScore = theoryPassed && requiresPractical
+        ? waitingPracticalStatus.id
+        : calculatedStatusScore;
+      const statusAppRating = theoryPassed && requiresPractical
+        ? waitingPracticalStatus.id
+        : calculatedAppRatingStatus;
       const essayScore = 0
       const finalValue = mcValue
       const fnlScore = "create"
-      await inputAppRating(appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore)
-      res.status(200).json({falseAnswer, finalValue});
+      const updatedAppRating = await inputAppRating(appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore)
+      if (theoryPassed && !requiresPractical) {
+        const createdFinalScore = updatedAppRating.finalScores[0];
+        if (createdFinalScore) {
+          await inputUserRating(updatedAppRating.ratingId, createdFinalScore.id, event.forExpiredDate);
+        }
+      }
+      res.status(200).json({falseAnswer, finalValue, passingGrade: event.passingGrade, awaitingPractical: theoryPassed && requiresPractical});
     }
   } catch (error) {
     res.status(500).json({ message: error.message });

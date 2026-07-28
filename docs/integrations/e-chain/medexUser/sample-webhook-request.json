@@ -1,0 +1,18 @@
+{
+  "eventId": "echain-medex-verified-2026-0001",
+  "eventType": "MEDEX_VERIFIED",
+  "occurredAt": "2026-07-12T09:30:00+07:00",
+  "nik": "10011520",
+  "echainDocumentId": "MEDEX-2026-0001",
+  "data": {
+    "institution": "RS Aviation",
+    "released": "2024-02-28",
+    "expired": "2026-02-28",
+    "examiner": "DR. CARLA",
+    "fileName": "indra-medex-2024.pdf",
+    "fileUrl": "https://echain.example.com/files/medex/indra-medex-2024.pdf",
+    "fileUrlExpiresAt": "2026-07-12T10:30:00+07:00",
+    "fileMimeType": "application/pdf",
+    "fileSizeBytes": 245000
+  }
+}

@@ -4,6 +4,11 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import fs from "fs";
 import path from "path";
+import { ROLES } from "../middleware/authorize.js";
+
+const hasRole = (req, role) => (req.user?.roleNames || []).some(
+  (item) => String(item || "").trim().toUpperCase() === role,
+);
 
 const getMember = async (req, res) => {
   // const branchUnitId = 17
@@ -45,7 +50,58 @@ const getMember = async (req, res) => {
 
 const postMember = async (req, res) => {
   try {
-    const { eventUserId } = req.body;
+    let { eventUserId } = req.body;
+    const memberNik = String(req.body?.memberNik || "").trim();
+
+    if (memberNik) {
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+      const startDateValue = req.body?.startDate;
+      const endDateValue = req.body?.endDate;
+      let eventCreatedAt;
+
+      if (startDateValue || endDateValue) {
+        if (!datePattern.test(String(startDateValue || "")) || !datePattern.test(String(endDateValue || ""))) {
+          return res.status(400).json({ message: "Both dates are required and must use YYYY-MM-DD format." });
+        }
+        const startDate = new Date(`${startDateValue}T00:00:00.000+07:00`);
+        const endDate = new Date(`${endDateValue}T23:59:59.999+07:00`);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+          return res.status(400).json({ message: "Invalid date range." });
+        }
+        if (startDate > endDate) {
+          return res.status(400).json({ message: "Start date cannot be later than end date." });
+        }
+        eventCreatedAt = { gte: startDate, lte: endDate };
+      }
+
+      const member = await prisma.user.findFirst({
+        where: {
+          nik: memberNik,
+          branchUnitId: req.user.branchUnitId,
+          deletedAt: null
+        },
+        select: {
+          eventUsers: {
+            where: {
+              deletedAt: null,
+              event: {
+                is: {
+                  deletedAt: null,
+                  ...(eventCreatedAt ? { createdAt: eventCreatedAt } : {})
+                }
+              }
+            },
+            select: { id: true }
+          }
+        }
+      });
+      if (!member) return res.status(404).json({ message: "Member was not found in your branch unit." });
+      eventUserId = member.eventUsers.map((item) => item.id);
+    }
+
+    if (!Array.isArray(eventUserId)) {
+      return res.status(400).json({ message: "Member or event selection is required." });
+    }
 
     const applicationDoc = await prisma.applicationDoc.findMany({
       where: {
@@ -73,7 +129,8 @@ const postMember = async (req, res) => {
             },
             finalScores: {
               where: {
-                deletedAt: null
+                deletedAt: null,
+                isInvalidated: false
               },
               select: {
                 id: true,
@@ -86,11 +143,9 @@ const postMember = async (req, res) => {
                     id: true,
                     isTrue: true,
                     multipleChoice: {
-                      where: {
-                        deletedAt: null
-                      },
                       select: {
                         id: true,
+                        isMats: true,
                         mcQuestionGroups: {
                           where: {
                             deletedAt: null
@@ -158,15 +213,31 @@ const postMember = async (req, res) => {
             };
           }
 
+          const ratingName = rating.rating?.rating || "UNKNOWN";
+          ensureRatingBucket(allByRatingMap, ratingName);
+          ensureGroupBucket(allByRatingMap[ratingName].statisticMap, "MATS");
+          ensureGroupBucket(detailByFinalScore[finalScoreKey].groupStatisticsMap, "MATS");
+
           for (const correction of finalScore.multipleChoiceCorrections || []) {
+            if (correction.multipleChoice?.isMats) {
+              const allMats = allByRatingMap[ratingName].statisticMap.MATS;
+              const detailMats = detailByFinalScore[finalScoreKey].groupStatisticsMap.MATS;
+              if (correction.isTrue === true) {
+                allMats.isTrue += 1;
+                detailMats.isTrue += 1;
+              } else {
+                allMats.isFalse += 1;
+                detailMats.isFalse += 1;
+              }
+              allMats.total += 1;
+              detailMats.total += 1;
+              continue;
+            }
             const questionGroups = correction.multipleChoice?.mcQuestionGroups || [];
 
             for (const mcGroup of questionGroups) {
               const groupName = mcGroup.questionGroup?.group;
               if (!groupName) continue;
-              const ratingName = rating.rating?.rating || "UNKNOWN";
-
-              ensureRatingBucket(allByRatingMap, ratingName);
               ensureGroupBucket(allByRatingMap[ratingName].statisticMap, groupName);
               ensureGroupBucket(detailByFinalScore[finalScoreKey].groupStatisticsMap, groupName);
 
@@ -225,25 +296,48 @@ const postMember = async (req, res) => {
 }
 
 const getQuestion = async (req, res) => {
-  const branchUnitId = 17
-  // const branchUnitId = req.user.branchUnitId
+  const isGeneralAdmin = hasRole(req, ROLES.GENERAL_ADMIN);
+  const requestedType = String(req.query.type || "ALL").trim().toUpperCase();
   try {
+    if (requestedType === "MATS" && !isGeneralAdmin) {
+      return res.status(403).json({ message: "Only General Admin can access MATS question statistics." });
+    }
+    const questionWhere = isGeneralAdmin
+      ? {
+          deletedAt: null,
+          ...(requestedType === "MATS" ? { isMats: true } : requestedType === "REGULAR" ? { isMats: false } : {}),
+        }
+      : { deletedAt: null, branchUnitId: req.user.branchUnitId, isMats: false };
+
+    const correctionWhere = { deletedAt: null };
+    const eventId = Number(req.query.eventId);
+    const ratingId = Number(req.query.ratingId);
+    const branchId = Number(req.query.branchId);
+    const sectorId = Number(req.query.sectorId);
+    if ([eventId, ratingId, branchId, sectorId].some(Number.isInteger)) {
+      correctionWhere.finalScore = {
+        ...(Number.isInteger(eventId) ? { eventId } : {}),
+        ...(Number.isInteger(ratingId) ? { appRating: { is: { ratingId } } } : {}),
+        ...((Number.isInteger(branchId) || Number.isInteger(sectorId)) ? {
+          event: { is: { sector: { is: {
+            ...(Number.isInteger(sectorId) ? { id: sectorId } : {}),
+            ...(Number.isInteger(branchId) ? { branchUnit: { is: { branchId } } } : {}),
+          } } } },
+        } : {}),
+      };
+    }
     const question = await prisma.multipleChoice.findMany({
-      where: {
-        deletedAt: null,
-        branchUnitId
-      },
+      where: questionWhere,
       select: {
         id: true,
+        isMats: true,
         question: true,
         a: true,
         b: true,
         c: true,
         d: true,
         multipleChoiceCorections: {
-          where: {
-            deletedAt: null
-          },
+          where: correctionWhere,
           select: {
             id: true,
             isTrue: true,
@@ -284,6 +378,7 @@ const getQuestion = async (req, res) => {
 
       return {
         id: item.id,
+        isMats: item.isMats,
         question: item.question,
         a: item.a,
         b: item.b,
@@ -304,15 +399,19 @@ const getQuestion = async (req, res) => {
 };
 
 const getQuestionDetail = async (req, res) => {
-  const { questionId } = req.params;
+  const questionId = Number(req.params.id);
   try {
-    console.log(questionId);
-    const question = await prisma.multipleChoice.findUnique({
+    if (!Number.isInteger(questionId) || questionId <= 0) return res.status(400).json({ message: "Invalid question ID." });
+    const isGeneralAdmin = hasRole(req, ROLES.GENERAL_ADMIN);
+    const question = await prisma.multipleChoice.findFirst({
       where: {
-        id: parseInt(questionId),
+        id: questionId,
+        deletedAt: null,
+        ...(isGeneralAdmin ? {} : { branchUnitId: req.user.branchUnitId, isMats: false }),
       },
       select: {
         id: true,
+        isMats: true,
         question: true,
         a: true,
         b: true,
@@ -329,8 +428,8 @@ const getQuestionDetail = async (req, res) => {
         }
       }
     })
-
-    // res.json(question)
+    if (!question) return res.status(404).json({ message: "Question not found." });
+    res.json(question)
   } catch (error) {
      res.status(500).json({ message: error.message });
   }

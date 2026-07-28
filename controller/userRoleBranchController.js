@@ -87,6 +87,18 @@ const getUpdateData = async (req, res) => {
       return res.status(404).json({ message: "User not found in this branch" });
     }
 
+    const allowedRoles = await prisma.roles.findMany({
+      where: {
+        id: { in: parsedRoleIds },
+        deletedAt: null,
+        role: { in: ["BRANCH UNIT ADMIN", "CHECKER ADMIN", "CHECKER", "OPERATIONAL", "SUPERVISOR", "DOCTOR"] },
+      },
+      select: { id: true },
+    });
+    if (allowedRoles.length !== parsedRoleIds.length) {
+      return res.status(403).json({ message: "One or more roles are outside your authority." });
+    }
+
     await prisma.user.update({
       where: { nik: id },
       data: {

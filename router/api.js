@@ -2,6 +2,11 @@ import express from 'express';
 const router = express.Router();
 
 import { authenticateToken } from '../middleware/auth.js';
+import { enforceTenantBody, requireRole, ROLES } from '../middleware/authorize.js';
+import { enforceRoutePolicy } from '../middleware/routePolicy.js';
+import { enforceResourceScope } from '../middleware/resourceScope.js';
+import { sanitizeRichText, sanitizeRichTextResponses } from '../middleware/sanitize.js';
+import { signFileUrlsInJson } from '../middleware/privateFiles.js';
 
 import * as monitorTime from '../controller/monitorTimeController.js'
 import * as profileController from '../controller/profileController.js'
@@ -14,6 +19,7 @@ import * as sectorController from '../controller/sectorController.js';
 import * as ratingCheckerAdminController from '../controller/ratingCheckerAdminController.js';
 import * as mandatoryItemController from '../controller/mandatoryItemController.js'
 import * as mandatoryRatingController from '../controller/monitorRatingController.js'
+import * as matsController from '../controller/matsController.js'
 import * as questionGroupEssayController from '../controller/questionGroupEssayController.js';
 import * as essayController from '../controller/essayController.js';
 import * as questionGroupMultipleChoiceController from '../controller/questionGroupMultipleChoiceController.js';
@@ -73,18 +79,30 @@ import * as personalLogbookController from '../controller/personalLogbookControl
 import * as personalLogbookGaController from '../controller/personalLogbookGaController.js'
 import * as onGoingIssueController from '../controller/onGoingIssueController.js'
 import * as lhdReportController from '../controller/lhdReportController.js'
+import * as otherReportController from '../controller/otherReportController.js'
+import * as pfcScoreController from '../controller/pfcScoreController.js'
+import * as pfcIndividualController from '../controller/pfcIndividualController.js'
 
 import upload, { uploadBriefing, uploadCompetence, uploadCsv, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
 
 // Auth - Public route (no authentication required)
 router.post('/auth/login', authController.login)
+router.post('/integrations/e-chain/ielp-user/verified', ielpUserController.receiveIelpUserVerifiedFromEchain)
+router.post('/integrations/e-chain/medex-user/verified', medexUserController.receiveMedexUserVerifiedFromEchain)
 
 // Apply authentication middleware to all routes below this line
 router.use(authenticateToken)
+router.use(enforceRoutePolicy)
+router.use(enforceTenantBody)
+router.use(enforceResourceScope)
+router.use(sanitizeRichText)
+router.use(sanitizeRichTextResponses)
+router.use(signFileUrlsInJson)
 
 router.post('/postTime', monitorTime.postTime)
 
 router.get('/profile', profileController.getProfile);
+router.post('/profile/sync-echain', profileController.syncProfileFromEchain);
 router.put('/profile/:id', profileController.editProfile)
 
 router.get('/dashboardOperational', dashboardController.getDashboardOperational)
@@ -122,6 +140,13 @@ router.delete('/mandatoryItem/:id', mandatoryItemController.deleteMandatoryItem)
 router.get('/mandatoryRating', mandatoryRatingController.getMandatoryRating)
 router.post('/mandatoryRating', mandatoryRatingController.postMandatoryRating)
 router.delete('/mandatoryRating/:id', mandatoryRatingController.deleteMandatoryRating)
+
+router.get('/mats', matsController.getMatsQuestions)
+router.post('/mats/questions', uploadMultipleChoice.any(), matsController.createMatsQuestion)
+router.post('/mats/questions/import-csv', uploadCsv.any(), matsController.importMatsQuestionsCsv)
+router.put('/mats/questions/:id', uploadMultipleChoice.any(), matsController.updateMatsQuestion)
+router.delete('/mats/questions/:id', matsController.deleteMatsQuestion)
+router.put('/mats/configuration', matsController.updateMatsConfiguration)
 
 router.get('/branchUnits', branchUnitController.getBranchUnits);
 router.get('/branchUnitsGetBranch', branchUnitController.branchUnitsGetBranch);
@@ -196,6 +221,7 @@ router.put('/eventQuestions/:id', eventQuestionController.getEventQuestionById)
 router.delete('/eventQuestions/:id', eventQuestionController.deleteEventQuestionId)
 
 router.get('/licenseUser', licenseUserController.getLicenseUser)
+router.post('/licenseUser/sync-echain', licenseUserController.syncLicenseFromEchain)
 router.post('/licenseUser', uploadLicense.any(), licenseUserController.addLicenseUser)
 router.put('/licenseUser/:id', uploadLicense.any(), licenseUserController.getLicenseById)
 router.delete('/licenseUser/:id', uploadLicense.any(), licenseUserController.deleteLicenseById)
@@ -209,11 +235,13 @@ router.get('/eLogbookUser', eLogbookUserController.getELogbookUser)
 
 
 router.get('/ielpUser', ielpUserController.getIelpUser)
+router.post('/ielpUser/sync-echain', ielpUserController.syncIelpUserFromEchain)
 router.post('/ielpUser', uploadIelp.any(), ielpUserController.addIelpUser)
 router.put('/ielpUser/:id', uploadIelp.any(), ielpUserController.getIelpById)
 router.delete('/ielpUser/:id', ielpUserController.deleteIelpById)
 
 router.get('/medexUser', medexUserController.getMedexUser)
+router.post('/medexUser/sync-echain', medexUserController.syncMedexUserFromEchain)
 router.post('/medexUser', uploadMedex.any(), medexUserController.addMedexUser)
 router.put('/medexUser/:id', uploadMedex.any(), medexUserController.getMedexById);
 router.delete('/medexUser/:id', medexUserController.deleteMedexById)
@@ -288,18 +316,29 @@ router.get('/performanceCheck', performanceCheckController.getEvent)
 router.post('/performanceCheck', performanceCheckController.postEssayAnswer)
 
 router.get('/practicalExam', practicalExamController.getPractical)
+router.get('/practicalExam/:id/echain-payload', practicalExamController.getPracticalExamEchainPayload)
+router.post('/practicalExam/:id/send-echain', practicalExamController.sendPracticalExamToEchain)
+router.get('/practicalExam/recheck/:id/echain-payload', practicalExamController.getPracticalRecheckEchainPayload)
+router.post('/practicalExam/recheck/:id/send-echain', practicalExamController.sendPracticalRecheckToEchain)
 router.put('/practicalExam/:id', uploadPracticalTest.any(), practicalExamController.putPractical)
+router.put('/practicalExam/recheck/:id', uploadPracticalTest.any(), practicalExamController.putPracticalRecheck)
 
 router.post('/preview', uploadPreview.any(), previewController.postPreview)
 
 router.get('/scoreUser', scoreUserController.getUserScore)
 router.get('/scoreUserPractical', scoreUserController.getUserScorePractical)
 
+router.get('/pfcScore/scoreRecap', pfcScoreController.getScoreRecap)
+router.get('/pfcScore/individual', pfcIndividualController.getOptions)
+router.post('/pfcScore/individual', pfcIndividualController.getIndividualStatistic)
+
 router.get('/scoreChecker', scoreCheckerController.getUserCheckerScore)
 router.post('/scoreChecker', scoreCheckerController.postUserCheckerScore)
 router.post('/scoreCheckerEvidance', scoreCheckerController.postUserCheckerScoreEvidance)
+router.post('/scoreChecker/invalidate-attempt', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_CHECKER), scoreCheckerController.invalidateExaminationAttempt)
 router.get('/scoreCheckerPractical', scoreCheckerController.getUserCheckerPractical)
 router.post('/scoreCheckerPractical', scoreCheckerController.postUserCheckerPractical)
+router.post('/scoreCheckerPractical/recheck', requireRole(ROLES.CHECKER_ADMIN), scoreCheckerController.grantPracticalRecheck)
 
 router.get('/dataCheckerIelp', dataCheckerController.getIelpCheckerData)
 router.get('/dataCheckerMedex', dataCheckerController.getMedexCheckerData)
@@ -317,7 +356,10 @@ router.get('/ratingSummary', ratingSummaryController.getRatingSummary);
 
 router.get('/medicalCheck/my', medicalCheckController.getMyMedicalChecks)
 router.post('/medicalCheck', medicalCheckController.createMedicalCheck)
+router.get('/dashboardDoctor', medicalCheckController.getDoctorDashboard)
 router.get('/medicalCheck/monitor', medicalCheckController.getBranchMedicalChecks)
+router.get('/medicalCheck/history', medicalCheckController.getMedicalCheckHistory)
+router.put('/medicalCheck/history/:id', medicalCheckController.updateMedicalCheckHistory)
 router.put('/medicalCheck/:id/verify', medicalCheckController.verifyMedicalCheck)
 
 router.get('/escalationLevels', escalationLevelController.getEscalationLevels)
@@ -358,6 +400,7 @@ router.get('/dutyReports', dutyReportController.getDutyReports)
 router.post('/dutyReports/supervisor', dutyReportController.createSupervisorDutyReport)
 router.get('/dutyReports/:id/deletion-summary', dutyReportController.getDutyReportDeletionSummary)
 router.delete('/dutyReports/:id', dutyReportController.deleteDutyReport)
+router.get('/onGoingIssues/recap', onGoingIssueController.getOnGoingIssueRecap)
 router.get('/onGoingIssues', onGoingIssueController.getOnGoingIssues)
 router.post('/onGoingIssues', onGoingIssueController.createOnGoingIssue)
 router.post('/onGoingIssues/:id/messages', onGoingIssueController.addOnGoingIssueMessage)
@@ -367,10 +410,15 @@ router.patch('/onGoingIssues/:id/escalations/:levelId/cancel', onGoingIssueContr
 router.post('/dutyReports/:dutyReportId/issues', onGoingIssueController.attachOnGoingIssue)
 router.delete('/dutyReports/:dutyReportId/issues/:onGoingIssueId', onGoingIssueController.detachOnGoingIssue)
 router.get('/lhdBooks', lhdReportController.getLhdBooks)
+router.get('/lhdReports/recap', lhdReportController.getLhdReportRecap)
 router.get('/dutyReports/:dutyReportId/lhdReports', lhdReportController.getDutyReportLhdReports)
 router.post('/dutyReports/:dutyReportId/lhdReports', lhdReportController.createLhdReport)
 router.put('/dutyReports/:dutyReportId/lhdReports/:lhdReportId', lhdReportController.updateLhdReport)
 router.delete('/dutyReports/:dutyReportId/lhdReports/:lhdReportId', lhdReportController.deleteLhdReport)
+router.get('/dutyReports/:dutyReportId/otherReports', otherReportController.getDutyReportOtherReports)
+router.post('/dutyReports/:dutyReportId/otherReports', otherReportController.createOtherReport)
+router.put('/dutyReports/:dutyReportId/otherReports/:otherReportId', otherReportController.updateOtherReport)
+router.delete('/dutyReports/:dutyReportId/otherReports/:otherReportId', otherReportController.deleteOtherReport)
 router.get('/statusFreqs', dutyReportController.getStatusFreqOptions)
 router.get('/dutyReports/:dutyReportId/frequencies', dutyReportController.getDutyReportFrequencies)
 router.put('/dutyReports/:dutyReportId/frequencies/:cwpFrequencyId', dutyReportController.saveDutyReportFrequency)

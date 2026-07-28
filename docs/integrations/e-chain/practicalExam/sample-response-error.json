@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "message": "Failed to receive practical exam data",
+  "error": {
+    "code": "PRACTICAL_EXAM_REJECTED",
+    "details": "The practical exam PDF file could not be downloaded."
+  }
+}

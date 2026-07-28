@@ -1,0 +1,18 @@
+{
+  "profession": "Air Traffic Controller",
+  "practicalCheckedAt": "2026-07-12T02:30:00.000Z",
+  "rating": "TWR",
+  "validUntil": "2027-07-12T16:59:59.000Z",
+  "file": {
+    "fileName": "twr-steve-practical.pdf",
+    "fileUrl": "https://simponi.example.com/files/1752322200/signed-token/practicalTest/twr-steve-practical.pdf",
+    "fileMimeType": "application/pdf"
+  },
+  "requestedFields": [
+    "profession",
+    "practicalCheckedAt",
+    "rating",
+    "validUntil",
+    "file"
+  ]
+}

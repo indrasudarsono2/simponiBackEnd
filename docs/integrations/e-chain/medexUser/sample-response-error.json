@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "message": "MEDEX data not found",
+  "error": {
+    "code": "MEDEX_NOT_FOUND",
+    "details": "No e-chain MEDEX data found for nik 10011520."
+  }
+}
+

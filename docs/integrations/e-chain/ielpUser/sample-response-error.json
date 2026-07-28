@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "message": "IELP data not found",
+  "error": {
+    "code": "IELP_NOT_FOUND",
+    "details": "No e-chain IELP data found for nik 10011520."
+  }
+}
+

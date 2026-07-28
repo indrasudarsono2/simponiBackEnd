@@ -1,0 +1,334 @@
+
+> dev
+> nuxt dev
+
+[90m|[39m
+[34m•[39m  [32mNuxt [1m4.3.0[22m[39m[90m (with [39m[90mNitro [1m2.13.1[22m[39m[90m, Vite [1m7.3.1[22m[39m[90m and Vue [1m3.5.27[22m[39m[90m)[39m
+
+[32m  ➜ Local:   [39m [36m[4mhttp://localhost:[1m3000[22m/[24m[39m
+[90m  ➜ Network:  use [37m--host[90m to expose[39m
+
+[nuxt] modules:before: 0.122ms
+[nuxt] eslint:config:addons: 0.023ms
+[36mi[39m Module [36m@nuxt/eslint[39m took [36m33.62ms[39m to setup.
+[nuxt] kit:compatibility: 0.027ms
+[nuxt] kit:compatibility: 0.025ms
+[nuxt] icon:serverKnownCssClasses: 0.02ms
+[36mi[39m Module [36m@nuxt/icon[39m took [36m4.17ms[39m to setup.
+[36mi[39m Module [36m@nuxt/fonts[39m took [36m2.01ms[39m to setup.
+[nuxt] kit:compatibility: 0.035ms
+[nuxt] kit:compatibility: 0.045ms
+[36mi[39m Module [36m@nuxtjs/color-mode[39m took [36m5.74ms[39m to setup.
+[36mi[39m Module [36m@nuxt/ui[39m took [36m635.18ms[39m to setup.
+[36mi[39m Module [36mvueuse[39m took [36m0.44ms[39m to setup.
+[nuxt] kit:compatibility: 0.025ms
+[36mi[39m Module [36mpinia[39m took [36m0.6ms[39m to setup.
+[nuxt] devtools:before: 0.091ms
+[nuxt] devtools:initialized: 0.5ms
+[33m  ➜ DevTools: [39m[2mpress [22m[32mShift[39m[2m + [22m[32mAlt[39m[2m + [22m[32mD[39m[2m in the browser (v3.1.1)[22m
+
+[36mi[39m Module [36m@nuxt/devtools[39m took [36m335.37ms[39m to setup.
+[nuxt] pages:routerOptions: 0.038ms
+[36mi[39m Module [36mnuxt:pages[39m took [36m15.63ms[39m to setup.
+[36mi[39m Module [36mnuxt:meta[39m took [36m3.07ms[39m to setup.
+[36mi[39m Module [36mnuxt:components[39m took [36m9.34ms[39m to setup.
+[36mi[39m Module [36mnuxt:imports[39m took [36m2.16ms[39m to setup.
+[36mi[39m Module [36mnuxt:nuxt-config-schema[39m took [36m1.37ms[39m to setup.
+[36mi[39m Module [36m@nuxt/telemetry[39m took [36m0.25ms[39m to setup.
+[nuxt] fonts:providers: 0.022ms
+[nuxt] imports:dirs: 0.081ms
+[nuxt] imports:sources: 83.466ms
+[nuxt] imports:context: 0.534ms
+[nuxt] imports:extend: 0.188ms
+[nuxt] eslint:config:addons: 0.028ms
+[nuxt] builder:generateApp: 0.82ms
+[nuxt] schema:extend: 0.111ms
+[nuxt] schema:resolved: 0.019ms
+[nuxt] telemetry:setup: 1.492ms
+[nuxt] modules:done: 308.666ms
+[36mi[39m Nuxt Icon server bundle mode is set to [36mlocal[39m
+[32m√[39m Nuxt Icon discovered local-installed 2 collections: lucide, simple-icons
+[nuxt] nitro:config: 3.572s
+[nuxt] nitro:init: 3.238ms
+[nuxt] ready: 1.119ms
+[nuxt] listen: 0.026ms
+[nuxt] devtools:customTabs: 0.251ms
+[nuxt] components:dirs: 0.055ms
+[nuxt] app:resolve: 2.871ms
+[nuxt] pages:extend: 0.312ms
+[nuxt] pages:resolved: 0.111ms
+[nuxt] components:extend: 1.395ms
+[nuxt] app:templates: 183.895ms
+[nuxt] icon:clientBundleIcons: 38.295ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mapp-component.mjs[39m in 44.42ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/app.config.d.ts[39m in 44.9ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mapp.config.mjs[39m in 45.4ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/build.d.ts[39m in 45.9ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mnitro.client.mjs[39m in 45.81ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mcss.mjs[39m in 46.37ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mfetch.mjs[39m in 46.95ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36merror-component.mjs[39m in 47.58ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mglobal-polyfills.mjs[39m in 48.36ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mlayouts.mjs[39m in 49.15ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mmiddleware.mjs[39m in 49.63ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mnuxt.config.mjs[39m in 49.7ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mpaths.mjs[39m in 50.02ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mroot-component.mjs[39m in 50.69ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/modules.d.ts[39m in 51.37ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtest-component-wrapper.mjs[39m in 51.13ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/vue-shim.d.ts[39m in 51.84ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/nitro-layouts.d.ts[39m in 52.67ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/builder-env.d.ts[39m in 53.45ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mcolor-mode-options.mjs[39m in 53.74ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/index.ts[39m in 32.64ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/ui.d.ts[39m in 33.06ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui-image-component.ts[39m in 33.9ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mroutes.mjs[39m in 34.23ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mpages.mjs[39m in 30.41ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/middleware.d.ts[39m in 30.84ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/nitro-middleware.d.ts[39m in 31.57ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/layouts.d.ts[39m in 32.33ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36munhead-options.mjs[39m in 32.97ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36munhead.config.mjs[39m in 33.59ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mcomponents.d.ts[39m in 34.19ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/components.d.ts[39m in 30.83ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mcomponents.plugin.mjs[39m in 28.32ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mcomponent-names.mjs[39m in 28.76ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mcomponents.islands.mjs[39m in 29.29ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mcomponent-chunk.mjs[39m in 29.63ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mroute-rules.mjs[39m in 42.62ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mnuxt-icon-server-bundle.mjs[39m in 81.21ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mnuxt-fonts-global.css[39m in 81.64ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/accordion.ts[39m in 82.26ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/alert.ts[39m in 82.79ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/auth-form.ts[39m in 82.95ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/avatar.ts[39m in 83.68ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/avatar-group.ts[39m in 84.34ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/badge.ts[39m in 84.98ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/banner.ts[39m in 85.16ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/blog-post.ts[39m in 85.5ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/blog-posts.ts[39m in 86ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/breadcrumb.ts[39m in 86.66ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/button.ts[39m in 87.24ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/calendar.ts[39m in 87.2ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/card.ts[39m in 87.25ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/carousel.ts[39m in 87.86ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/changelog-version.ts[39m in 88.47ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/changelog-versions.ts[39m in 89.09ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/chat-message.ts[39m in 89.83ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/chat-messages.ts[39m in 90.21ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/chat-palette.ts[39m in 90.91ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/chat-prompt.ts[39m in 91.55ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/chat-prompt-submit.ts[39m in 92.2ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/checkbox.ts[39m in 92.89ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/checkbox-group.ts[39m in 93.11ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/chip.ts[39m in 93.51ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/collapsible.ts[39m in 93.9ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/color-picker.ts[39m in 94.57ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/command-palette.ts[39m in 95.27ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/container.ts[39m in 95.9ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/context-menu.ts[39m in 96.66ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-group.ts[39m in 97ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-navbar.ts[39m in 97.68ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-panel.ts[39m in 98.32ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-resize-handle.ts[39m in 98.9ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-search.ts[39m in 99.57ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-search-button.ts[39m in 100.24ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-sidebar.ts[39m in 100.93ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-sidebar-collapse.ts[39m in 101.57ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-sidebar-toggle.ts[39m in 102.25ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dashboard-toolbar.ts[39m in 102.86ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/drawer.ts[39m in 103.59ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/dropdown-menu.ts[39m in 104.08ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/editor.ts[39m in 104.28ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/editor-drag-handle.ts[39m in 104.6ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/editor-emoji-menu.ts[39m in 105.06ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/editor-mention-menu.ts[39m in 105.33ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/editor-suggestion-menu.ts[39m in 105.71ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/editor-toolbar.ts[39m in 106.15ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/empty.ts[39m in 106.59ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/error.ts[39m in 107.12ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/field-group.ts[39m in 107.79ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/file-upload.ts[39m in 108.47ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/footer.ts[39m in 108.74ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/footer-columns.ts[39m in 109.41ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/form.ts[39m in 110.03ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/form-field.ts[39m in 110.94ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/header.ts[39m in 111.55ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/input.ts[39m in 112.02ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/input-date.ts[39m in 111.88ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/input-menu.ts[39m in 111.63ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/input-number.ts[39m in 111.34ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/input-tags.ts[39m in 111.29ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/input-time.ts[39m in 111.04ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/kbd.ts[39m in 110.9ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/link.ts[39m in 110.93ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/main.ts[39m in 111.3ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/marquee.ts[39m in 111.8ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/modal.ts[39m in 112.47ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/navigation-menu.ts[39m in 113.06ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page.ts[39m in 112.63ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-anchors.ts[39m in 113.3ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-aside.ts[39m in 113.87ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-body.ts[39m in 114.47ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-cta.ts[39m in 115.09ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-card.ts[39m in 115.54ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-columns.ts[39m in 115.82ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-feature.ts[39m in 116.54ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-grid.ts[39m in 117.16ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-header.ts[39m in 117.84ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-hero.ts[39m in 118.43ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-links.ts[39m in 119.06ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-list.ts[39m in 119.65ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-logos.ts[39m in 120.52ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/page-section.ts[39m in 121.33ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/pagination.ts[39m in 121.98ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/pin-input.ts[39m in 122.72ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/popover.ts[39m in 123.16ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/pricing-plan.ts[39m in 123.81ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/pricing-plans.ts[39m in 124.49ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/pricing-table.ts[39m in 125.05ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/progress.ts[39m in 125.57ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/radio-group.ts[39m in 125.43ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/scroll-area.ts[39m in 125.41ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/select.ts[39m in 125.96ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/select-menu.ts[39m in 125.88ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/separator.ts[39m in 125.87ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/skeleton.ts[39m in 126.08ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/slideover.ts[39m in 126.56ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/slider.ts[39m in 127.08ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/stepper.ts[39m in 127.4ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/switch.ts[39m in 127.83ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/table.ts[39m in 128.22ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/tabs.ts[39m in 128.16ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/textarea.ts[39m in 128.21ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/timeline.ts[39m in 128.52ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/toast.ts[39m in 128.75ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/toaster.ts[39m in 129.2ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/tooltip.ts[39m in 129.55ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/tree.ts[39m in 130.12ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui/user.ts[39m in 130.51ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mui.css[39m in 130.96ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mdevtools/settings.mjs[39m in 130.45ms
+[nuxt] nitro:prepare:types: 117.348ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mimports.mjs[39m in 118.33ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mimports.d.ts[39m in 118.76ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mnuxt-icon-client-bundle.mjs[39m in 156.4ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/shared-imports.d.ts[39m in 120.35ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/nitro-nuxt.d.ts[39m in 120.94ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/runtime-config.d.ts[39m in 159.69ms
+[nuxt] prepare:types: 3.25ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mruntime.vue-devtools-client.q9IW_FKmorgrbpDr831igt8QTR8Ap4e_KG36WJGCz64.js[39m in 168.13ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/imports.d.ts[39m in 166.14ms
+[nuxt] pages:routerOptions: 0.047ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mrouter.options.mjs[39m in 203.88ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mplugins.server.mjs[39m in 185.96ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mplugins.client.mjs[39m in 212.57ms
+[90m[[90mnuxt[90m][39m [36mi[39m Compiled [36mtypes/plugins.d.ts[39m in 216.67ms
+[nuxt] imports:extend: 0.08ms
+[nuxt] eslint:config:addons: 0.011ms
+[nuxt] builder:generateApp: 0.859ms
+[nuxt] app:templatesGenerated: 90.774ms
+[nuxt] build:before: 0.035ms
+[nuxt] vite:extend: 186.419ms
+[nuxt] vite:extendConfig: 2.561ms
+[nuxt] vite:configResolved: 0.033ms
+[nuxt] server:devHandler: 0.075ms
+[nuxt] vite:serverCreated: 12.79ms
+[32m√[39m Vite client built in 67ms
+[nuxt] vite:extendConfig: 4.8ms
+[nuxt] vite:configResolved: 0.028ms
+[nuxt] vite:serverCreated: 3.834ms
+[32m√[39m Vite server built in 90ms
+[nuxt] schema:beforeWrite: 0.024ms
+[nuxt] schema:written: 0.026ms
+[nuxt] nitro:build:before: 0.264ms
+[nitro] build:before: 0.162ms
+[nitro] rollup:before: 15.647ms
+[nitro] dev:start: 0.069ms
+[nitro] types:extend: 0.118ms
+[90m[[90mnitro[90m][39m [32m√[39m Nuxt Nitro server built in 4005ms
+[nitro] dev:reload: 3.313ms
+[nuxt] build:done: 4.482s
+[nitro] compiled: 8.023ms
+[36mi[39m Vite server warmed up in 3ms
+[36mi[39m Vite client warmed up in 7ms
+[90mD[39m Dev server (internal) initialized in 14337ms
+[90mD[39m > Nitro Start (16ms)
+[nitro-runtime] request: 0.705ms
+[nitro-runtime] render:before: 0.035ms
+[nuxt-app] page:loading:start: 0.034ms
+[nuxt-app] app:created: 7.3ms
+[nuxt-app] vue:setup: 0.161ms
+[nitro-runtime] request: 3.722ms
+[nitro-runtime] beforeResponse: 0.023ms
+[nitro-runtime] dev:ssr-logs: 0.08ms
+[nitro-runtime] afterResponse: 0.628ms
+[nitro-runtime] request: 0.209ms
+[nitro-runtime] beforeResponse: 0.037ms
+[nitro-runtime] dev:ssr-logs: 0.014ms
+[nitro-runtime] afterResponse: 0.348ms
+[nuxt-app] vue:error: 2.116ms
+[nuxt-app] vue:error : 1.599ms
+[nuxt-app] vue:error: 36.696ms
+[nuxt-app] vue:error : 7.234ms
+[nuxt-app] vue:error  : 4.966ms
+[nuxt-app] vue:error   : 4.181ms
+[nuxt-app] vue:error    : 3.491ms
+[nitro-runtime] request: 0.054ms
+[90mD[39m [Icon] serving [36mlucide:info[39m,[36mlucide:menu[39m,[36mlucide:panel-left-close[39m,[36mlucide:pencil[39m,[36mlucide:refresh-cw[39m from bundled collection
+[nitro-runtime] beforeResponse: 0.024ms
+[nitro-runtime] dev:ssr-logs: 0.019ms
+[nitro-runtime] afterResponse: 0.421ms
+[nuxt-app] app:rendered: 4.653ms
+[nitro-runtime] error: 3.637ms
+[nitro-runtime] request: 0.053ms
+[nitro-runtime] render:before: 0.021ms
+[nuxt-app] page:loading:start: 0.02ms
+[nuxt-app] app:created: 1.063ms
+[nuxt-app] vue:setup: 0.009ms
+[nuxt-app] app:rendered: 0.876ms
+[nitro-runtime] render:html: 0.891ms
+[nitro-runtime] render:response: 0.021ms
+[nitro-runtime] beforeResponse: 0.019ms
+[nitro-runtime] dev:ssr-logs: 0.02ms
+[nitro-runtime] afterResponse: 0.641ms
+[nitro-runtime] request: 0.158ms
+[nitro-runtime] render:before: 0.027ms
+[nuxt-app] page:loading:start: 0.033ms
+[nuxt-app] app:created: 3.508ms
+[nuxt-app] vue:setup: 0.016ms
+[nitro-runtime] request: 1.123ms
+[nitro-runtime] beforeResponse: 0.034ms
+[nitro-runtime] dev:ssr-logs: 0.015ms
+[nitro-runtime] afterResponse: 0.442ms
+[nitro-runtime] request: 0.067ms
+[nitro-runtime] beforeResponse: 0.039ms
+[nitro-runtime] dev:ssr-logs: 0.027ms
+[nitro-runtime] afterResponse: 0.461ms
+[nuxt-app] app:rendered: 4.427ms
+[nitro-runtime] render:html: 0.775ms
+[nitro-runtime] render:response: 0.024ms
+[nitro-runtime] beforeResponse: 0.016ms
+[nitro-runtime] dev:ssr-logs: 0.013ms
+[nitro-runtime] afterResponse: 0.43ms
+[nitro-runtime] request: 0.119ms
+[nitro-runtime] render:before: 0.031ms
+[nuxt-app] page:loading:start: 0.016ms
+[nuxt-app] app:created: 1.061ms
+[nuxt-app] vue:setup: 0.005ms
+[nitro-runtime] request: 0.667ms
+[nitro-runtime] beforeResponse: 0.066ms
+[nitro-runtime] dev:ssr-logs: 0.016ms
+[nitro-runtime] afterResponse: 0.416ms
+[nitro-runtime] request: 0.059ms
+[90mD[39m [Icon] serving [36mlucide:badge-check[39m,[36mlucide:circle-check[39m,[36mlucide:clock[39m,[36mlucide:database[39m,[36mlucide:log-in[39m,[36mlucide:siren[39m,[36mlucide:user-round[39m from bundled collection
+[nitro-runtime] beforeResponse: 0.027ms
+[nitro-runtime] dev:ssr-logs: 0.015ms
+[nitro-runtime] afterResponse: 0.387ms
+[nuxt-app] app:rendered: 4.299ms
+[nitro-runtime] render:html: 0.407ms
+[nitro-runtime] render:response: 0.021ms
+[nitro-runtime] beforeResponse: 0.016ms
+[nitro-runtime] dev:ssr-logs: 0.011ms
+[nitro-runtime] afterResponse: 0.369ms

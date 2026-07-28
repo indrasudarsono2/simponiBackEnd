@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "message": "License data not found",
+  "error": {
+    "code": "LICENSE_NOT_FOUND",
+    "details": "No e-chain license data found for nik 10011520."
+  }
+}
+

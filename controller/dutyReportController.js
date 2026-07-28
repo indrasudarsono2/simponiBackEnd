@@ -570,6 +570,10 @@ const getDutyReportRecap = async (req, res) => {
           },
           orderBy: [{ time: "asc" }, { createdAt: "asc" }],
         },
+        otherReports: {
+          where: { deletedAt: null },
+          orderBy: [{ time: "asc" }, { createdAt: "asc" }],
+        },
       },
       orderBy: [
         {
@@ -824,12 +828,13 @@ const getDutyReportDeletionSummary = async (req, res) => {
       return res.status(404).json({ message: "Duty report not found." });
     }
 
-    const [statusFrequencies, logBooks, lhdReports] = await Promise.all([
+    const [statusFrequencies, logBooks, lhdReports, otherReports] = await Promise.all([
       prisma.statusFrequency.count({
         where: { dutyReportId, deletedAt: null },
       }),
       prisma.logBook.count({ where: { dutyReportId, deletedAt: null } }),
       prisma.lhdReport.count({ where: { dutyReportId, deletedAt: null } }),
+      prisma.otherReport.count({ where: { dutyReportId, deletedAt: null } }),
     ]);
 
     const issueIds = new Set(
@@ -849,6 +854,7 @@ const getDutyReportDeletionSummary = async (req, res) => {
         statusFrequencies,
         logBooks,
         lhdReports,
+        otherReports,
       },
     });
   } catch (error) {
@@ -876,7 +882,7 @@ const deleteDutyReport = async (req, res) => {
 
     const deletedAt = new Date();
     const result = await prisma.$transaction(async (tx) => {
-      const [statusFrequencies, logBooks, lhdReports, issueLinks] =
+      const [statusFrequencies, logBooks, lhdReports, otherReports, issueLinks] =
         await Promise.all([
           tx.statusFrequency.updateMany({
             where: { dutyReportId, deletedAt: null },
@@ -887,6 +893,10 @@ const deleteDutyReport = async (req, res) => {
             data: { deletedAt },
           }),
           tx.lhdReport.updateMany({
+            where: { dutyReportId, deletedAt: null },
+            data: { deletedAt },
+          }),
+          tx.otherReport.updateMany({
             where: { dutyReportId, deletedAt: null },
             data: { deletedAt },
           }),
@@ -905,6 +915,7 @@ const deleteDutyReport = async (req, res) => {
         statusFrequencies: statusFrequencies.count,
         logBooks: logBooks.count,
         lhdReports: lhdReports.count,
+        otherReports: otherReports.count,
         issueLinks: issueLinks.count,
       };
     });

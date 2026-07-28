@@ -1,0 +1,15 @@
+{
+  "nik": "10011520",
+  "requestedFields": [
+    "institution",
+    "released",
+    "expired",
+    "examiner",
+    "fileName",
+    "fileUrl",
+    "fileUrlExpiresAt",
+    "fileMimeType",
+    "fileSizeBytes"
+  ]
+}
+

@@ -1,0 +1,13 @@
+{
+  "nik": "10011520",
+  "requestedFields": [
+    "name",
+    "dateOfBirth",
+    "placeOfBirth",
+    "personalAddress",
+    "nationality",
+    "phoneNumber",
+    "email"
+  ]
+}
+

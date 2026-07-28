@@ -1,0 +1,19 @@
+{
+  "eventId": "echain-ielp-verified-2026-0001",
+  "eventType": "IELP_VERIFIED",
+  "occurredAt": "2026-07-12T09:30:00+07:00",
+  "nik": "10011520",
+  "echainDocumentId": "IELP-2026-0001",
+  "data": {
+    "institution": "PPIC CURUG",
+    "level": "5",
+    "released": "2024-02-28",
+    "expired": "2027-02-28",
+    "rater": "MASRIAN",
+    "fileName": "indra-ielp-2024.pdf",
+    "fileUrl": "https://echain.example.com/files/ielp/indra-ielp-2024.pdf",
+    "fileUrlExpiresAt": "2026-07-12T10:30:00+07:00",
+    "fileMimeType": "application/pdf",
+    "fileSizeBytes": 245000
+  }
+}

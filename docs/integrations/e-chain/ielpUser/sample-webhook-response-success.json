@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "message": "IELP webhook processed; SIMPONI record created.",
+  "data": {
+    "eventId": "echain-ielp-verified-2026-0001",
+    "action": "created",
+    "nik": "10011520",
+    "ielpId": 123,
+    "fileStored": true
+  }
+}

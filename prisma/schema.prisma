@@ -109,6 +109,7 @@ model MultipleChoice {
   versionGroupId         Int?      @db.Int
   version                Int       @default(1) @db.Int
   isActive               Boolean   @default(true)
+  isMats                 Boolean   @default(false)
   question               String?   @db.Text
   image                  String?   @db.Text
   a                      String?   @db.Text
@@ -125,6 +126,33 @@ model MultipleChoice {
   childMultipleChoices     MultipleChoice[]           @relation("MultipleChoiceVersions")
   multipleChoiceCorections MultipleChoiceCorrection[]
   mcQuestionGroups         McQuestionGroup[]
+  matsSelections           MatsQuestionSelection[]
+
+  @@index([isMats, isActive, deletedAt])
+}
+
+model MatsConfiguration {
+  id        Int      @id @default(1)
+  quantity  Int      @default(0) @db.Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MatsQuestionSelection {
+  id               Int      @id @default(autoincrement())
+  appRatingId      Int      @db.Int
+  eventId          Int      @db.Int
+  multipleChoiceId Int      @db.Int
+  slot             Int      @db.Int
+  createdAt        DateTime @default(now())
+
+  appRating      AppRating      @relation(fields: [appRatingId], references: [id], onDelete: Cascade)
+  event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  multipleChoice MultipleChoice @relation(fields: [multipleChoiceId], references: [id])
+
+  @@unique([appRatingId, eventId, multipleChoiceId])
+  @@unique([appRatingId, eventId, slot])
+  @@index([appRatingId, eventId])
 }
 
 model McQuestionGroup {
@@ -246,10 +274,33 @@ model PracticalTest {
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
-  groupMember     GroupMember?     @relation(fields: [groupMemberId], references: [id])
-  checkerGroup    CheckerGroup?    @relation(fields: [checkerGroupId], references: [id])
-  appRating       AppRating?       @relation(fields: [appRatingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  kindOfPractical KindOfPractical? @relation(fields: [kindOfPracticalId], references: [id])
+  groupMember     GroupMember?              @relation(fields: [groupMemberId], references: [id])
+  checkerGroup    CheckerGroup?             @relation(fields: [checkerGroupId], references: [id])
+  appRating       AppRating?                @relation(fields: [appRatingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  kindOfPractical KindOfPractical?          @relation(fields: [kindOfPracticalId], references: [id])
+  recheckAttempts PracticalRecheckAttempt[]
+  echainSyncs     PracticalExamEchainSync[]
+}
+
+model PracticalExamEchainSync {
+  id                       Int       @id @default(autoincrement())
+  practicalTestId          Int       @db.Int
+  practicalRecheckAttemptId Int?      @db.Int
+  echainRequestId          String?   @db.VarChar(150)
+  status                   String    @default("PENDING") @db.VarChar(50)
+  requestPayload           Json?
+  responsePayload          Json?
+  errorMessage             String?   @db.Text
+  sentAt                   DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  practicalTest           PracticalTest            @relation(fields: [practicalTestId], references: [id], onDelete: Cascade)
+  practicalRecheckAttempt PracticalRecheckAttempt? @relation(fields: [practicalRecheckAttemptId], references: [id], onDelete: Cascade)
+
+  @@index([practicalTestId])
+  @@index([practicalRecheckAttemptId])
+  @@index([status])
 }
 
 model KindOfPractical {
@@ -323,14 +374,15 @@ model Event {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  session        Session?        @relation(fields: [sessionId], references: [id])
-  sector         Sector?         @relation(fields: [sectorId], references: [id])
-  remarkDoc      RemarkDoc?      @relation(fields: [remarkDocId], references: [id])
+  session        Session?                @relation(fields: [sessionId], references: [id])
+  sector         Sector?                 @relation(fields: [sectorId], references: [id])
+  remarkDoc      RemarkDoc?              @relation(fields: [remarkDocId], references: [id])
   eventUsers     EventUser[]
   groups         Group[]
   eventQuestions EventQuestion[]
   finalScores    FinalScore[]
   previews       Preview[]
+  matsSelections MatsQuestionSelection[]
 }
 
 model EventQuestion {
@@ -417,9 +469,10 @@ model CheckerGroup {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  group          Group?          @relation(fields: [groupId], references: [id])
-  userChecker    User?           @relation("CheckerGroup", fields: [checker], references: [nik])
-  practicalTests PracticalTest[]
+  group                    Group?                    @relation(fields: [groupId], references: [id])
+  userChecker              User?                     @relation("CheckerGroup", fields: [checker], references: [nik])
+  practicalTests           PracticalTest[]
+  practicalRecheckAttempts PracticalRecheckAttempt[]
 }
 
 model Medex {
@@ -550,15 +603,51 @@ model AppRating {
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
 
-  applicationDoc           ApplicationDoc?            @relation(fields: [applicationDocId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  rating                   Rating?                    @relation(fields: [ratingId], references: [id])
-  status                   status?                    @relation(fields: [statusId], references: [id])
-  multipleChoiceCorections MultipleChoiceCorrection[]
-  essayCorrections         EssayCorrection[]
-  practicalTests           PracticalTest[]
-  finalScores              FinalScore[]
-  monitorTimes             MonitorTime[]
-  previews                 Preview[]
+  applicationDoc                ApplicationDoc?                @relation(fields: [applicationDocId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  rating                        Rating?                        @relation(fields: [ratingId], references: [id])
+  status                        status?                        @relation(fields: [statusId], references: [id])
+  multipleChoiceCorections      MultipleChoiceCorrection[]
+  essayCorrections              EssayCorrection[]
+  practicalTests                PracticalTest[]
+  finalScores                   FinalScore[]
+  monitorTimes                  MonitorTime[]
+  previews                      Preview[]
+  matsSelections                MatsQuestionSelection[]
+  examinationInvalidations      ExaminationInvalidation[]
+  practicalRecheckAuthorization PracticalRecheckAuthorization?
+}
+
+model PracticalRecheckAuthorization {
+  id           Int       @id @default(autoincrement())
+  appRatingId  Int       @unique @db.Int
+  grantedBy    String    @db.VarChar(150)
+  reason       String    @db.Text
+  passingGrade Float     @db.Float
+  status       String    @default("ACTIVE") @db.VarChar(30)
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  appRating AppRating                 @relation(fields: [appRatingId], references: [id], onDelete: Restrict)
+  attempts  PracticalRecheckAttempt[]
+}
+
+model PracticalRecheckAttempt {
+  id              Int      @id @default(autoincrement())
+  authorizationId Int      @db.Int
+  practicalTestId Int      @db.Int
+  checkerGroupId  Int?     @db.Int
+  score           Float?   @db.Float
+  file            String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  authorization PracticalRecheckAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
+  practicalTest PracticalTest                 @relation(fields: [practicalTestId], references: [id], onDelete: Restrict)
+  checkerGroup  CheckerGroup?                 @relation(fields: [checkerGroupId], references: [id])
+  echainSyncs   PracticalExamEchainSync[]
+
+  @@unique([authorizationId, practicalTestId])
+  @@index([checkerGroupId, authorizationId])
 }
 
 model User {
@@ -738,6 +827,10 @@ model FinalScore {
   essayScore          Float?    @db.Float
   finalScore          Float?    @db.Float
   multipleChoiceScore Float?    @db.Float
+  isInvalidated       Boolean   @default(false)
+  invalidatedAt       DateTime?
+  invalidatedBy       String?   @db.VarChar(150)
+  invalidationReason  String?   @db.Text
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   deletedAt           DateTime?
@@ -749,6 +842,27 @@ model FinalScore {
   userRatings               userRating[]
   essayCorrections          EssayCorrection[]
   multipleChoiceCorrections MultipleChoiceCorrection[]
+  examinationInvalidations  ExaminationInvalidation[]
+
+  @@index([appRatingId, isInvalidated, deletedAt])
+}
+
+model ExaminationInvalidation {
+  id               Int      @id @default(autoincrement())
+  appRatingId      Int      @db.Int
+  finalScoreId     Int      @db.Int
+  invalidatedBy    String   @db.VarChar(150)
+  reason           String   @db.Text
+  fraudCategory    String?  @db.VarChar(100)
+  previousStatusId Int?     @db.Int
+  previousScore    Float?   @db.Float
+  createdAt        DateTime @default(now())
+
+  appRating  AppRating  @relation(fields: [appRatingId], references: [id])
+  finalScore FinalScore @relation(fields: [finalScoreId], references: [id])
+
+  @@index([appRatingId, createdAt])
+  @@index([finalScoreId])
 }
 
 model userRating {
@@ -880,6 +994,7 @@ model DutyReport {
   lhdReports        LhdReport[]
   logBooks          LogBook[]
   onGoingIssueLinks DutyReportOnGoingIssue[]
+  otherReports      OtherReport[]
 }
 
 model DutyReportOnGoingIssue {
@@ -894,6 +1009,19 @@ model DutyReportOnGoingIssue {
 
   @@unique([dutyReportId, onGoingIssueId])
   @@index([onGoingIssueId])
+}
+
+model OtherReport {
+  id           Int       @id @default(autoincrement())
+  dutyReportId Int?      @db.Int()
+  report       String?   @db.Text()
+  time         DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  dutyReport DutyReport? @relation(fields: [dutyReportId], references: [id])
 }
 
 model LhdReport {
@@ -1232,8 +1360,27 @@ model MedicalCheck {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  doctorUser   User? @relation("DoctorMedicalCheck", fields: [doctor], references: [nik])
-  employeeUser User? @relation("EmployeeMedicalCheck", fields: [employee], references: [nik])
+  doctorUser   User?                  @relation("DoctorMedicalCheck", fields: [doctor], references: [nik])
+  employeeUser User?                  @relation("EmployeeMedicalCheck", fields: [employee], references: [nik])
+  revisions    MedicalCheckRevision[]
+}
+
+model MedicalCheckRevision {
+  id                        Int      @id @default(autoincrement())
+  medicalCheckId            Int      @db.Int
+  editedBy                  String   @db.VarChar(150)
+  reason                    String   @db.Text
+  previousBloodPressure     String?  @db.VarChar(50)
+  newBloodPressure          String?  @db.VarChar(50)
+  previousIsFit             Boolean?
+  newIsFit                  Boolean?
+  previousUnNormalCondition String?  @db.Text
+  newUnNormalCondition      String?  @db.Text
+  createdAt                 DateTime @default(now())
+
+  medicalCheck MedicalCheck @relation(fields: [medicalCheckId], references: [id], onDelete: Restrict)
+
+  @@index([medicalCheckId, createdAt])
 }
 
 model LogBook {

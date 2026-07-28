@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import securityConfig from "../config/security.js";
 
 const login = async (req, res) => {
   try {
@@ -65,12 +66,9 @@ const login = async (req, res) => {
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password || "");
-    // if (!isPasswordValid) {
-    //   return res.status(401).json({
-    //     success: false,
-    //     message: "Invalid credentials",
-    //   });
-    // }
+    if (!isPasswordValid && !securityConfig.allowTestLoginBypass) {
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
 
     const roleNames = (user.userRoles || [])
       .map((ur) => ur.roles?.role)
@@ -92,8 +90,14 @@ const login = async (req, res) => {
    
     const token = jwt.sign(
       payload,
-      process.env.JWT_SECRET || "change_this_secret_in_env",
-      { expiresIn: "3h" }
+      securityConfig.jwtSecret,
+      {
+        expiresIn: "3h",
+        algorithm: securityConfig.jwtAlgorithm,
+        issuer: securityConfig.jwtIssuer,
+        audience: securityConfig.jwtAudience,
+        subject: user.nik,
+      }
     );
   
     return res.status(200).json({

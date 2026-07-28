@@ -157,7 +157,8 @@ const postData = async (req, res) => {
                 },
                 finalScores: {
                   where: {
-                    deletedAt: null
+                    deletedAt: null,
+                    isInvalidated: false
                   },
                   select: {
                     id: true,

@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "message": "MEDEX webhook processed; SIMPONI record created.",
+  "data": {
+    "eventId": "echain-medex-verified-2026-0001",
+    "action": "created",
+    "nik": "10011520",
+    "medexId": 123,
+    "fileStored": true
+  }
+}

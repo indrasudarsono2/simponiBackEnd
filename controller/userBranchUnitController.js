@@ -11,7 +11,7 @@ const getUserBranchUnit = async (req, res) => {
   try {
     const user = await prisma.user.findMany({
       where: {
-        branchId: req.user.branchId,
+        branchUnitId: req.user.branchUnitId,
         // branchId: 1,
         deletedAt: null
       },
@@ -68,13 +68,16 @@ const getUserBranchUnit = async (req, res) => {
 const assignSector = async (req, res) => {
   try {
     const {sectorId, userNikList} = req.body
+    const sector = await prisma.sector.findFirst({ where: { id: Number(sectorId), branchUnitId: req.user.branchUnitId, deletedAt: null }, select: { id: true } });
+    if (!sector) return res.status(404).json({ message: "Sector not found in your branch unit." });
     
    await prisma.user.updateMany({
     where: {
       deletedAt: null,
       nik: {
         in: userNikList
-      }
+      },
+      branchUnitId: req.user.branchUnitId
     },
     data: {
       sectorId: parseInt(sectorId)
@@ -97,6 +100,11 @@ const updatedata = async (req, res) => {
   try {
     const { id } = req.params;
     const {sectorId} = req.body
+    const [user, sector] = await Promise.all([
+      prisma.user.findFirst({ where: { nik: id, branchUnitId: req.user.branchUnitId, deletedAt: null }, select: { nik: true } }),
+      prisma.sector.findFirst({ where: { id: Number(sectorId), branchUnitId: req.user.branchUnitId, deletedAt: null }, select: { id: true } }),
+    ]);
+    if (!user || !sector) return res.status(404).json({ message: "User or sector not found in your branch unit." });
     
     await prisma.user.update({
       where: { nik: id },

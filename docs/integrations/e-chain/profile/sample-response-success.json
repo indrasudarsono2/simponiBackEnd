@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "message": "Profile data found",
+  "data": {
+    "name": "INDRA SUDARSONO",
+    "dateOfBirth": "1992-11-04",
+    "placeOfBirth": "JAKARTA",
+    "personalAddress": "Jl. Sudirman No. 123, Jakarta",
+    "nationality": "INDONESIA",
+    "phoneNumber": "081234567890",
+    "email": "indra@example.com"
+  }
+}
+

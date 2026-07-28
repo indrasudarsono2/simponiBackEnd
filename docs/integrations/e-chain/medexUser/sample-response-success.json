@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "message": "MEDEX data found",
+  "data": {
+    "institution": "RS Aviation",
+    "released": "2024-02-28",
+    "expired": "2026-02-28",
+    "examiner": null,
+    "fileName": "indra-medex-2024.pdf",
+    "fileUrl": "https://echain.example.com/files/medex/indra-medex-2024.pdf",
+    "fileUrlExpiresAt": "2026-07-10T10:30:00Z",
+    "fileMimeType": "application/pdf",
+    "fileSizeBytes": 245000
+  }
+}
+

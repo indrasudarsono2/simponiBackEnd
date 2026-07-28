@@ -89,6 +89,7 @@ const getEvent = async (req, res) => {
                 finalScores: {
                   where: {
                     deletedAt: null,
+                    isInvalidated: false,
                     statusId: 3
                   },
                   select: {

@@ -1,8 +1,61 @@
 import prisma from "../lib/prisma.js";
+import { triggerImmediateOnGoingIssueEscalation } from "../workers/escalationWorker.js";
 
 const parsePositiveInt = (value) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const parseUtcDateBoundary = (value, endOfDay = false) => {
+  const rawValue = String(value || "").trim();
+  const dateTimeMatch = rawValue.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
+  );
+
+  if (dateTimeMatch) {
+    const year = Number(dateTimeMatch[1]);
+    const month = Number(dateTimeMatch[2]);
+    const day = Number(dateTimeMatch[3]);
+    const hours = Number(dateTimeMatch[4]);
+    const minutes = Number(dateTimeMatch[5]);
+    const seconds = Number(dateTimeMatch[6] || 0);
+    const date = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day ||
+      date.getUTCHours() !== hours ||
+      date.getUTCMinutes() !== minutes ||
+      date.getUTCSeconds() !== seconds
+    ) {
+      return null;
+    }
+
+    if (endOfDay) date.setUTCMinutes(date.getUTCMinutes() + 1);
+
+    return date;
+  }
+
+  const match = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  if (endOfDay) date.setUTCDate(date.getUTCDate() + 1);
+
+  return date;
 };
 
 const getUserBranchId = async (req) => {
@@ -155,6 +208,135 @@ const getOnGoingIssues = async (req, res) => {
   }
 };
 
+const getOnGoingIssueRecap = async (req, res) => {
+  try {
+    const requestedBranchId = parsePositiveInt(req.query.branchId);
+    const canUseBranchScope = (req.user?.menuNames || [])
+      .map((menu) => String(menu || "").trim().toLowerCase())
+      .includes("logbookgeneraladmin");
+    const branchId = requestedBranchId || await getUserBranchId(req);
+    const branchUnitId = req.user?.branchUnitId;
+    const startDate = parseUtcDateBoundary(req.query.startDate);
+    const endDate = parseUtcDateBoundary(req.query.endDate, true);
+
+    if (requestedBranchId && !canUseBranchScope) {
+      return res.status(403).json({ message: "Branch recap access is not allowed." });
+    }
+
+    if (!branchId || (!requestedBranchId && !branchUnitId)) {
+      return res.status(401).json({ message: "Branch unit data is missing." });
+    }
+
+    if (!startDate || !endDate || startDate >= endDate) {
+      return res.status(400).json({
+        message: "Valid startDate and endDate are required.",
+      });
+    }
+
+    const branchUnitIssueFilter = requestedBranchId
+      ? {}
+      : {
+          OR: [
+            {
+              dutyReportLinks: {
+                some: {
+                  deletedAt: null,
+                  dutyReport: {
+                    deletedAt: null,
+                    supervisorCwp: { is: { branchUnitId, deletedAt: null } },
+                  },
+                },
+              },
+            },
+            {
+              reporterUser: {
+                is: {
+                  branchUnitId,
+                  deletedAt: null,
+                },
+              },
+            },
+          ],
+        };
+
+    const dutyReportLinkFilter = requestedBranchId
+      ? {
+          deletedAt: null,
+          dutyReport: {
+            deletedAt: null,
+            supervisorCwp: {
+              is: {
+                branchUnit: { is: { branchId } },
+              },
+            },
+          },
+        }
+      : {
+          deletedAt: null,
+          dutyReport: {
+            deletedAt: null,
+            supervisorCwp: { is: { branchUnitId, deletedAt: null } },
+          },
+        };
+
+    const issues = await prisma.onGoingIssue.findMany({
+      where: {
+        branchId,
+        deletedAt: null,
+        start: {
+          gte: startDate,
+          lt: endDate,
+        },
+        ...branchUnitIssueFilter,
+      },
+      include: {
+        equipment: { select: { id: true, equipment: true } },
+        reporterUser: { select: { nik: true, name: true } },
+        messages: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            message: true,
+            createdAt: true,
+          },
+        },
+        dutyReportLinks: {
+          where: dutyReportLinkFilter,
+          orderBy: { attachedAt: "asc" },
+          select: {
+            id: true,
+            attachedAt: true,
+            dutyReport: {
+              select: {
+                id: true,
+                shiftDate: true,
+                spv: { select: { nik: true, name: true } },
+                supervisorCwp: {
+                  select: {
+                    supervisor: true,
+                    cwpSupervisors: {
+                      select: {
+                        cwp: { select: { cwp: true } },
+                      },
+                    },
+                  },
+                },
+                shiftName: { select: { id: true, shift: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ start: "asc" }, { id: "asc" }],
+    });
+
+    res.json({ issues });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const createOnGoingIssue = async (req, res) => {
   try {
     const branchId = await getUserBranchId(req);
@@ -219,6 +401,19 @@ const createOnGoingIssue = async (req, res) => {
         include: issueInclude,
       });
     });
+
+    triggerImmediateOnGoingIssueEscalation(issue.id)
+      .then((result) => {
+        console.log(
+          `Immediate ongoing issue escalation completed: ${JSON.stringify({
+            onGoingIssueId: issue.id,
+            ...result,
+          })}`,
+        );
+      })
+      .catch((error) => {
+        console.error("Immediate ongoing issue escalation failed:", error);
+      });
 
     res.status(201).json({ success: true, issue });
   } catch (error) {
@@ -463,7 +658,7 @@ const cancelOnGoingIssueEscalationLevel = async (req, res) => {
       });
     }
 
-    const dueAt = issue.start && level.time
+    const dueAt = issue.start && level.time !== null
       ? addMinutes(issue.start, level.time)
       : null;
 
@@ -500,6 +695,7 @@ const cancelOnGoingIssueEscalationLevel = async (req, res) => {
 
 export {
   getOnGoingIssues,
+  getOnGoingIssueRecap,
   createOnGoingIssue,
   attachOnGoingIssue,
   detachOnGoingIssue,

@@ -10,6 +10,7 @@ const getMultipleChoices = async (req, res) => {
     const multipleChoice = await prisma.multipleChoice.findMany({
       where: {
         branchUnitId: branchUnitId,
+        isMats: false,
         deletedAt: null,
         isActive: true,
       }
@@ -57,6 +58,7 @@ const addMultipleChoice = async (req, res) => {
     const createdMultipleChoice = await prisma.multipleChoice.create({
       data: {
         branchUnitId: req.user.branchUnitId,
+        isMats: false,
         question: question,
         a: a,
         b: b,

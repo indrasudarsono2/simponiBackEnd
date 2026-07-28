@@ -1,0 +1,12 @@
+{
+  "nik": "10011520",
+  "requestedFields": [
+    "note",
+    "licenseExpiredDate",
+    "fileName",
+    "fileUrl",
+    "fileUrlExpiresAt",
+    "fileMimeType",
+    "fileSizeBytes"
+  ]
+}

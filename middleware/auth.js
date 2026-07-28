@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma.js";
+import securityConfig from "../config/security.js";
 
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   try {
     // Get token from Authorization header
     const authHeader = req.headers["authorization"];
@@ -14,22 +16,55 @@ const authenticateToken = (req, res, next) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "change_this_secret_in_env"
-    );
+    const decoded = jwt.verify(token, securityConfig.jwtSecret, {
+      algorithms: [securityConfig.jwtAlgorithm],
+      issuer: securityConfig.jwtIssuer,
+      audience: securityConfig.jwtAudience,
+    });
+
+    const currentUser = await prisma.user.findFirst({
+      where: { nik: decoded.nik, deletedAt: null },
+      select: {
+        nik: true, name: true, email: true, branchId: true, branchUnitId: true,
+        sectorId: true, professionInBranchId: true,
+        professionInBranch: { select: { professionId: true } },
+        userRoles: {
+          where: { deletedAt: null },
+          select: {
+            roles: {
+              select: {
+                role: true,
+                deletedAt: true,
+                rolesMenu: {
+                  where: { deletedAt: null, menu: { deletedAt: null } },
+                  select: { menu: { select: { menu: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!currentUser) return res.status(401).json({ success: false, message: "Account is no longer active." });
+
+    const activeRoles = currentUser.userRoles.filter((item) => !item.roles?.deletedAt);
+    const menuNames = [...new Set(activeRoles.flatMap((item) =>
+      (item.roles?.rolesMenu || []).map((roleMenu) => roleMenu.menu?.menu).filter(Boolean),
+    ))];
 
     // Attach user data to request
     req.user = {
-      nik: decoded.nik,
-      name: decoded.name,
-      email: decoded.email,
-      roles: decoded.roles,
-      branchId: decoded.branchId,
-      branchUnitId: decoded.branchUnitId,
-      sectorId: decoded.sectorId,
-      professionInBranchId: decoded.professionInBranchId,
-      professionId: decoded.professionId
+      nik: currentUser.nik,
+      name: currentUser.name,
+      email: currentUser.email,
+      roles: activeRoles,
+      roleNames: activeRoles.map((item) => item.roles?.role).filter(Boolean),
+      menuNames,
+      branchId: currentUser.branchId,
+      branchUnitId: currentUser.branchUnitId,
+      sectorId: currentUser.sectorId,
+      professionInBranchId: currentUser.professionInBranchId,
+      professionId: currentUser.professionInBranch?.professionId ?? null,
     };
 
     next();

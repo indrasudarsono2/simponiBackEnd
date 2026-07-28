@@ -46,7 +46,8 @@ const getUserScore = async (req, res) => {
                 },
                 finalScores: {
                   where: {
-                    deletedAt: null
+                    deletedAt: null,
+                    isInvalidated: false
                   },
                   select: {
                     id: true,
@@ -130,6 +131,7 @@ const getUserScorePractical = async (req, res)=> {
                   select: {
                     id: true,
                     score: true,
+                    createdAt: true,
                     kindOfPractical: {
                       where: {
                         deletedAt: null
@@ -150,6 +152,29 @@ const getUserScorePractical = async (req, res)=> {
                           },
                           select: {
                             name: true
+                          }
+                        }
+                      }
+                    },
+                    recheckAttempts: {
+                      select: {
+                        id: true,
+                        score: true,
+                        file: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        authorization: {
+                          select: {
+                            status: true
+                          }
+                        },
+                        checkerGroup: {
+                          select: {
+                            userChecker: {
+                              select: {
+                                name: true
+                              }
+                            }
                           }
                         }
                       }

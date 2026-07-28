@@ -1,0 +1,12 @@
+
+> server@1.0.0 dev
+> nodemon --exec tsx app.js
+
+[33m[nodemon] 3.1.14[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `tsx app.js`[39m
+🚀 Server is humming along on http://localhost:3001
+Escalation scheduler started: every 15 minutes.
+Escalation scheduler completed: {"queued":0,"sent":0,"failed":0,"skipped":false}

@@ -5,7 +5,12 @@ const parsePositiveInt = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const isValidEscalationTime = (value) => value >= 15 && value % 15 === 0;
+const parseNonNegativeInt = (value) => {
+  const parsed = parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+};
+
+const isValidEscalationTime = (value) => value === 0 || (value >= 15 && value % 15 === 0);
 
 const getEscalationLevels = async (req, res) => {
   try {
@@ -50,15 +55,15 @@ const addEscalationLevel = async (req, res) => {
   try {
     const branchId = req.user?.branchId;
     const level = parsePositiveInt(req.body.level);
-    const time = parsePositiveInt(req.body.time);
+    const time = parseNonNegativeInt(req.body.time);
 
     if (!branchId) {
       return res.status(401).json({ message: "Branch data is missing." });
     }
 
-    if (!level || !time || !isValidEscalationTime(time)) {
+    if (!level || time === null || !isValidEscalationTime(time)) {
       return res.status(400).json({
-        message: "Level must be positive and time must be a multiple of 15 minutes.",
+        message: "Level must be positive and time must be 0 or a multiple of 15 minutes.",
       });
     }
 
@@ -98,7 +103,7 @@ const updateEscalationLevel = async (req, res) => {
     const branchId = req.user?.branchId;
     const id = parseInt(req.params.id, 10);
     const level = parsePositiveInt(req.body.level);
-    const time = parsePositiveInt(req.body.time);
+    const time = parseNonNegativeInt(req.body.time);
 
     if (!branchId) {
       return res.status(401).json({ message: "Branch data is missing." });
@@ -108,9 +113,9 @@ const updateEscalationLevel = async (req, res) => {
       return res.status(400).json({ message: "Invalid escalation level ID." });
     }
 
-    if (!level || !time || !isValidEscalationTime(time)) {
+    if (!level || time === null || !isValidEscalationTime(time)) {
       return res.status(400).json({
-        message: "Level must be positive and time must be a multiple of 15 minutes.",
+        message: "Level must be positive and time must be 0 or a multiple of 15 minutes.",
       });
     }
 

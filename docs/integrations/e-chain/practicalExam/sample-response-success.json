@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "message": "Practical exam data received",
+  "data": {
+    "echainRequestId": "ECHAIN-PRACTICAL-2026-0001",
+    "status": "RECEIVED"
+  }
+}

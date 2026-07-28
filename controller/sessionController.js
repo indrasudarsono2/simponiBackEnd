@@ -32,11 +32,11 @@ const getSessions = async (req, res) => {
 
 const addSession = async (req, res) => {
   try {
-    const { session, branchUnitId } = req.body;
+    const { session } = req.body;
     await prisma.session.create({
       data: {
         session: session,
-        branchUnitId: branchUnitId
+        branchUnitId: req.user.branchUnitId
       }
     })
 
@@ -51,8 +51,10 @@ const getSesionById = async (req, res) => {
   try {
     const { id } = req.params;
     const { session } = req.body;
+      const existing = await prisma.session.findFirst({ where: { id: parseInt(id), branchUnitId: req.user.branchUnitId, deletedAt: null }, select: { id: true } });
+      if (!existing) return res.status(404).json({ message: "Session not found in your branch unit." });
       await prisma.session.update({
-      where: { id: parseInt(id) },
+      where: { id: existing.id },
       data: { session: session }
     });
     res.status(201).json({ success: true });
@@ -66,8 +68,10 @@ const deleteSessionById = async (req, res) => {
     const now = new Date();
     const { id } = req.params;
    
+      const existing = await prisma.session.findFirst({ where: { id: parseInt(id), branchUnitId: req.user.branchUnitId, deletedAt: null }, select: { id: true } });
+      if (!existing) return res.status(404).json({ message: "Session not found in your branch unit." });
       await prisma.session.update({
-      where: { id: parseInt(id) },
+      where: { id: existing.id },
       data: { deletedAt: now }
     });
     res.status(201).json({ success: true });

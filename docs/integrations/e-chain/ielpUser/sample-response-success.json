@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "message": "IELP data found",
+  "data": {
+    "institution": "PPIC CURUG",
+    "level": "5",
+    "released": "2024-02-28",
+    "expired": "2027-02-28",
+    "rater": "IMDRA",
+    "fileName": "indra-ielp-2024.pdf",
+    "fileUrl": "https://echain.example.com/files/ielp/indra-ielp-2024.pdf",
+    "fileUrlExpiresAt": "2026-07-10T10:30:00Z",
+    "fileMimeType": "application/pdf",
+    "fileSizeBytes": 245000
+  }
+}

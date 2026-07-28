@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "message": "Profile data not found",
+  "error": {
+    "code": "PROFILE_NOT_FOUND",
+    "details": "No e-chain profile data found for nik 10011520."
+  }
+}
+

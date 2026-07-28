@@ -49,10 +49,10 @@ const editTokenData = async (req, res) => {
     const {id} = req.params
     const {token, startDate, expiredDate} = req.body
 
+    const existing = await prisma.token.findFirst({ where: { id: parseInt(id), branchUnitId: req.user.branchUnitId }, select: { id: true } });
+    if (!existing) return res.status(404).json({ message: "Token not found in your branch unit." });
     await prisma.token.update({
-      where: {
-        id: parseInt(id)
-      },
+      where: { id: existing.id },
       data: {
         branchUnitId: req.user.branchUnitId,
         token: token,

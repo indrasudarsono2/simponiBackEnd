@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "message": "License data found",
+  "data": {
+    "note": "License 2025 SMT 1",
+    "licenseExpiredDate": "2025-12-31",
+    "fileName": "indra-license-2025-smt-1.pdf",
+    "fileUrl": "https://echain.example.com/files/licenses/indra-license-2025-smt-1.pdf",
+    "fileUrlExpiresAt": "2026-07-10T10:30:00Z",
+    "fileMimeType": "application/pdf",
+    "fileSizeBytes": 245000
+  }
+}
