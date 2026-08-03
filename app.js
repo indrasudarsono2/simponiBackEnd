@@ -16,15 +16,35 @@ import { startEscalationScheduler } from './workers/escalationScheduler.js';
 // 2. Initializations
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Trust first proxy (reverse proxy / load balancer) so req.protocol reflects HTTPS
+app.set('trust proxy', 1);
 
 // 3. Middleware
 app.disable('x-powered-by');
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'same-site' } }));
+// Helmet with HSTS enabled only in production (Strict-Transport-Security)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  hsts: isProduction
+    ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+    : false,
+}));
 const allowedOrigins = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'))
   .split(',').map((item) => item.trim()).filter(Boolean);
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Issue #3: Redirect HTTP → HTTPS in production (when behind a reverse proxy)
+if (isProduction) {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
 
 app.get('/files/:expires/:signature/{*filePath}', serveSignedFile(join(dirname(fileURLToPath(import.meta.url)), 'uploads')));
 app.use('/uploads', (_req, res) => res.status(404).json({ message: 'Not found.' }));
@@ -34,6 +54,17 @@ app.get('/', (req, res) => {
   res.send('Hello World');
 });
 
+// Issue #5: General rate limiter for ALL API routes (prevents enumeration / DoS)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+});
+app.use('/api', apiLimiter);
+
+// Stricter rate limiter for login endpoint (brute-force / credential stuffing)
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
 
 app.use('/api', apiRouter);
@@ -42,12 +73,20 @@ app.use('/api', apiRouter);
 app.use((err, req, res, next) => {
   console.error(err.stack);
   
-  // Handle multer errors
+  // Issue #4: Handle multer errors with safe, user-facing messages (no internal leakage)
   if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'File too large. Max size is 5MB.' });
-    }
-    return res.status(400).json({ message: err.message });
+    const safeMulterMessages = {
+      LIMIT_FILE_SIZE: 'File too large. Max size is 5MB.',
+      LIMIT_UNEXPECTED_FILE: 'Unexpected file field in upload.',
+      LIMIT_FILE_COUNT: 'Too many files uploaded.',
+      LIMIT_FIELD_KEY: 'Field name too long.',
+      LIMIT_FIELD_VALUE: 'Field value too long.',
+      LIMIT_FIELD_COUNT: 'Too many form fields.',
+      INVALID_FILE_CONTENT: 'Uploaded file content does not match an allowed file type.',
+    };
+    return res.status(400).json({
+      message: safeMulterMessages[err.code] || 'File upload error.',
+    });
   }
   
   res.status(500).json({ message: 'Something broke!' });

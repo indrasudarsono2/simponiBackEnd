@@ -283,17 +283,17 @@ model PracticalTest {
 }
 
 model PracticalExamEchainSync {
-  id                       Int       @id @default(autoincrement())
-  practicalTestId          Int       @db.Int
+  id                        Int       @id @default(autoincrement())
+  practicalTestId           Int       @db.Int
   practicalRecheckAttemptId Int?      @db.Int
-  echainRequestId          String?   @db.VarChar(150)
-  status                   String    @default("PENDING") @db.VarChar(50)
-  requestPayload           Json?
-  responsePayload          Json?
-  errorMessage             String?   @db.Text
-  sentAt                   DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  echainRequestId           String?   @db.VarChar(150)
+  status                    String    @default("PENDING") @db.VarChar(50)
+  requestPayload            Json?
+  responsePayload           Json?
+  errorMessage              String?   @db.Text
+  sentAt                    DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   practicalTest           PracticalTest            @relation(fields: [practicalTestId], references: [id], onDelete: Cascade)
   practicalRecheckAttempt PracticalRecheckAttempt? @relation(fields: [practicalRecheckAttemptId], references: [id], onDelete: Cascade)
@@ -666,6 +666,7 @@ model User {
   phoneNumber          String?   @db.VarChar(100)
   genderId             Int?      @db.Int
   email                String?   @db.VarChar(200)
+  tokenVersion         Int       @default(0) @db.Int
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   deletedAt            DateTime?

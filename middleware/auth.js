@@ -83,10 +83,13 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
+    console.error("Auth middleware error:", error);
+
+    const isProduction = process.env.NODE_ENV === "production";
     return res.status(500).json({
       success: false,
       message: "Authentication error.",
-      error: error.message,
+      ...( !isProduction && { error: error.message }),
     });
   }
 };

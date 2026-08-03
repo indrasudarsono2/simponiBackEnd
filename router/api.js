@@ -109,7 +109,7 @@ router.get('/dashboardOperational', dashboardController.getDashboardOperational)
 router.get('/dashboardGeneralAdmin', dashboardController.getDashboardGeneralAdmin)
 router.get('/dashboardBranchAdmin', dashboardController.getDashboardBranchAdmin)
 router.get('/dashboardBranchUnitAdmin', dashboardController.getDashboardBranchUnitAdmin)
-router.get('/dashboardBriefings', authenticateToken, dashboardController.getDashboardBriefings)
+router.get('/dashboardBriefings', dashboardController.getDashboardBriefings)
 router.post('/dashboardToken', dashboardController.postDashboardToken)
 
 router.get('/regions', regionalController.getRegions);
@@ -281,10 +281,10 @@ router.put('/userBranchUnit/:id', userBranchUnitController.updatedata)
 router.get('/checkerRating', checkerRatingController.getChecker)
 router.post('/checkerRating', checkerRatingController.postCheckerRating)
 
-router.get('/professionInBranch', authenticateToken, professionInBranchController.getProfessions)
-router.post('/professionInBranch', authenticateToken, professionInBranchController.addProfession)
-router.put('/professionInBranch/:id', authenticateToken, professionInBranchController.getProfessionById)
-router.delete('/professionInBranch/:id', authenticateToken, professionInBranchController.deleteProfessionById)
+router.get('/professionInBranch', professionInBranchController.getProfessions)
+router.post('/professionInBranch', professionInBranchController.addProfession)
+router.put('/professionInBranch/:id', professionInBranchController.getProfessionById)
+router.delete('/professionInBranch/:id', professionInBranchController.deleteProfessionById)
 
 router.get('/applicationDocument', applicationDocumentController.getApplicationDoc)
 router.post('/applicationDocument', applicationDocumentController.addApplicationDoc)
@@ -435,8 +435,8 @@ router.get('/personalLogbookGa/users-by-branch/:branchId', personalLogbookGaCont
 router.post('/personalLogbookGa', personalLogbookGaController.getPersonalLogbook)
 
 ///////////////////////////////////////////////////////SUPERVISOR
-router.post('/briefings', authenticateToken, briefingController.getBriefings)
-router.post('/briefings/create', authenticateToken, uploadBriefing.any(), briefingController.addBriefing)
-router.put('/briefings/:id', authenticateToken, uploadBriefing.any(), briefingController.updateBriefing)
-router.delete('/briefings/:id', authenticateToken, briefingController.deleteBriefing)
+router.post('/briefings', briefingController.getBriefings)
+router.post('/briefings/create', uploadBriefing.any(), briefingController.addBriefing)
+router.put('/briefings/:id', uploadBriefing.any(), briefingController.updateBriefing)
+router.delete('/briefings/:id', briefingController.deleteBriefing)
 export default router;

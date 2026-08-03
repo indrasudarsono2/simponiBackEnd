@@ -112,9 +112,11 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Login failed", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "An unexpected error occurred",
     });
   }
 };

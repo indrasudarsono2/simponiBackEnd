@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 process.env.JWT_SECRET = "test-jwt-secret-that-is-longer-than-32-characters";
 process.env.FILE_URL_SECRET = "test-file-secret-that-is-longer-than-32-characters";
@@ -8,6 +11,7 @@ const { requireRole, enforceTenantBody, ROLES } = await import("../middleware/au
 const { enforceRoutePolicy } = await import("../middleware/routePolicy.js");
 const { sanitizeRichText } = await import("../middleware/sanitize.js");
 const { createSignedFileUrl, signFileUrlsInJson } = await import("../middleware/privateFiles.js");
+const { validateUploadedFiles } = await import("../lib/multer.js");
 
 const response = () => {
   const state = { status: 200, body: null };
@@ -169,4 +173,56 @@ test("file URL response middleware preserves Date values", () => {
   res.json({ startDate: originalDate, file: "/uploads/event/example.pdf" });
   assert.equal(body.startDate, originalDate);
   assert.match(body.file, /^\/files\//);
+});
+
+test("upload validation rejects spoofed MIME types and removes the file", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "simponi-upload-"));
+  const filePath = path.join(directory, "spoofed.png");
+  await fs.writeFile(filePath, "this is not a PNG");
+
+  const req = {
+    files: [{
+      fieldname: "image",
+      filename: "spoofed.png",
+      path: filePath,
+      mimetype: "image/png",
+    }],
+  };
+
+  const error = await new Promise(resolve => {
+    validateUploadedFiles(new Set(["image/png"]))(req, {}, resolve);
+  });
+
+  assert.equal(error?.code, "INVALID_FILE_CONTENT");
+  await assert.rejects(fs.access(filePath));
+  await fs.rm(directory, { recursive: true, force: true });
+});
+
+test("upload validation detects content and normalizes the extension", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "simponi-upload-"));
+  const filePath = path.join(directory, "image.fake");
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  );
+  await fs.writeFile(filePath, png);
+
+  const req = {
+    files: [{
+      fieldname: "image",
+      filename: "image.fake",
+      path: filePath,
+      mimetype: "image/png",
+    }],
+  };
+
+  const error = await new Promise(resolve => {
+    validateUploadedFiles(new Set(["image/png"]))(req, {}, resolve);
+  });
+
+  assert.equal(error, undefined);
+  assert.equal(req.files[0].filename, "image.png");
+  assert.equal(req.files[0].mimetype, "image/png");
+  await fs.access(req.files[0].path);
+  await fs.rm(directory, { recursive: true, force: true });
 });
