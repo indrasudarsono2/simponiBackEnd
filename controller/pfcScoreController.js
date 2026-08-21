@@ -20,12 +20,34 @@ const getScoreRecap = async (req, res) => {
     const { startDate, endDate, branchId, mode, eventIds } = req.query;
     if (!mode) return res.json({ branches, professions: [], events: [], rows: [] });
 
+    const isAllBranches = String(branchId || "").toLowerCase() === "all";
     const parsedBranchId = Number(branchId);
-    if (!Number.isInteger(parsedBranchId) || parsedBranchId <= 0) {
+    if (!isAllBranches && (!Number.isInteger(parsedBranchId) || parsedBranchId <= 0)) {
       return res.status(400).json({ message: "Invalid branch selection." });
     }
 
     if (mode === "professions") {
+      if (isAllBranches) {
+        const professionRecords = await prisma.profession.findMany({
+          where: {
+            deletedAt: null,
+            professionInBranches: {
+              some: { deletedAt: null, branch: { is: { deletedAt: null } } }
+            }
+          },
+          orderBy: { profession: "asc" },
+          select: { id: true, profession: true }
+        });
+        const professions = professionRecords.filter(
+          (profession) => String(profession.profession || "").trim().toUpperCase() !== "DOCTOR"
+        );
+        return res.json({
+          branches,
+          professions: professions.map((profession) => ({ id: profession.id, profession })),
+          events: [],
+          rows: []
+        });
+      }
       const professionRecords = await prisma.professionInBranch.findMany({
         where: {
           deletedAt: null,
@@ -53,16 +75,33 @@ const getScoreRecap = async (req, res) => {
       return res.status(400).json({ message: "Start date cannot be later than end date." });
     }
 
+    const professionId = Number(req.query.professionId);
     const professionInBranchId = Number(req.query.professionInBranchId);
-    if (!Number.isInteger(professionInBranchId) || professionInBranchId <= 0) {
-      return res.status(400).json({ message: "Invalid profession selection." });
-    }
-    const professionBelongsToBranch = await prisma.professionInBranch.findFirst({
-      where: { id: professionInBranchId, branchId: parsedBranchId, deletedAt: null },
-      select: { id: true }
-    });
-    if (!professionBelongsToBranch) {
-      return res.status(400).json({ message: "The selected profession is not available in this branch." });
+    if (isAllBranches) {
+      if (!Number.isInteger(professionId) || professionId <= 0) {
+        return res.status(400).json({ message: "Invalid profession selection." });
+      }
+      const professionExists = await prisma.professionInBranch.findFirst({
+        where: {
+          professionId,
+          deletedAt: null,
+          profession: { is: { deletedAt: null } },
+          branch: { is: { deletedAt: null } }
+        },
+        select: { id: true }
+      });
+      if (!professionExists) return res.status(400).json({ message: "Invalid profession selection." });
+    } else {
+      if (!Number.isInteger(professionInBranchId) || professionInBranchId <= 0) {
+        return res.status(400).json({ message: "Invalid profession selection." });
+      }
+      const professionBelongsToBranch = await prisma.professionInBranch.findFirst({
+        where: { id: professionInBranchId, branchId: parsedBranchId, deletedAt: null },
+        select: { id: true }
+      });
+      if (!professionBelongsToBranch) {
+        return res.status(400).json({ message: "The selected profession is not available in this branch." });
+      }
     }
 
     if (mode === "events") {
@@ -92,24 +131,27 @@ const getScoreRecap = async (req, res) => {
       .split(",")
       .map((id) => Number(id))
       .filter((id) => Number.isInteger(id) && id > 0);
-    if (mode !== "scores" || parsedEventIds.length === 0) {
+    if (mode !== "scores" || (!isAllBranches && parsedEventIds.length === 0)) {
       return res.status(400).json({ message: "Select at least one event to load the score recap." });
     }
+
+    const eventFilter = {
+      deletedAt: null,
+      createdAt: { gte: start, lte: end },
+      ...(!isAllBranches && {
+        sector: { is: { branchUnit: { is: { branchId: parsedBranchId, deletedAt: null } } } }
+      })
+    };
+    const userProfessionFilter = isAllBranches
+      ? { professionInBranch: { is: { deletedAt: null, professionId } } }
+      : { professionInBranchId };
 
     const finalScores = await prisma.finalScore.findMany({
       where: {
         deletedAt: null,
         isInvalidated: false,
-        eventId: { in: parsedEventIds },
-        event: {
-          is: {
-            deletedAt: null,
-            createdAt: { gte: start, lte: end },
-            sector: {
-              is: { branchUnit: { is: { branchId: parsedBranchId, deletedAt: null } } }
-            }
-          }
-        },
+        ...(!isAllBranches && { eventId: { in: parsedEventIds } }),
+        event: { is: eventFilter },
         appRating: {
           is: {
             deletedAt: null,
@@ -119,7 +161,7 @@ const getScoreRecap = async (req, res) => {
                 user: {
                   is: {
                     deletedAt: null,
-                    professionInBranchId
+                    ...userProfessionFilter
                   }
                 }
               }
@@ -239,4 +281,86 @@ const getScoreRecap = async (req, res) => {
   }
 };
 
-export { getScoreRecap };
+const getCheckers = async (req, res) => {
+  try {
+    const branches = await prisma.branch.findMany({
+      where: { deletedAt: null },
+      orderBy: { branch: "asc" },
+      select: { id: true, branch: true }
+    });
+
+    const branchId = String(req.query.branchId || "").trim();
+    if (!branchId) return res.json({ branches, checkers: [] });
+
+    const isAllBranches = branchId.toLowerCase() === "all";
+    const parsedBranchId = Number(branchId);
+    if (!isAllBranches && (!Number.isInteger(parsedBranchId) || parsedBranchId <= 0)) {
+      return res.status(400).json({ message: "Invalid branch selection." });
+    }
+    if (!isAllBranches && !branches.some((branch) => branch.id === parsedBranchId)) {
+      return res.status(400).json({ message: "The selected branch is not available." });
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        ...(!isAllBranches && { branchId: parsedBranchId }),
+        branch: { is: { deletedAt: null } },
+        userRoles: {
+          some: {
+            deletedAt: null,
+            roles: { is: { deletedAt: null, role: "CHECKER" } }
+          }
+        }
+      },
+      orderBy: [{ branch: { branch: "asc" } }, { name: "asc" }],
+      select: {
+        nik: true,
+        name: true,
+        branch: { select: { id: true, branch: true } },
+        branchUnit: { select: { id: true, unit: true } },
+        sector: { select: { id: true, sector: true } },
+        userRoles: {
+          where: {
+            deletedAt: null,
+            roles: { is: { deletedAt: null, role: "CHECKER" } }
+          },
+          select: {
+            id: true,
+            checkerRatings: {
+              where: { deletedAt: null, rating: { is: { deletedAt: null } } },
+              orderBy: { rating: { rating: "asc" } },
+              select: {
+                id: true,
+                rating: { select: { id: true, rating: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const checkers = users.map((user) => {
+      const ratingsById = new Map();
+      for (const userRole of user.userRoles) {
+        for (const checkerRating of userRole.checkerRatings) {
+          if (checkerRating.rating) ratingsById.set(checkerRating.rating.id, checkerRating.rating);
+        }
+      }
+      return {
+        nik: user.nik,
+        name: user.name,
+        branch: user.branch,
+        branchUnit: user.branchUnit,
+        sector: user.sector,
+        checkerRatings: [...ratingsById.values()]
+      };
+    });
+
+    return res.json({ branches, checkers });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export { getScoreRecap, getCheckers };

@@ -1,12 +1,15 @@
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 import securityConfig from "../config/security.js";
+import { parseCookies } from "./cookies.js";
 
 const authenticateToken = async (req, res, next) => {
   try {
-    // Get token from Authorization header
+    // Prefer the HttpOnly session cookie. Authorization remains supported for
+    // trusted integrations during the migration period.
     const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+    const bearerToken = authHeader && authHeader.split(" ")[1];
+    const token = parseCookies(req.headers.cookie).auth_token || bearerToken;
 
     if (!token) {
       return res.status(401).json({

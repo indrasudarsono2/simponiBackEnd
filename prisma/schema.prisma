@@ -100,11 +100,16 @@ model MandatoryItems {
   deletedAt DateTime?
 
   mandatoryRatings MandatoryRating[]
+  matsQuestions    MultipleChoice[]
+  matsAllocations  MatsCategoryAllocation[]
+  matsSelections   MatsQuestionSelection[]
+  mcCorrections    MultipleChoiceCorrection[]
 }
 
 model MultipleChoice {
   id                     Int       @id @default(autoincrement())
   branchUnitId           Int?      @db.Int
+  mandatoryItemId        Int?      @db.Int
   parentMultipleChoiceId Int?      @db.Int
   versionGroupId         Int?      @db.Int
   version                Int       @default(1) @db.Int
@@ -122,6 +127,7 @@ model MultipleChoice {
   deletedAt              DateTime?
 
   branchUnit               BranchUnit?                @relation(fields: [branchUnitId], references: [id])
+  mandatoryItem            MandatoryItems?            @relation(fields: [mandatoryItemId], references: [id])
   parentMultipleChoice     MultipleChoice?            @relation("MultipleChoiceVersions", fields: [parentMultipleChoiceId], references: [id])
   childMultipleChoices     MultipleChoice[]           @relation("MultipleChoiceVersions")
   multipleChoiceCorections MultipleChoiceCorrection[]
@@ -129,13 +135,26 @@ model MultipleChoice {
   matsSelections           MatsQuestionSelection[]
 
   @@index([isMats, isActive, deletedAt])
+  @@index([mandatoryItemId, isMats, isActive, deletedAt])
 }
 
 model MatsConfiguration {
   id        Int      @id @default(1)
   quantity  Int      @default(0) @db.Int
+  mode      String   @default("SEPARATE_POOL") @db.VarChar(30)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model MatsCategoryAllocation {
+  id              Int       @id @default(autoincrement())
+  mandatoryItemId Int       @unique @db.Int
+  quantity        Int       @default(0) @db.Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  mandatoryItem MandatoryItems @relation(fields: [mandatoryItemId], references: [id])
 }
 
 model MatsQuestionSelection {
@@ -144,11 +163,14 @@ model MatsQuestionSelection {
   eventId          Int      @db.Int
   multipleChoiceId Int      @db.Int
   slot             Int      @db.Int
+  mode             String   @default("SEPARATE_POOL") @db.VarChar(30)
+  mandatoryItemId  Int?     @db.Int
   createdAt        DateTime @default(now())
 
-  appRating      AppRating      @relation(fields: [appRatingId], references: [id], onDelete: Cascade)
-  event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  multipleChoice MultipleChoice @relation(fields: [multipleChoiceId], references: [id])
+  appRating      AppRating       @relation(fields: [appRatingId], references: [id], onDelete: Cascade)
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  multipleChoice MultipleChoice  @relation(fields: [multipleChoiceId], references: [id])
+  mandatoryItem  MandatoryItems? @relation(fields: [mandatoryItemId], references: [id])
 
   @@unique([appRatingId, eventId, multipleChoiceId])
   @@unique([appRatingId, eventId, slot])
@@ -177,6 +199,8 @@ model MultipleChoiceCorrection {
   groupMemberId    Int?      @db.Int
   answer           String?   @db.VarChar(5)
   isTrue           Boolean   @default(false)
+  matsMode         String?   @db.VarChar(30)
+  mandatoryItemId  Int?      @db.Int
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
@@ -185,6 +209,7 @@ model MultipleChoiceCorrection {
   multipleChoice MultipleChoice? @relation(fields: [multipleChoiceId], references: [id])
   finalScore     FinalScore?     @relation(fields: [finalScoreId], references: [id])
   groupMember    GroupMember?    @relation(fields: [groupMemberId], references: [id])
+  mandatoryItem  MandatoryItems? @relation(fields: [mandatoryItemId], references: [id])
 }
 
 model Essay {
@@ -671,35 +696,71 @@ model User {
   updatedAt            DateTime  @updatedAt
   deletedAt            DateTime?
 
-  professionInBranch    ProfessionInBranch? @relation(fields: [professionInBranchId], references: [id])
-  sector                Sector?             @relation(fields: [sectorId], references: [id])
-  gender                Gender?             @relation(fields: [genderId], references: [id])
-  branch                Branch?             @relation(fields: [branchId], references: [id])
-  branchUnit            BranchUnit?         @relation(fields: [branchUnitId], references: [id])
+  professionInBranch    ProfessionInBranch?   @relation(fields: [professionInBranchId], references: [id])
+  sector                Sector?               @relation(fields: [sectorId], references: [id])
+  gender                Gender?               @relation(fields: [genderId], references: [id])
+  branch                Branch?               @relation(fields: [branchId], references: [id])
+  branchUnit            BranchUnit?           @relation(fields: [branchUnitId], references: [id])
   userRoles             UserRoles[]
   eventUsers            EventUser[]
-  applicationDocs       ApplicationDoc[]    @relation("UserApplications")
-  ojtApplications       ApplicationDoc[]    @relation("OjtApplication")
+  applicationDocs       ApplicationDoc[]      @relation("UserApplications")
+  ojtApplications       ApplicationDoc[]      @relation("OjtApplication")
   medex                 Medex[]
   ielp                  Ielp[]
   license               License[]
   logbookUsers          LogBookUser[]
-  groups                Group[]             @relation("PicGroup")
-  checkerGroups         CheckerGroup[]      @relation("CheckerGroup")
-  groupMembers          GroupMember[]       @relation("GroupMember")
-  checkerRooms          Room[]              @relation("Room")
-  checkerUsers          EssayCorrection[]   @relation("checkerEssay")
-  dutyReports           DutyReport[]        @relation("supervisorDuty")
+  groups                Group[]               @relation("PicGroup")
+  checkerGroups         CheckerGroup[]        @relation("CheckerGroup")
+  groupMembers          GroupMember[]         @relation("GroupMember")
+  checkerRooms          Room[]                @relation("Room")
+  checkerUsers          EssayCorrection[]     @relation("checkerEssay")
+  dutyReports           DutyReport[]          @relation("supervisorDuty")
   userRatings           userRating[]
   competences           Competence[]
-  onGoingIssues         OnGoingIssue[]      @relation("reporterOnGoingIssue")
-  briefings             Briefing[]          @relation("SpeakerBriefing")
-  briefingReads         BriefingRead[]      @relation("ReaderBriefing")
-  medicalChecksDoctor   MedicalCheck[]      @relation("DoctorMedicalCheck")
-  medicalChecksEmployee MedicalCheck[]      @relation("EmployeeMedicalCheck")
+  onGoingIssues         OnGoingIssue[]        @relation("reporterOnGoingIssue")
+  briefings             Briefing[]            @relation("SpeakerBriefing")
+  briefingReads         BriefingRead[]        @relation("ReaderBriefing")
+  medicalChecksDoctor   MedicalCheck[]        @relation("DoctorMedicalCheck")
+  medicalChecksEmployee MedicalCheck[]        @relation("EmployeeMedicalCheck")
   escalationActors      EscalationActor[]
   logBooks              LogBook[]
-  supervisorLogBooks    LogBook[]           @relation("SupervisorLogBook")
+  supervisorLogBooks    LogBook[]             @relation("SupervisorLogBook")
+  loginSecurity         UserLoginSecurity?
+  authenticationAudits  AuthenticationAudit[]
+}
+
+model UserLoginSecurity {
+  userNik               String    @id
+  failedLoginCount      Int       @default(0)
+  firstFailedAt         DateTime?
+  lastFailedAt          DateTime?
+  lockedUntil           DateTime?
+  lastSuccessfulLoginAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userNik], references: [nik], onDelete: Cascade)
+
+  @@index([lockedUntil])
+}
+
+model AuthenticationAudit {
+  id             Int      @id @default(autoincrement())
+  userNik        String?
+  performedByNik String?  @db.VarChar(191)
+  eventType      String   @db.VarChar(50)
+  success        Boolean
+  reason         String?  @db.VarChar(100)
+  ipAddress      String?  @db.VarChar(100)
+  userAgent      String?  @db.VarChar(500)
+  createdAt      DateTime @default(now())
+
+  user User? @relation(fields: [userNik], references: [nik], onDelete: SetNull)
+
+  @@index([userNik, createdAt])
+  @@index([eventType, createdAt])
+  @@index([performedByNik, createdAt])
+  @@index([createdAt])
 }
 
 model UserRoles {

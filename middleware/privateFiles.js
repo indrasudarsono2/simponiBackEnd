@@ -7,7 +7,7 @@ const TTL_SECONDS = 5 * 60;
 
 const getAllowedFrameAncestors = () => {
   const configuredOrigins = process.env.CORS_ORIGIN ||
-    (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
+    (process.env.NODE_ENV === "production" ? "" : "http://localhost:44440");
   const origins = configuredOrigins
     .split(",")
     .map((item) => item.trim())

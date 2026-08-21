@@ -2,6 +2,7 @@ import express from 'express';
 const router = express.Router();
 
 import { authenticateToken } from '../middleware/auth.js';
+import { enforceCsrf } from '../middleware/csrf.js';
 import { enforceTenantBody, requireRole, ROLES } from '../middleware/authorize.js';
 import { enforceRoutePolicy } from '../middleware/routePolicy.js';
 import { enforceResourceScope } from '../middleware/resourceScope.js';
@@ -40,6 +41,7 @@ import * as medexUserController from '../controller/medexUserController.js'
 import * as competenceUserController from '../controller/competenceUserController.js'
 import * as userGeneralController from '../controller/userGeneralController.js'
 import * as userRoleGeneralController from '../controller/userRoleGeneralController.js'
+import * as userLoginController from '../controller/userLoginController.js'
 import * as userRoleBranchController from '../controller/userRoleBranchController.js'
 import * as userRoleBranchUnitController from '../controller/userRoleBranchUnitController.js'
 import * as userBranchController from '../controller/userBranchController.js'
@@ -92,12 +94,16 @@ router.post('/integrations/e-chain/medex-user/verified', medexUserController.rec
 
 // Apply authentication middleware to all routes below this line
 router.use(authenticateToken)
+router.use(enforceCsrf)
 router.use(enforceRoutePolicy)
 router.use(enforceTenantBody)
 router.use(enforceResourceScope)
 router.use(sanitizeRichText)
 router.use(sanitizeRichTextResponses)
 router.use(signFileUrlsInJson)
+
+router.get('/auth/session', authController.session)
+router.post('/auth/logout', authController.logout)
 
 router.post('/postTime', monitorTime.postTime)
 
@@ -145,8 +151,10 @@ router.get('/mats', matsController.getMatsQuestions)
 router.post('/mats/questions', uploadMultipleChoice.any(), matsController.createMatsQuestion)
 router.post('/mats/questions/import-csv', uploadCsv.any(), matsController.importMatsQuestionsCsv)
 router.put('/mats/questions/:id', uploadMultipleChoice.any(), matsController.updateMatsQuestion)
+router.patch('/mats/questions/:id/category', matsController.updateMatsQuestionCategory)
 router.delete('/mats/questions/:id', matsController.deleteMatsQuestion)
 router.put('/mats/configuration', matsController.updateMatsConfiguration)
+router.put('/mats/allocations', matsController.updateMatsAllocations)
 
 router.get('/branchUnits', branchUnitController.getBranchUnits);
 router.get('/branchUnitsGetBranch', branchUnitController.branchUnitsGetBranch);
@@ -259,6 +267,9 @@ router.delete('/userGeneral/:id', userGeneralController.deleteUserById)
 router.get('/userRoleGeneral', userRoleGeneralController.getUserRoleGeneral)
 router.put('/userRoleGeneral/:id', userRoleGeneralController.getUpdateData)
 
+router.get('/userLoginSecurity', userLoginController.getFailedUserLogins)
+router.post('/userLoginSecurity/:nik/clear', userLoginController.clearFailedUserLogin)
+
 router.get('/rolesManagement', rolesManagementController.getRolesManagement)
 router.get('/rolesManagement/menus', rolesManagementController.getMenuOptions)
 router.put('/rolesManagement/:roleId/menus', rolesManagementController.updateRoleMenus)
@@ -329,6 +340,7 @@ router.get('/scoreUser', scoreUserController.getUserScore)
 router.get('/scoreUserPractical', scoreUserController.getUserScorePractical)
 
 router.get('/pfcScore/scoreRecap', pfcScoreController.getScoreRecap)
+router.get('/pfcScore/checker', pfcScoreController.getCheckers)
 router.get('/pfcScore/individual', pfcIndividualController.getOptions)
 router.post('/pfcScore/individual', pfcIndividualController.getIndividualStatistic)
 

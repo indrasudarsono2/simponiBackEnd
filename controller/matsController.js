@@ -75,20 +75,45 @@ const getConfiguration = async () => prisma.matsConfiguration.upsert({
   create: { id: 1, quantity: 0 },
 });
 
+const MATS_MODES = new Set(["SEPARATE_POOL", "CATEGORY_PORTION"]);
+
+const getMandatoryItem = async (mandatoryItemId) => {
+  const id = parsePositiveId(mandatoryItemId);
+  if (!id) return null;
+  const item = await prisma.mandatoryItems.findFirst({
+    where: { id, deletedAt: null },
+    select: { id: true, mandatory: true },
+  });
+  if (String(item?.mandatory || "").trim().toUpperCase() === "MATS") return null;
+  return item;
+};
+
 const getMatsQuestions = async (req, res) => {
   try {
-    const [configuration, questions] = await Promise.all([
+    const [configuration, questions, mandatoryItems, allocations] = await Promise.all([
       getConfiguration(),
       prisma.multipleChoice.findMany({
         where: { isMats: true, deletedAt: null },
         select: {
           id: true, question: true, image: true, a: true, b: true, c: true, d: true,
-          key: true, isActive: true, createdAt: true, updatedAt: true,
+          key: true, isActive: true, createdAt: true, updatedAt: true, mandatoryItemId: true,
+          mandatoryItem: { select: { id: true, mandatory: true } },
         },
         orderBy: { id: "desc" },
       }),
+      prisma.mandatoryItems.findMany({
+        where: { deletedAt: null }, orderBy: { mandatory: "asc" },
+        select: { id: true, mandatory: true },
+      }).then((items) => items.filter(
+        (item) => String(item.mandatory || "").trim().toUpperCase() !== "MATS"
+      )),
+      prisma.matsCategoryAllocation.findMany({
+        where: { deletedAt: null }, orderBy: { mandatoryItem: { mandatory: "asc" } },
+        select: { id: true, mandatoryItemId: true, quantity: true,
+          mandatoryItem: { select: { id: true, mandatory: true } } },
+      }),
     ]);
-    res.json({ configuration, questions });
+    res.json({ configuration, questions, mandatoryItems, allocations });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -96,13 +121,16 @@ const getMatsQuestions = async (req, res) => {
 
 const createMatsQuestion = async (req, res) => {
   try {
-    const { question, a, b, c, d, key } = req.body;
+    const { question, a, b, c, d, key, mandatoryItemId } = req.body;
     const validationError = validateQuestion({ question, a, b, c, d, key });
     if (validationError) return res.status(400).json({ message: validationError });
+    const mandatoryItem = await getMandatoryItem(mandatoryItemId);
+    if (!mandatoryItem) return res.status(400).json({ message: "Mandatory Item is required for every MATS question." });
     const file = req.files?.[0];
     const created = await prisma.multipleChoice.create({
       data: {
         branchUnitId: null,
+        mandatoryItemId: mandatoryItem.id,
         isMats: true,
         question: cleanQuestion(question), a, b, c, d,
         key: normalizeKey(key),
@@ -129,6 +157,8 @@ const updateMatsQuestion = async (req, res) => {
     const values = { ...existing, ...req.body };
     const validationError = validateQuestion(values);
     if (validationError) return res.status(400).json({ message: validationError });
+    const mandatoryItem = await getMandatoryItem(values.mandatoryItemId);
+    if (!mandatoryItem) return res.status(400).json({ message: "Mandatory Item is required for every MATS question." });
     const file = req.files?.[0];
     const nextIsActive = req.body.isActive == null ? existing.isActive : req.body.isActive === true || req.body.isActive === "true";
     if (existing.isActive && !nextIsActive) {
@@ -145,6 +175,7 @@ const updateMatsQuestion = async (req, res) => {
       data: {
         question: cleanQuestion(values.question), a: values.a, b: values.b, c: values.c, d: values.d,
         key: normalizeKey(values.key),
+        mandatoryItemId: mandatoryItem.id,
         isActive: nextIsActive,
         ...(file ? { image: `/uploads/multipleChoice/${file.filename}` } : {}),
       },
@@ -152,6 +183,23 @@ const updateMatsQuestion = async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const updateMatsQuestionCategory = async (req, res) => {
+  try {
+    const id = parsePositiveId(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid MATS question ID." });
+    const mandatoryItem = await getMandatoryItem(req.body?.mandatoryItemId);
+    if (!mandatoryItem) return res.status(400).json({ message: "A valid Mandatory Item is required." });
+    const result = await prisma.multipleChoice.updateMany({
+      where: { id, isMats: true, deletedAt: null },
+      data: { mandatoryItemId: mandatoryItem.id },
+    });
+    if (result.count === 0) return res.status(404).json({ message: "MATS question not found." });
+    return res.json({ success: true, mandatoryItem });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -183,20 +231,69 @@ const deleteMatsQuestion = async (req, res) => {
 
 const updateMatsConfiguration = async (req, res) => {
   try {
+    const mode = String(req.body.mode || "SEPARATE_POOL").trim().toUpperCase();
+    if (!MATS_MODES.has(mode)) return res.status(400).json({ message: "Invalid MATS mode." });
     const quantity = Number(req.body.quantity);
     if (!Number.isInteger(quantity) || quantity < 0) {
       return res.status(400).json({ message: "MATS quantity must be a non-negative integer." });
     }
-    const activeCount = await prisma.multipleChoice.count({ where: { isMats: true, isActive: true, deletedAt: null } });
+    const activeCount = await prisma.multipleChoice.count({ where: { isMats: true, isActive: true, deletedAt: null, mandatoryItemId: { not: null } } });
     if (quantity > activeCount) {
       return res.status(400).json({ message: `MATS quantity cannot exceed the ${activeCount} active MATS questions.` });
     }
     const configuration = await prisma.matsConfiguration.upsert({
-      where: { id: 1 }, update: { quantity }, create: { id: 1, quantity },
+      where: { id: 1 }, update: { quantity, mode }, create: { id: 1, quantity, mode },
     });
     res.json({ success: true, configuration });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const updateMatsAllocations = async (req, res) => {
+  try {
+    const allocations = Array.isArray(req.body?.allocations) ? req.body.allocations : [];
+    const normalized = allocations.map((item) => ({
+      mandatoryItemId: parsePositiveId(item.mandatoryItemId),
+      quantity: Number(item.quantity),
+    }));
+    if (normalized.some((item) => !item.mandatoryItemId || !Number.isInteger(item.quantity) || item.quantity < 0)) {
+      return res.status(400).json({ message: "Every category allocation requires a valid Mandatory Item and non-negative quantity." });
+    }
+    if (new Set(normalized.map((item) => item.mandatoryItemId)).size !== normalized.length) {
+      return res.status(400).json({ message: "Each Mandatory Item may appear only once." });
+    }
+    const mandatoryItems = await prisma.mandatoryItems.findMany({
+      where: { id: { in: normalized.map((item) => item.mandatoryItemId) }, deletedAt: null }, select: { id: true, mandatory: true },
+    });
+    if (mandatoryItems.length !== normalized.length || mandatoryItems.some(
+      (item) => String(item.mandatory || "").trim().toUpperCase() === "MATS"
+    )) return res.status(400).json({ message: "One or more Mandatory Items are invalid." });
+
+    for (const allocation of normalized) {
+      const activeMats = await prisma.multipleChoice.count({
+        where: { isMats: true, isActive: true, deletedAt: null, mandatoryItemId: allocation.mandatoryItemId },
+      });
+      if (allocation.quantity > activeMats) {
+        return res.status(400).json({ message: `A category allocation cannot exceed its ${activeMats} active MATS questions.` });
+      }
+      const smallestGroup = await prisma.questionGroup.findFirst({
+        where: { deletedAt: null, kindOfQuestionId: 2,
+          mandatoryRating: { is: { deletedAt: null, mandatoryItemId: allocation.mandatoryItemId } } },
+        orderBy: { quantity: "asc" }, select: { quantity: true },
+      });
+      if (smallestGroup && allocation.quantity > Number(smallestGroup.quantity || 0)) {
+        return res.status(400).json({ message: `Allocation exceeds an existing category quantity of ${smallestGroup.quantity || 0}.` });
+      }
+    }
+    await prisma.$transaction(normalized.map((allocation) => prisma.matsCategoryAllocation.upsert({
+      where: { mandatoryItemId: allocation.mandatoryItemId },
+      update: { quantity: allocation.quantity, deletedAt: null },
+      create: allocation,
+    })));
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -211,9 +308,9 @@ const importMatsQuestionsCsv = async (req, res) => {
     }
 
     const headers = rows[0].map((value) => value.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
-    const indexes = Object.fromEntries(["matsquestionid", "question", "a", "b", "c", "d", "key", "isactive"].map((name) => [name, headers.indexOf(name)]));
-    if (["question", "a", "b", "c", "d", "key"].some((name) => indexes[name] === -1)) {
-      return res.status(400).json({ message: "CSV headers must include: matsQuestionId, question, a, b, c, d, key, isActive." });
+    const indexes = Object.fromEntries(["matsquestionid", "mandatoryitemid", "question", "a", "b", "c", "d", "key", "isactive"].map((name) => [name, headers.indexOf(name)]));
+    if (["mandatoryitemid", "question", "a", "b", "c", "d", "key"].some((name) => indexes[name] === -1)) {
+      return res.status(400).json({ message: "CSV headers must include: matsQuestionId, mandatoryItemId, question, a, b, c, d, key, isActive." });
     }
 
     const errors = [];
@@ -224,6 +321,7 @@ const importMatsQuestionsCsv = async (req, res) => {
       const item = {
         rowNumber,
         id,
+        mandatoryItemId: parsePositiveId(row[indexes.mandatoryitemid]),
         question: String(row[indexes.question] || "").trim(),
         a: String(row[indexes.a] || "").trim(),
         b: String(row[indexes.b] || "").trim(),
@@ -233,12 +331,19 @@ const importMatsQuestionsCsv = async (req, res) => {
         isActiveText: indexes.isactive === -1 ? "" : row[indexes.isactive],
       };
       if (idText && !id) errors.push(`Row ${rowNumber}: matsQuestionId must be empty or a positive number.`);
+      if (!item.mandatoryItemId) errors.push(`Row ${rowNumber}: mandatoryItemId must be a positive number.`);
       const questionError = validateQuestion(item);
       if (questionError) errors.push(`Row ${rowNumber}: ${questionError}`);
       return item;
     });
 
     const updateIds = items.filter((item) => item.id).map((item) => item.id);
+    const mandatoryItemIds = [...new Set(items.map((item) => item.mandatoryItemId).filter(Boolean))];
+    const mandatoryItems = await prisma.mandatoryItems.findMany({ where: { id: { in: mandatoryItemIds }, deletedAt: null }, select: { id: true, mandatory: true } });
+    const mandatoryItemSet = new Set(mandatoryItems
+      .filter((item) => String(item.mandatory || "").trim().toUpperCase() !== "MATS")
+      .map((item) => item.id));
+    for (const item of items) if (item.mandatoryItemId && !mandatoryItemSet.has(item.mandatoryItemId)) errors.push(`Row ${item.rowNumber}: Mandatory Item ${item.mandatoryItemId} was not found.`);
     const existing = updateIds.length ? await prisma.multipleChoice.findMany({
       where: { id: { in: updateIds }, isMats: true, deletedAt: null },
       select: { id: true, isActive: true },
@@ -269,7 +374,7 @@ const importMatsQuestionsCsv = async (req, res) => {
     let updated = 0;
     await prisma.$transaction(async (transaction) => {
       for (const item of items) {
-        const data = { question: cleanQuestion(item.question), a: item.a, b: item.b, c: item.c, d: item.d, key: item.key, isActive: item.isActive };
+        const data = { mandatoryItemId: item.mandatoryItemId, question: cleanQuestion(item.question), a: item.a, b: item.b, c: item.c, d: item.d, key: item.key, isActive: item.isActive };
         if (item.id) {
           await transaction.multipleChoice.update({ where: { id: item.id }, data });
           updated += 1;
@@ -288,4 +393,4 @@ const importMatsQuestionsCsv = async (req, res) => {
   }
 };
 
-export { getMatsQuestions, createMatsQuestion, updateMatsQuestion, deleteMatsQuestion, updateMatsConfiguration, importMatsQuestionsCsv };
+export { getMatsQuestions, createMatsQuestion, updateMatsQuestion, updateMatsQuestionCategory, deleteMatsQuestion, updateMatsConfiguration, updateMatsAllocations, importMatsQuestionsCsv };

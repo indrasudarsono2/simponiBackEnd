@@ -142,10 +142,12 @@ const postMember = async (req, res) => {
                   select: {
                     id: true,
                     isTrue: true,
+                    mandatoryItem: { select: { id: true, mandatory: true } },
                     multipleChoice: {
                       select: {
                         id: true,
                         isMats: true,
+                        mandatoryItem: { select: { id: true, mandatory: true } },
                         mcQuestionGroups: {
                           where: {
                             deletedAt: null
@@ -176,6 +178,8 @@ const postMember = async (req, res) => {
 
     const allByRatingMap = {};
     const detailByFinalScore = {};
+    const matsStatisticMap = {};
+    const matsDetailByFinalScore = {};
 
     const ensureGroupBucket = (targetMap, groupName) => {
       if (!targetMap[groupName]) {
@@ -212,25 +216,39 @@ const postMember = async (req, res) => {
               groupStatisticsMap: {},
             };
           }
+          if (!matsDetailByFinalScore[finalScoreKey]) {
+            matsDetailByFinalScore[finalScoreKey] = {
+              finalScoreId: finalScore.id,
+              createdAt: finalScore.createdAt,
+              number: application.number || null,
+              rating: rating.rating?.rating || null,
+              groupStatisticsMap: {},
+            };
+          }
 
           const ratingName = rating.rating?.rating || "UNKNOWN";
           ensureRatingBucket(allByRatingMap, ratingName);
-          ensureGroupBucket(allByRatingMap[ratingName].statisticMap, "MATS");
-          ensureGroupBucket(detailByFinalScore[finalScoreKey].groupStatisticsMap, "MATS");
 
           for (const correction of finalScore.multipleChoiceCorrections || []) {
             if (correction.multipleChoice?.isMats) {
-              const allMats = allByRatingMap[ratingName].statisticMap.MATS;
-              const detailMats = detailByFinalScore[finalScoreKey].groupStatisticsMap.MATS;
+              const groupName = correction.mandatoryItem?.mandatory || correction.multipleChoice.mandatoryItem?.mandatory;
+              if (!groupName) continue;
+              ensureGroupBucket(allByRatingMap[ratingName].statisticMap, groupName);
+              ensureGroupBucket(detailByFinalScore[finalScoreKey].groupStatisticsMap, groupName);
+              ensureGroupBucket(matsStatisticMap, groupName);
+              ensureGroupBucket(matsDetailByFinalScore[finalScoreKey].groupStatisticsMap, groupName);
+              const targets = [
+                allByRatingMap[ratingName].statisticMap[groupName],
+                detailByFinalScore[finalScoreKey].groupStatisticsMap[groupName],
+                matsStatisticMap[groupName],
+                matsDetailByFinalScore[finalScoreKey].groupStatisticsMap[groupName],
+              ];
               if (correction.isTrue === true) {
-                allMats.isTrue += 1;
-                detailMats.isTrue += 1;
+                for (const target of targets) target.isTrue += 1;
               } else {
-                allMats.isFalse += 1;
-                detailMats.isFalse += 1;
+                for (const target of targets) target.isFalse += 1;
               }
-              allMats.total += 1;
-              detailMats.total += 1;
+              for (const target of targets) target.total += 1;
               continue;
             }
             const questionGroups = correction.multipleChoice?.mcQuestionGroups || [];
@@ -273,6 +291,20 @@ const postMember = async (req, res) => {
       }
     }
 
+    for (const groupStat of Object.values(matsStatisticMap)) {
+      groupStat.percentageTrue = groupStat.total > 0
+        ? (groupStat.isTrue / groupStat.total) * 100
+        : 0;
+    }
+
+    for (const detailItem of Object.values(matsDetailByFinalScore)) {
+      for (const groupStat of Object.values(detailItem.groupStatisticsMap)) {
+        groupStat.percentageTrue = groupStat.total > 0
+          ? (groupStat.isTrue / groupStat.total) * 100
+          : 0;
+      }
+    }
+
     const groupStatistic = {
       all: {
         rating: Object.values(allByRatingMap).map((item) => ({
@@ -281,6 +313,16 @@ const postMember = async (req, res) => {
         })),
       },
       detail: Object.values(detailByFinalScore).map((item) => ({
+        finalScoreId: item.finalScoreId,
+        createdAt: item.createdAt,
+        number: item.number,
+        rating: item.rating,
+        groupStatistics: Object.values(item.groupStatisticsMap),
+      })),
+      mats: {
+        statistic: Object.values(matsStatisticMap),
+      },
+      matsDetail: Object.values(matsDetailByFinalScore).map((item) => ({
         finalScoreId: item.finalScoreId,
         createdAt: item.createdAt,
         number: item.number,

@@ -6,8 +6,8 @@ import fs from "fs";
 import path from "path";
 
 const getRatingSummary = async (req, res) => {
-  // const branchUnitId = req.user.branchUnitId;
-  const branchUnitId = 17
+  const branchUnitId = req.user.branchUnitId;
+  // const branchUnitId = 17
   try {
     const now = dayjs().utc().toDate();
     const user = await prisma.user.findMany({

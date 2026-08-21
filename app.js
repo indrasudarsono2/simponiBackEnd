@@ -9,14 +9,15 @@ import { dirname, join } from 'path';
 
 import cors from 'cors';
 import apiRouter from './router/api.js';
-import './config/security.js';
+import securityConfig from './config/security.js';
 import { serveSignedFile } from './middleware/privateFiles.js';
 import { startEscalationScheduler } from './workers/escalationScheduler.js';
 
 // 2. Initializations
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 44441;
 const isProduction = process.env.NODE_ENV === 'production';
+const publicBaseUrl = process.env.SIMPONI_PUBLIC_BASE_URL?.trim();
 
 // Trust first proxy (reverse proxy / load balancer) so req.protocol reflects HTTPS
 app.set('trust proxy', 1);
@@ -30,17 +31,47 @@ app.use(helmet({
     ? { maxAge: 31536000, includeSubDomains: true, preload: true }
     : false,
 }));
-const allowedOrigins = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'))
+const allowedOrigins = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:44440'))
   .split(',').map((item) => item.trim()).filter(Boolean);
-app.use(cors({ origin: allowedOrigins }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+// Prevent controllers from leaking database and infrastructure errors. This
+// also protects legacy handlers that still build their own 5xx responses.
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (isProduction && res.statusCode >= 500) {
+      console.error('Internal request failure', {
+        method: req.method,
+        path: req.originalUrl,
+        status: res.statusCode,
+        internalMessage: body?.message,
+        internalError: body?.error,
+      });
+
+      return originalJson({
+        success: false,
+        message: 'An unexpected error occurred.',
+        ...(body?.error?.code && { error: { code: body.error.code } }),
+      });
+    }
+    return originalJson(body);
+  };
+  next();
+});
+
 // Issue #3: Redirect HTTP → HTTPS in production (when behind a reverse proxy)
 if (isProduction) {
+  if (!publicBaseUrl || new URL(publicBaseUrl).protocol !== 'https:') {
+    throw new Error('SIMPONI_PUBLIC_BASE_URL must be configured with an HTTPS URL in production.');
+  }
+
+  const canonicalOrigin = new URL(publicBaseUrl).origin;
   app.use((req, res, next) => {
     if (req.headers['x-forwarded-proto'] !== 'https') {
-      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+      return res.redirect(308, `${canonicalOrigin}${req.originalUrl}`);
     }
     next();
   });
@@ -93,7 +124,7 @@ app.use((err, req, res, next) => {
 });
 
 // 6. Start Server
-app.listen(PORT, () => {
+app.listen(PORT, securityConfig.serverHost, () => {
   console.log(`🚀 Server is humming along on http://localhost:${PORT}`);
   startEscalationScheduler();
 });

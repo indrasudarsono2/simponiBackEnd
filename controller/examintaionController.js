@@ -185,54 +185,120 @@ const getRandomMultipleChoiceByGroup = async ({ sectorId, questionGroupId, quant
   return [...firstBatch, ...secondBatch];
 };
 
-const getRandomMatsQuestions = async ({ appRatingId, eventId }) => {
+const getRandomMatsQuestions = async ({
+  appRatingId,
+  eventId,
+  questionGroups = [],
+  mandatoryItemIds = [],
+}) => {
+  const configuration = await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
+  const mode = configuration?.mode === "CATEGORY_PORTION" ? "CATEGORY_PORTION" : "SEPARATE_POOL";
+  const quantity = Number(configuration?.quantity) || 0;
+  const eligibleMandatoryItemIds = [...new Set(mandatoryItemIds.filter(Boolean))];
+  const eligibleMandatoryItemIdSet = new Set(eligibleMandatoryItemIds);
+
   const existingSelections = await prisma.matsQuestionSelection.findMany({
     where: { appRatingId, eventId },
     select: {
+      mode: true,
+      mandatoryItemId: true,
       multipleChoice: {
         select: { id: true, branchUnitId: true, question: true, a: true, b: true, c: true, d: true, image: true },
       },
     },
     orderBy: { slot: "asc" },
   });
-  if (existingSelections.length > 0) {
+  const canReuseExistingSelection = existingSelections.length > 0
+    && existingSelections[0]?.mode === mode
+    && (
+      mode !== "SEPARATE_POOL"
+      || (
+        existingSelections.length === quantity
+        && existingSelections.every(({ mandatoryItemId }) => (
+          eligibleMandatoryItemIdSet.has(mandatoryItemId)
+        ))
+      )
+    );
+  if (canReuseExistingSelection) {
     return {
       quantity: existingSelections.length,
-      questions: existingSelections.map(({ multipleChoice }) => ({ multipleChoice })),
+      mode: existingSelections[0]?.mode || "SEPARATE_POOL",
+      questions: existingSelections.map(({ multipleChoice, mandatoryItemId }) => ({
+        multipleChoice,
+        mandatoryItemId,
+      })),
     };
   }
 
-  const configuration = await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
-  const quantity = Number(configuration?.quantity) || 0;
-  if (quantity <= 0) return { quantity: 0, questions: [] };
-
-  const candidates = await prisma.multipleChoice.findMany({
-    where: { isMats: true, isActive: true, deletedAt: null },
-    select: { id: true, branchUnitId: true, question: true, a: true, b: true, c: true, d: true, image: true },
-  });
-  if (candidates.length < quantity) {
-    throw new Error(`MATS requires ${quantity} questions, but only ${candidates.length} active questions are available.`);
+  // The General Admin setting is authoritative when an examination is opened.
+  // Regenerate a stale snapshot if it was created under a previous mode.
+  if (existingSelections.length > 0) {
+    await prisma.matsQuestionSelection.deleteMany({
+      where: { appRatingId, eventId },
+    });
   }
 
-  for (let index = candidates.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [candidates[index], candidates[randomIndex]] = [candidates[randomIndex], candidates[index]];
+  const shuffle = (items) => {
+    for (let index = items.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [items[index], items[randomIndex]] = [items[randomIndex], items[index]];
+    }
+    return items;
+  };
+  let selected = [];
+  if (mode === "SEPARATE_POOL") {
+    if (quantity <= 0) return { quantity: 0, mode, questions: [] };
+    if (eligibleMandatoryItemIds.length === 0) {
+      throw new Error("No mandatory items are assigned to this examination rating.");
+    }
+    const candidates = await prisma.multipleChoice.findMany({
+      where: {
+        isMats: true,
+        isActive: true,
+        deletedAt: null,
+        mandatoryItemId: { in: eligibleMandatoryItemIds },
+      },
+      select: { id: true, branchUnitId: true, mandatoryItemId: true, question: true, a: true, b: true, c: true, d: true, image: true },
+    });
+    if (candidates.length < quantity) throw new Error(`MATS requires ${quantity} questions for this rating, but only ${candidates.length} eligible questions are available.`);
+    selected = shuffle(candidates).slice(0, quantity);
+  } else {
+    const categoryIds = [...new Set(questionGroups.map((group) => group.mandatoryItemId).filter(Boolean))];
+    const allocations = await prisma.matsCategoryAllocation.findMany({
+      where: { mandatoryItemId: { in: categoryIds }, deletedAt: null, quantity: { gt: 0 } },
+      select: { mandatoryItemId: true, quantity: true },
+    });
+    for (const allocation of allocations) {
+      const candidates = await prisma.multipleChoice.findMany({
+        where: { isMats: true, isActive: true, deletedAt: null, mandatoryItemId: allocation.mandatoryItemId },
+        select: { id: true, branchUnitId: true, mandatoryItemId: true, question: true, a: true, b: true, c: true, d: true, image: true },
+      });
+      if (candidates.length < allocation.quantity) throw new Error(`MATS category ${allocation.mandatoryItemId} requires ${allocation.quantity} questions, but only ${candidates.length} are available.`);
+      selected.push(...shuffle(candidates).slice(0, allocation.quantity));
+    }
   }
-  const selected = candidates.slice(0, quantity);
   await prisma.matsQuestionSelection.createMany({
-    data: selected.map(({ id: multipleChoiceId }, slot) => ({ appRatingId, eventId, multipleChoiceId, slot })),
+    data: selected.map(({ id: multipleChoiceId, mandatoryItemId }, slot) => ({ appRatingId, eventId, multipleChoiceId, slot, mode, mandatoryItemId })),
     skipDuplicates: true,
   });
   const persisted = await prisma.matsQuestionSelection.findMany({
     where: { appRatingId, eventId },
     select: {
+      mandatoryItemId: true,
       multipleChoice: {
         select: { id: true, branchUnitId: true, question: true, a: true, b: true, c: true, d: true, image: true },
       },
     },
     orderBy: { slot: "asc" },
   });
-  return { quantity: persisted.length, questions: persisted.map(({ multipleChoice }) => ({ multipleChoice })) };
+  return {
+    quantity: persisted.length,
+    mode,
+    questions: persisted.map(({ multipleChoice, mandatoryItemId }) => ({
+      multipleChoice,
+      mandatoryItemId,
+    })),
+  };
 };
 
 const getExamination = async (req, res) => {
@@ -530,14 +596,14 @@ const getEssayQuestion = async (req, res) => {
     const eventDuration = event.eventQuestions.find(d => d.kindOfQuestionId === 1)?.minutes || 0
     const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes : {time: 0};
     const timeLeft = eventDuration-monitor.time
-    // const randomNumbers = [];
-    const randomNumbers = [1,2,3];
+    const randomNumbers = [];
+    // const randomNumbers = [1,2,3];
     
-    // for (let i = 0; i < 3; i++) {
-    //   // Math.random() * (max - min + 1) + min
-    //   const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
-    //   randomNumbers.push(pick);
-    // }
+    for (let i = 0; i < 3; i++) {
+      // Math.random() * (max - min + 1) + min
+      const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
+      randomNumbers.push(pick);
+    }
 
     randomNumbers.sort((a, b) => a - b);
 
@@ -673,7 +739,8 @@ const getMultipleChoiceQuestion = async (req, res) => {
                               select: {
                                 id: true,
                                 quantity: true,
-                                group: true
+                                group: true,
+                                mandatoryRating: { select: { mandatoryItemId: true } }
                               }
                             }
                           }
@@ -701,6 +768,18 @@ const getMultipleChoiceQuestion = async (req, res) => {
       event?.eventUsers?.[0]?.applicationDocs?.[0]?.appRatings?.[0]?.rating
         ?.subBranchUnitRatings?.[0]?.questionGroups || [];
 
+    const configuration = await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
+    const matsMode = configuration?.mode === "CATEGORY_PORTION" ? "CATEGORY_PORTION" : "SEPARATE_POOL";
+    const allocations = matsMode === "CATEGORY_PORTION"
+      ? await prisma.matsCategoryAllocation.findMany({
+          where: { deletedAt: null },
+          select: { mandatoryItemId: true, quantity: true },
+        })
+      : [];
+    const allocationByItem = new Map(
+      allocations.map((item) => [item.mandatoryItemId, item.quantity]),
+    );
+
     if (
       !event?.eventUsers?.[0] ||
       !event?.groups?.[0]?.groupMembers?.[0]
@@ -712,18 +791,52 @@ const getMultipleChoiceQuestion = async (req, res) => {
     
     const multipleChoice = []
     for(let i in takeIt){
+      const mandatoryItemId = takeIt[i].mandatoryRating?.mandatoryItemId || null;
+      const matsPortion = matsMode === "CATEGORY_PORTION" ? Number(allocationByItem.get(mandatoryItemId) || 0) : 0;
+      const branchQuantity = Math.max(0, Number(takeIt[i].quantity || 0) - matsPortion);
       const randomItem = await getRandomMultipleChoiceByGroup({
         sectorId: event.sectorId,
         questionGroupId: takeIt[i].id,
-        quantity: takeIt[i].quantity,
+        quantity: branchQuantity,
       });
       
       takeIt[i].multipleChoice = randomItem
       multipleChoice.push(takeIt[i])
     }
 
-    const mats = await getRandomMatsQuestions({ appRatingId, eventId: event.id });
-    if (mats.quantity > 0) {
+    const mats = await getRandomMatsQuestions({
+      appRatingId,
+      eventId: event.id,
+      mandatoryItemIds: (
+        await prisma.mandatoryRating.findMany({
+          where: {
+            ratingId: event?.eventUsers?.[0]?.applicationDocs?.[0]?.appRatings?.[0]?.rating?.id,
+            mandatoryItemId: { not: null },
+            deletedAt: null,
+          },
+          select: { mandatoryItemId: true },
+        })
+      ).map(({ mandatoryItemId }) => mandatoryItemId),
+      questionGroups: takeIt.map((group) => ({
+        mandatoryItemId: group.mandatoryRating?.mandatoryItemId || null,
+        quantity: Number(group.quantity || 0),
+      })),
+    });
+    if (mats.mode === "CATEGORY_PORTION") {
+      for (const group of multipleChoice) {
+        const mandatoryItemId = group.mandatoryRating?.mandatoryItemId || null;
+        const categoryMats = mats.questions.filter(
+          (question) => question.mandatoryItemId === mandatoryItemId,
+        );
+        group.multipleChoice.push(...categoryMats);
+
+        if (group.multipleChoice.length < Number(group.quantity || 0)) {
+          return res.status(409).json({
+            message: `${group.group || "Multiple choice group"} requires ${group.quantity} questions, but only ${group.multipleChoice.length} are available after applying the MATS category portion.`,
+          });
+        }
+      }
+    } else if (mats.quantity > 0) {
       multipleChoice.push({
         id: "MATS",
         group: "MATS",
@@ -751,14 +864,14 @@ const getMultipleChoiceQuestion = async (req, res) => {
     const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] : {time: 0};
     const timeLeft = eventDuration-monitor.time
    
-    // const randomNumbers = [];
-    const randomNumbers = [1,2,3];
+    const randomNumbers = [];
+    // const randomNumbers = [1,2,3];
 
-    // for (let i = 0; i < 3; i++) {
-    //   // Math.random() * (max - min + 1) + min
-    //   const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
-    //   randomNumbers.push(pick);
-    // }
+    for (let i = 0; i < 3; i++) {
+      // Math.random() * (max - min + 1) + min
+      const pick = Math.floor(Math.random() * ((timeLeft * 0.7) + 1));
+      randomNumbers.push(pick);
+    }
 
     randomNumbers.sort((a, b) => a - b);
 
@@ -840,12 +953,20 @@ const postMultipleChoiceAnswer = async (req, res) => {
       return res.status(400).json({ message: "One or more submitted questions are not valid for this examination." });
     }
     const selectedMats = await prisma.matsQuestionSelection.findMany({
-      where: { appRatingId, eventId }, select: { multipleChoiceId: true },
+      where: { appRatingId, eventId }, select: { multipleChoiceId: true, mode: true, mandatoryItemId: true },
     });
+    const selectedMatsById = new Map(selectedMats.map((item) => [item.multipleChoiceId, item]));
     const submittedMatsIds = multipleChoiceDatadbm.filter((item) => item.isMats).map((item) => item.id).sort((a, b) => a - b);
     const selectedMatsIds = selectedMats.map((item) => item.multipleChoiceId).sort((a, b) => a - b);
     if (submittedMatsIds.length !== selectedMatsIds.length || submittedMatsIds.some((id, index) => id !== selectedMatsIds[index])) {
       return res.status(400).json({ message: "The submitted MATS questions do not match those assigned to this examination." });
+    }
+    for (const answer of multipleChoice) {
+      const snapshot = selectedMatsById.get(Number(answer.multipleChoiceId));
+      if (snapshot) {
+        answer.matsMode = snapshot.mode;
+        answer.mandatoryItemId = snapshot.mandatoryItemId;
+      }
     }
 
     const correction = (multipleChoiceDatadbm, multipleChoice) => {
@@ -878,7 +999,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
             finalScore: finalValue,
             multipleChoiceCorrections: {
               createMany: {
-                data: multipleChoice.map(m => ({groupMemberId, multipleChoiceId: m.multipleChoiceId, answer: m.answer, appRatingId, isTrue: m.isTrue}))
+                data: multipleChoice.map(m => ({groupMemberId, multipleChoiceId: m.multipleChoiceId, answer: m.answer, appRatingId, isTrue: m.isTrue, matsMode: m.matsMode, mandatoryItemId: m.mandatoryItemId}))
               }
             }
           },
@@ -894,7 +1015,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
               finalScore: finalValue,
               multipleChoiceCorrections: {
                 createMany: {
-                  data: multipleChoice.map(m => ({groupMemberId, multipleChoiceId: m.multipleChoiceId, answer: m.answer, appRatingId, isTrue: m.isTrue}))
+                  data: multipleChoice.map(m => ({groupMemberId, multipleChoiceId: m.multipleChoiceId, answer: m.answer, appRatingId, isTrue: m.isTrue, matsMode: m.matsMode, mandatoryItemId: m.mandatoryItemId}))
                 }
               }
             }
@@ -987,8 +1108,8 @@ const postMultipleChoiceAnswer = async (req, res) => {
     })
     
     if(event.eventQuestions.length > 1){
-      // const finalValue = finalScore[finalScore.length - 1].essayScore + mcValue
-      const finalValue = 88
+      const finalValue = finalScore[finalScore.length - 1].essayScore + mcValue
+      // const finalValue = 88
       const fnlScore = "update"
       const finalScoreId = finalScore[finalScore.length-1].id;
       const essayScore = finalScore[finalScore.length - 1].essayScore

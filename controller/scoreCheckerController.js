@@ -291,8 +291,8 @@ const invalidateExaminationAttempt = async (req, res) => {
 };
 
 const getUserCheckerPractical = async (req, res) => {
-  // const brachUnitId = req.user.branchUnitId
-  const branchUnitId = 17
+  const brachUnitId = req.user.branchUnitId
+  // const branchUnitId = 17
   try {
     const data = await prisma.remarkDoc.findMany({
       where: {
