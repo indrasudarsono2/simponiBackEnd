@@ -1,9 +1,45 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+
+const letterSuffixToNumber = (suffix) => {
+  if (!/^[A-Z]+$/.test(suffix)) return null;
+  return [...suffix].reduce(
+    (value, letter) => value * 26 + letter.charCodeAt(0) - 64,
+    0,
+  );
+};
+
+const numberToLetterSuffix = (value) => {
+  let current = value;
+  let suffix = "";
+
+  while (current > 0) {
+    current -= 1;
+    suffix = String.fromCharCode(65 + (current % 26)) + suffix;
+    current = Math.floor(current / 26);
+  }
+
+  return suffix;
+};
+
+const getNextApplicationNumber = (baseNumber, existingNumbers) => {
+  const usedSequenceNumbers = existingNumbers
+    .map((existingNumber) => {
+      if (existingNumber === baseNumber) return 0;
+      if (!existingNumber?.startsWith(baseNumber)) return null;
+      return letterSuffixToNumber(existingNumber.slice(baseNumber.length));
+    })
+    .filter((value) => Number.isInteger(value));
+
+  if (usedSequenceNumbers.length === 0) return baseNumber;
+
+  const nextSequenceNumber = Math.max(...usedSequenceNumbers) + 1;
+  return `${baseNumber}${numberToLetterSuffix(nextSequenceNumber)}`;
+};
 
 const getApplicationDoc = async (req, res) => {
   // const sect = 8
@@ -197,7 +233,24 @@ const getApplicationDoc = async (req, res) => {
             }
           }
         },
-        verifications: true
+        verifications: {
+          include: {
+            groupMembers: {
+              include: {
+                group: {
+                  include: {
+                    userPic: {
+                      select: {
+                        nik: true,
+                        name: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -290,7 +343,21 @@ const getApplicationDoc = async (req, res) => {
     const getRatingIdFromCompetence = competence.map(c => c.ratingId);
     const ratingReal = rating.filter(r => getRatingIdFromCompetence.includes(r.id));
 
-    res.json({event, applicationDoc, user, rating, competence, ratingReal});
+    const applicationDocWithVerification = applicationDoc.map((doc) => {
+      if (!doc.verifications) return doc;
+
+      const { groupMembers, ...verification } = doc.verifications;
+      return {
+        ...doc,
+        verifications: {
+          ...verification,
+          verifiedBy: groupMembers?.group?.userPic?.name || null,
+          verifiedAt: verification.createdAt
+        }
+      };
+    });
+
+    res.json({event, applicationDoc: applicationDocWithVerification, user, rating, competence, ratingReal});
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -406,11 +473,20 @@ const addApplicationDoc = async (req, res) => {
             },
             licenseUserId: true
           }
+        },
+        applicationDocs: {
+          select: {
+            number: true
+          }
         }
       }
     })
 
-    const number = `${eventUser.user.professionInBranch.profession.profession}/${eventUser.event.remarkDoc.remark}/${eventUser.user.licenseUserId}-${eventUser.event.id}`
+    const baseNumber = `${eventUser.user.professionInBranch.profession.profession}/${eventUser.event.remarkDoc.remark}/${eventUser.user.licenseUserId}-${eventUser.event.id}`
+    const number = getNextApplicationNumber(
+      baseNumber,
+      eventUser.applicationDocs.map((applicationDoc) => applicationDoc.number),
+    )
  
     const appDoc = await prisma.applicationDoc.create({
       data: {

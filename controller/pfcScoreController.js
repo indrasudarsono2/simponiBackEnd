@@ -194,7 +194,13 @@ const getScoreRecap = async (req, res) => {
         },
         appRating: {
           select: {
+            id: true,
             rating: { select: { rating: true } },
+            previews: {
+              where: { deletedAt: null },
+              select: { id: true },
+              take: 1
+            },
             applicationDoc: {
               select: {
                 number: true,
@@ -258,6 +264,8 @@ const getScoreRecap = async (req, res) => {
 
       return {
         id: item.id,
+        appRatingId: rating?.id || null,
+        hasEvidence: (rating?.previews?.length || 0) > 0,
         scoreDate: item.createdAt,
         event: item.event,
         branch: item.event?.sector?.branchUnit?.branch || null,

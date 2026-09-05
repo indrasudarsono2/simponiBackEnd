@@ -3,7 +3,7 @@ const router = express.Router();
 
 import { authenticateToken } from '../middleware/auth.js';
 import { enforceCsrf } from '../middleware/csrf.js';
-import { enforceTenantBody, requireRole, ROLES } from '../middleware/authorize.js';
+import { enforceTenantBody, requireEchainAccount, requireRole, ROLES } from '../middleware/authorize.js';
 import { enforceRoutePolicy } from '../middleware/routePolicy.js';
 import { enforceResourceScope } from '../middleware/resourceScope.js';
 import { sanitizeRichText, sanitizeRichTextResponses } from '../middleware/sanitize.js';
@@ -89,6 +89,10 @@ import upload, { uploadBriefing, uploadCompetence, uploadCsv, uploadEssay, uploa
 
 // Auth - Public route (no authentication required)
 router.post('/auth/login', authController.login)
+router.post('/auth/forgot-password', authController.forgotPassword)
+router.post('/auth/reset-password', authController.resetPassword)
+router.get('/auth/airnav/start', authController.startAirnavLogin)
+router.get('/auth/airnav/callback', authController.completeAirnavLogin)
 router.post('/integrations/e-chain/ielp-user/verified', ielpUserController.receiveIelpUserVerifiedFromEchain)
 router.post('/integrations/e-chain/medex-user/verified', medexUserController.receiveMedexUserVerifiedFromEchain)
 
@@ -108,8 +112,9 @@ router.post('/auth/logout', authController.logout)
 router.post('/postTime', monitorTime.postTime)
 
 router.get('/profile', profileController.getProfile);
-router.post('/profile/sync-echain', profileController.syncProfileFromEchain);
+router.post('/profile/sync-echain', requireEchainAccount, profileController.syncProfileFromEchain);
 router.put('/profile/:id', profileController.editProfile)
+router.post('/profile/change-password', profileController.changePassword)
 
 router.get('/dashboardOperational', dashboardController.getDashboardOperational)
 router.get('/dashboardGeneralAdmin', dashboardController.getDashboardGeneralAdmin)
@@ -229,7 +234,7 @@ router.put('/eventQuestions/:id', eventQuestionController.getEventQuestionById)
 router.delete('/eventQuestions/:id', eventQuestionController.deleteEventQuestionId)
 
 router.get('/licenseUser', licenseUserController.getLicenseUser)
-router.post('/licenseUser/sync-echain', licenseUserController.syncLicenseFromEchain)
+router.post('/licenseUser/sync-echain', requireEchainAccount, licenseUserController.syncLicenseFromEchain)
 router.post('/licenseUser', uploadLicense.any(), licenseUserController.addLicenseUser)
 router.put('/licenseUser/:id', uploadLicense.any(), licenseUserController.getLicenseById)
 router.delete('/licenseUser/:id', uploadLicense.any(), licenseUserController.deleteLicenseById)
@@ -243,13 +248,13 @@ router.get('/eLogbookUser', eLogbookUserController.getELogbookUser)
 
 
 router.get('/ielpUser', ielpUserController.getIelpUser)
-router.post('/ielpUser/sync-echain', ielpUserController.syncIelpUserFromEchain)
+router.post('/ielpUser/sync-echain', requireEchainAccount, ielpUserController.syncIelpUserFromEchain)
 router.post('/ielpUser', uploadIelp.any(), ielpUserController.addIelpUser)
 router.put('/ielpUser/:id', uploadIelp.any(), ielpUserController.getIelpById)
 router.delete('/ielpUser/:id', ielpUserController.deleteIelpById)
 
 router.get('/medexUser', medexUserController.getMedexUser)
-router.post('/medexUser/sync-echain', medexUserController.syncMedexUserFromEchain)
+router.post('/medexUser/sync-echain', requireEchainAccount, medexUserController.syncMedexUserFromEchain)
 router.post('/medexUser', uploadMedex.any(), medexUserController.addMedexUser)
 router.put('/medexUser/:id', uploadMedex.any(), medexUserController.getMedexById);
 router.delete('/medexUser/:id', medexUserController.deleteMedexById)

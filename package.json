@@ -7,9 +7,17 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "test": "node test/security.test.js",
+    "start": "node app.js",
+    "start:production": "node app.js",
+    "test": "node test/security.test.js && node test/airnav.test.js && node test/https.test.js",
     "dev": "nodemon --exec tsx app.js",
     "generate": "prisma generate",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "snapshot:cwp:preview": "node scripts/backfill-final-score-cwp.js",
+    "snapshot:cwp:backfill": "node scripts/backfill-final-score-cwp.js --apply",
+    "snapshot:cwp:rollback-preview": "node scripts/rollback-final-score-cwp-data.js",
+    "snapshot:cwp:rollback-data": "node scripts/rollback-final-score-cwp-data.js --apply",
     "worker:escalation": "node workers/escalationWorker.js"
   },
   "dependencies": {
@@ -26,10 +34,19 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
-    "mysql2": "^3.14.0",
+    "mysql2": "3.24.3",
     "node-cron": "^4.6.0",
     "nodemailer": "^9.0.3",
-    "sanitize-html": "^2.17.5"
+    "sanitize-html": "2.17.7"
+  },
+  "overrides": {
+    "mariadb": "3.4.7",
+    "mysql2": "$mysql2",
+    "deepmerge-ts": "8.0.0",
+    "fast-uri": "3.1.6",
+    "ip-address": "10.7.0",
+    "nanoid": "3.3.18",
+    "qs": "6.16.0"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",

@@ -1,9 +1,10 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import bcrypt from "bcryptjs";
 dayjs.extend(utc)
 
 const ECHAIN_PROFILE_FIELDS = [
@@ -105,7 +106,8 @@ const getProfile = async (req, res) => {
             gender: true
           }
         },
-        email: true
+        email: true,
+        authenticationType: true
       }
     })
 
@@ -233,4 +235,67 @@ const editProfile = async (req, res) => {
   }
 };
 
-export { getProfile, syncProfileFromEchain, editProfile };
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "All password fields are required." });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "New password confirmation does not match." });
+    }
+    if (newPassword.length < 8 ||
+        !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) ||
+        !/\d/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      return res.status(400).json({
+        message: "New password must be at least 8 characters and include uppercase, lowercase, number, and symbol.",
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { nik: req.user.nik, deletedAt: null },
+      select: { nik: true, password: true, authenticationType: true },
+    });
+    if (!user) return res.status(404).json({ message: "User was not found." });
+    if (user.authenticationType === "AIRNAV_SSO") {
+      return res.status(403).json({ message: "Password changes are available only for Non-AirNav accounts." });
+    }
+    if (!user.password || !(await bcrypt.compare(currentPassword, user.password))) {
+      return res.status(400).json({ message: "Current password is incorrect." });
+    }
+    if (await bcrypt.compare(newPassword, user.password)) {
+      return res.status(400).json({ message: "New password must be different from the current password." });
+    }
+
+    const password = await bcrypt.hash(newPassword, 12);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { nik: user.nik },
+        data: {
+          password,
+          authenticationType: "LOCAL",
+          tokenVersion: { increment: 1 },
+        },
+      }),
+      prisma.authenticationAudit.create({
+        data: {
+          userNik: user.nik,
+          performedByNik: user.nik,
+          eventType: "PASSWORD_CHANGED",
+          success: true,
+          reason: "SELF_SERVICE",
+          ipAddress: String(req.ip || req.socket?.remoteAddress || "").slice(0, 100) || null,
+          userAgent: String(req.get?.("user-agent") || "").slice(0, 500) || null,
+        },
+      }),
+    ]);
+
+    res.clearCookie("auth_token", { path: "/" });
+    res.clearCookie("csrf_token", { path: "/" });
+    return res.json({ success: true, message: "Password changed. Please sign in again." });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export { getProfile, syncProfileFromEchain, editProfile, changePassword };

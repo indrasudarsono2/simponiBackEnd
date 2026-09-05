@@ -1,6 +1,6 @@
 import prisma from "../lib/prisma.js";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 

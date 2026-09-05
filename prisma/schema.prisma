@@ -691,6 +691,7 @@ model User {
   phoneNumber          String?   @db.VarChar(100)
   genderId             Int?      @db.Int
   email                String?   @db.VarChar(200)
+  authenticationType   AuthenticationType? @default(LOCAL)
   tokenVersion         Int       @default(0) @db.Int
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -727,6 +728,12 @@ model User {
   supervisorLogBooks    LogBook[]             @relation("SupervisorLogBook")
   loginSecurity         UserLoginSecurity?
   authenticationAudits  AuthenticationAudit[]
+  passwordResetTokens   PasswordResetToken[]
+}
+
+enum AuthenticationType {
+  AIRNAV_SSO
+  LOCAL
 }
 
 model UserLoginSecurity {
@@ -761,6 +768,21 @@ model AuthenticationAudit {
   @@index([eventType, createdAt])
   @@index([performedByNik, createdAt])
   @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id          Int       @id @default(autoincrement())
+  userNik     String
+  tokenHash   String    @unique @db.Char(64)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?   @db.VarChar(100)
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userNik], references: [nik], onDelete: Cascade)
+
+  @@index([userNik, expiresAt])
+  @@index([expiresAt, usedAt])
 }
 
 model UserRoles {
@@ -905,8 +927,38 @@ model FinalScore {
   essayCorrections          EssayCorrection[]
   multipleChoiceCorrections MultipleChoiceCorrection[]
   examinationInvalidations  ExaminationInvalidation[]
+  cwpSnapshots              FinalScoreCwp[]
 
   @@index([appRatingId, isInvalidated, deletedAt])
+}
+
+model FinalScoreCwp {
+  id             Int      @id @default(autoincrement())
+  finalScoreId   Int      @db.Int
+  cwpId          Int      @db.Int
+  cwpName        String   @db.VarChar(100)
+  sectorId       Int      @db.Int
+  sectorName     String   @db.VarChar(150)
+  snapshotSource String   @db.VarChar(40)
+  createdAt      DateTime @default(now())
+
+  finalScore  FinalScore               @relation(fields: [finalScoreId], references: [id], onDelete: Cascade)
+  frequencies FinalScoreCwpFrequency[]
+
+  @@unique([finalScoreId, cwpId])
+  @@index([finalScoreId])
+}
+
+model FinalScoreCwpFrequency {
+  id              Int      @id @default(autoincrement())
+  finalScoreCwpId Int      @db.Int
+  frequency       String   @db.VarChar(20)
+  isPrimary       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  finalScoreCwp FinalScoreCwp @relation(fields: [finalScoreCwpId], references: [id], onDelete: Cascade)
+
+  @@index([finalScoreCwpId])
 }
 
 model ExaminationInvalidation {

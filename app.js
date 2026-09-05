@@ -10,8 +10,10 @@ import { dirname, join } from 'path';
 import cors from 'cors';
 import apiRouter from './router/api.js';
 import securityConfig from './config/security.js';
+import prisma from './lib/prisma.js';
 import { serveSignedFile } from './middleware/privateFiles.js';
 import { startEscalationScheduler } from './workers/escalationScheduler.js';
+import { requireHttps } from './middleware/requireHttps.js';
 
 // 2. Initializations
 const app = express();
@@ -19,8 +21,10 @@ const PORT = process.env.PORT || 44441;
 const isProduction = process.env.NODE_ENV === 'production';
 const publicBaseUrl = process.env.SIMPONI_PUBLIC_BASE_URL?.trim();
 
-// Trust first proxy (reverse proxy / load balancer) so req.protocol reflects HTTPS
-app.set('trust proxy', 1);
+// Only configured proxy peers may influence protocol and client IP detection.
+// Add verified gateway addresses here only when they connect directly to Express.
+app.set('trust proxy', (process.env.TRUSTED_PROXY_CIDRS || 'loopback')
+  .split(',').map(value => value.trim()).filter(Boolean));
 
 // 3. Middleware
 app.disable('x-powered-by');
@@ -63,18 +67,26 @@ app.use((req, res, next) => {
 });
 
 // Issue #3: Redirect HTTP → HTTPS in production (when behind a reverse proxy)
+app.get('/health/live', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.get('/health/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: 'ready' });
+  } catch (error) {
+    console.error('Readiness check failed:', error);
+    res.status(503).json({ status: 'not_ready' });
+  }
+});
+
 if (isProduction) {
   if (!publicBaseUrl || new URL(publicBaseUrl).protocol !== 'https:') {
     throw new Error('SIMPONI_PUBLIC_BASE_URL must be configured with an HTTPS URL in production.');
   }
 
-  const canonicalOrigin = new URL(publicBaseUrl).origin;
-  app.use((req, res, next) => {
-    if (req.headers['x-forwarded-proto'] !== 'https') {
-      return res.redirect(308, `${canonicalOrigin}${req.originalUrl}`);
-    }
-    next();
-  });
+  app.use(requireHttps(publicBaseUrl));
 }
 
 app.get('/files/:expires/:signature/{*filePath}', serveSignedFile(join(dirname(fileURLToPath(import.meta.url)), 'uploads')));
@@ -97,6 +109,8 @@ app.use('/api', apiLimiter);
 
 // Stricter rate limiter for login endpoint (brute-force / credential stuffing)
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
+app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }));
+app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
 
 app.use('/api', apiRouter);
 
@@ -124,7 +138,36 @@ app.use((err, req, res, next) => {
 });
 
 // 6. Start Server
-app.listen(PORT, securityConfig.serverHost, () => {
-  console.log(`🚀 Server is humming along on http://localhost:${PORT}`);
-  startEscalationScheduler();
+let escalationScheduler;
+const server = app.listen(PORT, securityConfig.serverHost, () => {
+  console.log(`🚀 Server is listening on ${securityConfig.serverHost}:${PORT}`);
+  if (process.env.RUN_ESCALATION_SCHEDULER !== 'false') {
+    escalationScheduler = startEscalationScheduler();
+  }
 });
+
+let isShuttingDown = false;
+const shutdown = (signal) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`${signal} received; shutting down gracefully.`);
+  escalationScheduler?.stop();
+
+  const forceExitTimer = setTimeout(() => {
+    console.error('Graceful shutdown timed out; forcing exit.');
+    process.exit(1);
+  }, 10_000);
+  forceExitTimer.unref();
+
+  server.close(async (error) => {
+    try {
+      await prisma.$disconnect();
+    } finally {
+      if (error) console.error('HTTP server shutdown failed:', error);
+      process.exit(error ? 1 : 0);
+    }
+  });
+};
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));

@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { ROLES } from "../middleware/authorize.js";
@@ -291,7 +291,7 @@ const invalidateExaminationAttempt = async (req, res) => {
 };
 
 const getUserCheckerPractical = async (req, res) => {
-  const brachUnitId = req.user.branchUnitId
+  const branchUnitId = req.user.branchUnitId
   // const branchUnitId = 17
   try {
     const data = await prisma.remarkDoc.findMany({

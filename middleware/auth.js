@@ -29,6 +29,8 @@ const authenticateToken = async (req, res, next) => {
       where: { nik: decoded.nik, deletedAt: null },
       select: {
         nik: true, name: true, email: true, branchId: true, branchUnitId: true,
+        tokenVersion: true,
+        authenticationType: true,
         sectorId: true, professionInBranchId: true,
         professionInBranch: { select: { professionId: true } },
         userRoles: {
@@ -49,6 +51,13 @@ const authenticateToken = async (req, res, next) => {
       },
     });
     if (!currentUser) return res.status(401).json({ success: false, message: "Account is no longer active." });
+    // Tokens issued before session versioning was introduced are version 0.
+    // Once a password change increments the database value, those legacy
+    // tokens and every older version are rejected.
+    const tokenVersion = Number.isInteger(decoded.tokenVersion) ? decoded.tokenVersion : 0;
+    if (tokenVersion !== currentUser.tokenVersion) {
+      return res.status(401).json({ success: false, message: "Session is no longer valid. Please login again." });
+    }
 
     const activeRoles = currentUser.userRoles.filter((item) => !item.roles?.deletedAt);
     const menuNames = [...new Set(activeRoles.flatMap((item) =>
@@ -68,6 +77,7 @@ const authenticateToken = async (req, res, next) => {
       sectorId: currentUser.sectorId,
       professionInBranchId: currentUser.professionInBranchId,
       professionId: currentUser.professionInBranch?.professionId ?? null,
+      authenticationType: currentUser.authenticationType,
     };
 
     next();

@@ -118,18 +118,41 @@ const getSectorCwps = async (req, res) => {
 const getSectorCwpOptions = async (req, res) => {
   try {
     const branchUnitId = getBranchUnitId(req);
+    const sectorId = parsePositiveInt(req.query.sectorId);
 
     if (!branchUnitId) {
       return res.status(401).json({ message: "Branch unit data is missing." });
     }
 
     const sectors = await getBranchUnitSectors(branchUnitId);
+    if (sectorId && !sectors.some((sector) => sector.id === sectorId)) {
+      return res.status(404).json({ message: "Sector not found." });
+    }
+
     const relatedCwpIds = await getRelatedCwpIds(branchUnitId);
-    const cwps = relatedCwpIds.length
+    const assignedToOtherSectors = relatedCwpIds.length
+      ? await prisma.sectorCwp.findMany({
+          where: {
+            deletedAt: null,
+            cwpId: { in: relatedCwpIds },
+            ...(sectorId ? { sectorId: { not: sectorId } } : {}),
+          },
+          select: { cwpId: true },
+        })
+      : [];
+    const unavailableCwpIds = new Set(
+      assignedToOtherSectors
+        .map((assignment) => assignment.cwpId)
+        .filter((cwpId) => Number.isInteger(cwpId)),
+    );
+    const availableCwpIds = relatedCwpIds.filter(
+      (cwpId) => !unavailableCwpIds.has(cwpId),
+    );
+    const cwps = availableCwpIds.length
       ? await prisma.cwp.findMany({
           where: {
             id: {
-              in: relatedCwpIds,
+              in: availableCwpIds,
             },
             deletedAt: null,
           },
@@ -193,6 +216,33 @@ const updateSectorCwps = async (req, res) => {
     if (invalidCwpIds.length > 0) {
       return res.status(400).json({
         message: "One or more selected CWP are not related to your branch unit.",
+      });
+    }
+
+    const assignmentsInOtherSectors = cwpIds.length
+      ? await prisma.sectorCwp.findMany({
+          where: {
+            cwpId: { in: cwpIds },
+            sectorId: { not: sectorId },
+            deletedAt: null,
+          },
+          select: {
+            cwpId: true,
+            cwp: { select: { cwp: true } },
+            sector: { select: { sector: true } },
+          },
+        })
+      : [];
+
+    if (assignmentsInOtherSectors.length > 0) {
+      const assignments = assignmentsInOtherSectors
+        .map(
+          (item) =>
+            `${item.cwp?.cwp || `CWP ${item.cwpId}`} (${item.sector?.sector || "another sector"})`,
+        )
+        .join(", ");
+      return res.status(409).json({
+        message: `The following CWP are already assigned: ${assignments}.`,
       });
     }
 

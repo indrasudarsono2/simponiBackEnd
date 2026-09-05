@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 
 const getSectors = async (req, res) => {
   try {
@@ -53,10 +53,14 @@ const sectorGetBranchUnit = async (req, res) => {
 
 const addSector = async (req, res) => {
   try {
-    const { sector, branchUnitId } = req.body;
+    const { sector } = req.body;
+    const branchUnitId = Number(req.user?.branchUnitId);
+    if (!Number.isInteger(branchUnitId) || branchUnitId <= 0) {
+      return res.status(401).json({ message: "Branch unit data is missing." });
+    }
     await prisma.sector.create({
       data: {
-        branchUnitId: parseInt(branchUnitId),
+        branchUnitId,
         sector: sector
       }
     });
@@ -71,8 +75,19 @@ const getSectorById = async (req, res) => {
   try {
     const { id } = req.params;
     const { sector } = req.body;
-      await prisma.sector.update({
-      where: { id: parseInt(id) },
+    const existingSector = await prisma.sector.findFirst({
+      where: {
+        id: parseInt(id),
+        branchUnitId: req.user.branchUnitId,
+        deletedAt: null
+      },
+      select: { id: true }
+    });
+    if (!existingSector) {
+      return res.status(404).json({ message: "Sector not found." });
+    }
+    await prisma.sector.update({
+      where: { id: existingSector.id },
       data: { sector: sector }
     });
     res.json({ success: true, sectorId: id, name: `Sector ${id}` });

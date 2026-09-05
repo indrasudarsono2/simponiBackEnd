@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { ROLES } from "../middleware/authorize.js";

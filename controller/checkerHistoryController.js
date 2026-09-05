@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 
@@ -165,6 +165,61 @@ const postData = async (req, res) => {
                     essayScore: true,
                     multipleChoiceScore: true,
                     finalScore: true,
+                    cwpSnapshots: {
+                      select: {
+                        cwpId: true,
+                        cwpName: true,
+                        sectorName: true,
+                        frequencies: {
+                          select: {
+                            id: true,
+                            frequency: true,
+                            isPrimary: true
+                          },
+                          orderBy: [
+                            { isPrimary: "desc" },
+                            { frequency: "asc" }
+                          ]
+                        }
+                      },
+                      orderBy: { cwpName: "asc" }
+                    },
+                    event: {
+                      select: {
+                        sector: {
+                          select: {
+                            sector: true,
+                            sectorCwps: {
+                              where: {
+                                deletedAt: null,
+                                cwp: { deletedAt: null }
+                              },
+                              select: {
+                                cwp: {
+                                  select: {
+                                    id: true,
+                                    cwp: true,
+                                    ratingId: true,
+                                    cwpFrequencies: {
+                                      where: { deletedAt: null },
+                                      select: {
+                                        id: true,
+                                        frequency: true,
+                                        isPrimary: true
+                                      },
+                                      orderBy: [
+                                        { isPrimary: "desc" },
+                                        { frequency: "asc" }
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     status: {
                       where: {
                         deletedAt: null

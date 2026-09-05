@@ -1,9 +1,10 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import { ensureFinalScoreCwpSnapshot } from "../services/finalScoreCwpSnapshot.js";
 
 const getRandomEssayByGroup = async ({ sectorId, questionGroupId, quantity }) => {
   const takeQty = Number(quantity) || 0;
@@ -617,7 +618,7 @@ const getEssayQuestion = async (req, res) => {
 const postEssayAnswer = async (req, res) => {
   try {
     const {essay, appRatingId, eventUserId, groupMemberId, eventId} = req.body
-    await prisma.appRating.update({
+    const updatedAppRating = await prisma.appRating.update({
       where: {
         id: appRatingId
       },
@@ -642,7 +643,19 @@ const postEssayAnswer = async (req, res) => {
           deleteMany: {}
         }
       },
+      include: {
+        finalScores: {
+          where: { deletedAt: null, isInvalidated: false },
+          orderBy: { id: "desc" },
+          take: 1,
+        },
+      },
     })
+
+    const createdFinalScore = updatedAppRating.finalScores[0];
+    if (createdFinalScore) {
+      await ensureFinalScoreCwpSnapshot(prisma, createdFinalScore.id);
+    }
 
     res.status(200).json({message: "success"});
   } catch (error) {
@@ -1130,6 +1143,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
         ? waitingPracticalStatus.id
         : calculatedAppRatingStatus;
       await inputAppRating(appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore, finalScoreId)
+      await ensureFinalScoreCwpSnapshot(prisma, finalScoreId)
       
       const essayCorrection = await prisma.essayCorrection.findMany({
         where: {
@@ -1194,8 +1208,11 @@ const postMultipleChoiceAnswer = async (req, res) => {
       const finalValue = mcValue
       const fnlScore = "create"
       const updatedAppRating = await inputAppRating(appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore)
+      const createdFinalScore = updatedAppRating.finalScores[0];
+      if (createdFinalScore) {
+        await ensureFinalScoreCwpSnapshot(prisma, createdFinalScore.id);
+      }
       if (theoryPassed && !requiresPractical) {
-        const createdFinalScore = updatedAppRating.finalScores[0];
         if (createdFinalScore) {
           await inputUserRating(updatedAppRating.ratingId, createdFinalScore.id, event.forExpiredDate);
         }

@@ -43,6 +43,16 @@ export const requireSelfOrRole = (paramName, ...allowedRoles) => {
   };
 };
 
+export const requireEchainAccount = (req, res, next) => {
+  if (req.user?.authenticationType === "LOCAL") {
+    return res.status(403).json({
+      success: false,
+      message: "e-chain synchronization is unavailable for Non-AirNav accounts.",
+    });
+  }
+  next();
+};
+
 // Reject tenant identifiers supplied by a lower-scope user when they differ
 // from the identity loaded by the authentication middleware.
 export const enforceTenantBody = (req, res, next) => {

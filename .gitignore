@@ -1,6 +1,8 @@
 node_modules
 # Keep environment variables out of version control
 .env
+!.env.example
+!.env.production.example
 uploads/
 tes-output*.json
 output.json

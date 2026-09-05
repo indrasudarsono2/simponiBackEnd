@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import config from "../utils/config.json";
+import config from "../utils/config.js";
 
 const buildGroupedMultipleChoice = (questionGroup, multipleChoiceQuestionGroup) => {
   // Count selected questions per sector + questionGroup.

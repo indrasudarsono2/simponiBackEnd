@@ -17,6 +17,7 @@ const getUserGeneral = async (req, res) => {
         nik: true,
         licenseUserId: true,
         name: true,
+        authenticationType: true,
         branch: {
           select: {
             id: true,
@@ -47,7 +48,10 @@ const getUserGeneral = async (req, res) => {
 
 const addUserGeneral = async (req, res) => {
   try {
-    const { name, nik, licenseUserId, branchId } = req.body;
+    const { name, nik, licenseUserId, branchId, authenticationType = "LOCAL" } = req.body;
+    if (!["AIRNAV_SSO", "LOCAL"].includes(authenticationType)) {
+      return res.status(400).json({ success: false, message: "Invalid authentication type" });
+    }
     
     // Check if NIK already exists
     const existingUser = await prisma.user.findUnique({
@@ -71,6 +75,7 @@ const addUserGeneral = async (req, res) => {
         licenseUserId,
         branchId: parseInt(branchId),
         password: hashedPassword,
+        authenticationType,
         userRoles: {
           create: {
             roleId: 6
@@ -95,7 +100,10 @@ const addUserGeneral = async (req, res) => {
 const getUpdateByUserId = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, nik, licenseUserId, branchId } = req.body;
+    const { name, nik, licenseUserId, branchId, authenticationType } = req.body;
+    if (!["AIRNAV_SSO", "LOCAL"].includes(authenticationType)) {
+      return res.status(400).json({ success: false, message: "Authentication type is required" });
+    }
 
     const defaultPassword = generateDefaultPassword();
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
@@ -111,6 +119,7 @@ const getUpdateByUserId = async (req, res) => {
       nik,
       licenseUserId,
       branchId: parseInt(branchId),
+      authenticationType,
       password: hashedPassword
     }
 
