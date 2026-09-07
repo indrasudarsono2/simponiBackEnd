@@ -13,13 +13,17 @@ import securityConfig from './config/security.js';
 import prisma from './lib/prisma.js';
 import { serveSignedFile } from './middleware/privateFiles.js';
 import { startEscalationScheduler } from './workers/escalationScheduler.js';
-import { requireHttps } from './middleware/requireHttps.js';
+import { requireHttps, shouldEnforceHttpsRedirect } from './middleware/requireHttps.js';
 
 // 2. Initializations
 const app = express();
 const PORT = process.env.PORT || 44441;
 const isProduction = process.env.NODE_ENV === 'production';
 const publicBaseUrl = process.env.SIMPONI_PUBLIC_BASE_URL?.trim();
+const enforceHttpsRedirect = shouldEnforceHttpsRedirect(
+  isProduction,
+  process.env.ENFORCE_HTTPS_REDIRECT?.trim().toLowerCase(),
+);
 
 // Only configured proxy peers may influence protocol and client IP detection.
 // Add verified gateway addresses here only when they connect directly to Express.
@@ -86,7 +90,9 @@ if (isProduction) {
     throw new Error('SIMPONI_PUBLIC_BASE_URL must be configured with an HTTPS URL in production.');
   }
 
-  app.use(requireHttps(publicBaseUrl));
+  if (enforceHttpsRedirect) {
+    app.use(requireHttps(publicBaseUrl));
+  }
 }
 
 app.get('/files/:expires/:signature/{*filePath}', serveSignedFile(join(dirname(fileURLToPath(import.meta.url)), 'uploads')));

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { requireHttps } from '../middleware/requireHttps.js';
+import { requireHttps, shouldEnforceHttpsRedirect } from '../middleware/requireHttps.js';
 
 const base = 'https://performa.example/backend';
 function invoke(originalUrl, secure = false) {
@@ -25,6 +25,12 @@ test('prefix matching respects path boundaries', () => {
 });
 test('secure requests proceed without redirect', () => {
   assert.equal(invoke('/api/auth/airnav/start', true).passed, true);
+});
+test('WAF deployment can explicitly disable application HTTPS redirects', () => {
+  assert.equal(shouldEnforceHttpsRedirect(true, 'false'), false);
+  assert.equal(shouldEnforceHttpsRedirect(true, undefined), true);
+  assert.equal(shouldEnforceHttpsRedirect(true, 'true'), true);
+  assert.equal(shouldEnforceHttpsRedirect(false, undefined), false);
 });
 test('request cannot override canonical redirect host', () => {
   assert.equal(new URL(invoke('//evil.example/path').location).origin, 'https://performa.example');

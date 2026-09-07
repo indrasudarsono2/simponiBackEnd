@@ -1,4 +1,8 @@
 // The public API can be mounted at /backend even though Express sees /api.
+export function shouldEnforceHttpsRedirect(isProduction, configuredValue) {
+  return isProduction && configuredValue !== 'false';
+}
+
 export function requireHttps(publicBaseUrl) {
   const base = new URL(publicBaseUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash) {
