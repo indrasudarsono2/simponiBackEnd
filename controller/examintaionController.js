@@ -5,6 +5,10 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { ensureFinalScoreCwpSnapshot } from "../services/finalScoreCwpSnapshot.js";
+import {
+  deriveOverallExaminationStatus,
+  deriveRatingExaminationStatus,
+} from "../services/examinationStatus.js";
 
 const getRandomEssayByGroup = async ({ sectorId, questionGroupId, quantity }) => {
   const takeQty = Number(quantity) || 0;
@@ -303,31 +307,21 @@ const getRandomMatsQuestions = async ({
 };
 
 const getExamination = async (req, res) => {
-  // const sect = 1
-  // const sect = req.user.sectorId
-  // const userN = "10077770"
   const userN = req.user.nik
-  // const prof = 1
-  // const prof = req.user.professionId
   try {
     const now = dayjs.utc().toDate();
-    const event = await prisma.event.findFirst({
+    const events = await prisma.event.findMany({
       where: {
-        startDate: {
-          lte: now,
-        },
-        finishDate: {
-          gte: now
-        },
+        deletedAt: null,
         eventUsers: {
           some: {
+            deletedAt: null,
+            userNik: userN,
             applicationDocs: {
               some: {
                 deletedAt: null,
                 statusId: 2,
-                briefingDate: {
-                  not: null
-                },
+                briefingDate: { not: null },
                 userNik: userN,
               }
             }
@@ -338,6 +332,8 @@ const getExamination = async (req, res) => {
         id: true,
         event: true,
         passingGrade: true,
+        startDate: true,
+        finishDate: true,
         eventQuestions: {
           where: {
             deletedAt: null
@@ -360,16 +356,12 @@ const getExamination = async (req, res) => {
         eventUsers: {
           where: {
             deletedAt: null,
+            userNik: userN,
             applicationDocs: {
               some: {
                 deletedAt: null,
-                appRatings: {
-                  some: {
-                    statusId: {
-                      notIn: [6, 7]
-                    }
-                  }
-                },
+                statusId: 2,
+                briefingDate: { not: null },
                 userNik: userN
               }
             }
@@ -379,13 +371,8 @@ const getExamination = async (req, res) => {
             applicationDocs: {
               where: {
                 deletedAt: null,
-                appRatings: {
-                  some: {
-                    statusId: {
-                      notIn: [6,7]
-                    }
-                  }
-                },
+                statusId: 2,
+                briefingDate: { not: null },
                 userNik: userN
               },
               select: {
@@ -393,22 +380,31 @@ const getExamination = async (req, res) => {
                 appRatings: {
                   where: {
                     deletedAt: null,
-                    statusId: {
-                      notIn: [6, 7]
-                    }
                   },
                   select: {
                     id: true,
                     rating: true,
                     statusId: true,
+                    status: { select: { status: true } },
+                    monitorTimes: {
+                      where: { deletedAt: null },
+                      select: { id: true, time: true, updatedAt: true },
+                    },
                     finalScores: {
                       where: {
                         deletedAt: null,
                         isInvalidated: false,
-                        statusId: {
-                          notIn: [5, 6, 7]
-                        }
-                      }
+                      },
+                      select: {
+                        id: true,
+                        statusId: true,
+                        finalScore: true,
+                        isInvalidated: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        status: { select: { status: true } },
+                      },
+                      orderBy: { id: "desc" },
                     },
                     examinationInvalidations: {
                       orderBy: { createdAt: "desc" },
@@ -432,10 +428,51 @@ const getExamination = async (req, res) => {
             }
           }
         }
-      }
+      },
+      orderBy: { startDate: "desc" },
     })
 
-    res.json({event})
+    const activeEvent = events.find((item) => {
+      const start = item.startDate ? new Date(item.startDate).getTime() : Number.NEGATIVE_INFINITY;
+      const finish = item.finishDate ? new Date(item.finishDate).getTime() : Number.POSITIVE_INFINITY;
+      return start <= now.getTime() && finish >= now.getTime();
+    });
+    const upcomingEvent = [...events]
+      .filter((item) => item.startDate && new Date(item.startDate).getTime() > now.getTime())
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+    const event = activeEvent || upcomingEvent || events[0] || null;
+
+    if (!event) {
+      const overall = deriveOverallExaminationStatus({ assigned: false, event: null, now });
+      return res.json({ event: null, ...overall, ratingStatuses: [] });
+    }
+
+    const eventUser = event.eventUsers?.[0] || null;
+    const room = eventUser?.attendaces?.room || null;
+    const appRatings = eventUser?.applicationDocs?.flatMap((doc) => doc.appRatings || []) || [];
+    const ratingStatuses = appRatings.map((appRating) => ({
+      appRatingId: appRating.id,
+      rating: appRating.rating?.rating || "-",
+      ...deriveRatingExaminationStatus({ appRating, event, room, now }),
+    }));
+    const statusByRatingId = new Map(
+      ratingStatuses.map((item) => [item.appRatingId, item]),
+    );
+
+    for (const applicationDoc of eventUser?.applicationDocs || []) {
+      for (const appRating of applicationDoc.appRatings || []) {
+        appRating.examinationStatus = statusByRatingId.get(appRating.id) || null;
+      }
+    }
+
+    const overall = deriveOverallExaminationStatus({
+      assigned: Boolean(eventUser),
+      event,
+      ratingStatuses,
+      now,
+    });
+
+    res.json({ event, ...overall, ratingStatuses })
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -84,6 +84,8 @@ import * as lhdReportController from '../controller/lhdReportController.js'
 import * as otherReportController from '../controller/otherReportController.js'
 import * as pfcScoreController from '../controller/pfcScoreController.js'
 import * as pfcIndividualController from '../controller/pfcIndividualController.js'
+import * as credentialVerificationController from '../controller/credentialVerificationController.js'
+import * as credentialHistoryController from '../controller/credentialHistoryController.js'
 
 import upload, { uploadBriefing, uploadCompetence, uploadCsv, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
 
@@ -259,6 +261,11 @@ router.post('/medexUser', uploadMedex.any(), medexUserController.addMedexUser)
 router.put('/medexUser/:id', uploadMedex.any(), medexUserController.getMedexById);
 router.delete('/medexUser/:id', medexUserController.deleteMedexById)
 
+router.get('/credentialVerification/checkers', credentialVerificationController.getEligibleCheckers)
+router.get('/credentialVerification/tasks', credentialVerificationController.getAssignedTasks)
+router.patch('/credentialVerification/:type/:id', credentialVerificationController.reviewCredential)
+router.get('/credentialHistory/:type/:id', credentialHistoryController.getCredentialHistory)
+
 router.get('/competenceUser', competenceUserController.getCompetenceUser)
 router.post('/competenceUser', uploadCompetence.any(), competenceUserController.addCompetenceUser)
 router.put('/competenceUser/:id', uploadCompetence.any(), competenceUserController.getCompetenceById)
@@ -352,6 +359,7 @@ router.post('/pfcScore/individual', pfcIndividualController.getIndividualStatist
 router.get('/scoreChecker', scoreCheckerController.getUserCheckerScore)
 router.post('/scoreChecker', scoreCheckerController.postUserCheckerScore)
 router.post('/scoreCheckerEvidance', scoreCheckerController.postUserCheckerScoreEvidance)
+router.get('/scoreChecker/reexamination-history/:appRatingId', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_CHECKER), scoreCheckerController.getReExaminationHistory)
 router.post('/scoreChecker/invalidate-attempt', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_CHECKER), scoreCheckerController.invalidateExaminationAttempt)
 router.get('/scoreCheckerPractical', scoreCheckerController.getUserCheckerPractical)
 router.post('/scoreCheckerPractical', scoreCheckerController.postUserCheckerPractical)

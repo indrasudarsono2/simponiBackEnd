@@ -9,9 +9,17 @@ const generateDefaultPassword = () => {
 
 const getUserBranchUnit = async (req, res) => {
   try {
+    const branchUnitId = Number(req.user?.branchUnitId);
+
+    if (!Number.isInteger(branchUnitId) || branchUnitId <= 0) {
+      return res.status(403).json({
+        message: "Your account has no branch unit assigned. Please contact an administrator.",
+      });
+    }
+
     const user = await prisma.user.findMany({
       where: {
-        branchUnitId: req.user.branchUnitId,
+        branchUnitId,
         // branchId: 1,
         deletedAt: null
       },
@@ -54,7 +62,7 @@ const getUserBranchUnit = async (req, res) => {
     const sector = await prisma.sector.findMany({
       where: {
         deletedAt: null,
-        branchUnitId: req.user.branchUnitId,
+        branchUnitId,
         // branchUnitId: 5,
       }
     })

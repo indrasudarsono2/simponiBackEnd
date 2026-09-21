@@ -446,6 +446,20 @@ const getPractical = async(req, res) => {
                 status: true
               }
             },
+            finalScores: {
+              where: {
+                deletedAt: null,
+                isInvalidated: false
+              },
+              orderBy: { id: "desc" },
+              take: 1,
+              select: {
+                statusId: true,
+                status: {
+                  select: { status: true }
+                }
+              }
+            },
             practicalTests: {
               where: {
                 deletedAt: null,
@@ -559,12 +573,26 @@ const putPractical = async (req, res) => {
         deletedAt: null
       },
       select: {
+        score: true,
         file: true,
         appRatingId: true,
         checkerGroup: { select: { checker: true } },
         appRating: {
           select: {
+            statusId: true,
             ratingId: true,
+            finalScores: {
+              where: {
+                deletedAt: null,
+                isInvalidated: false
+              },
+              orderBy: { id: "desc" },
+              take: 1,
+              select: {
+                id: true,
+                statusId: true
+              }
+            },
             applicationDoc: {
               select: {
                 userNik: true,
@@ -616,6 +644,20 @@ const putPractical = async (req, res) => {
     });
     if (!waitingPracticalStatus) {
       return res.status(500).json({ message: "WAITING PRACTICAL status is not configured." });
+    }
+
+    const activeTheoryResult = existingPractialTest.appRating.finalScores?.[0];
+    const isInitialPracticalInput = existingPractialTest.score == null;
+    if (
+      isInitialPracticalInput
+      && (
+        existingPractialTest.appRating.statusId !== waitingPracticalStatus.id
+        || activeTheoryResult?.statusId !== waitingPracticalStatus.id
+      )
+    ) {
+      return res.status(409).json({
+        message: "The theory examination must be passed before entering a practical exam score."
+      });
     }
 
     const putPrac = { score: numericScore }

@@ -1,9 +1,11 @@
 import prisma from "../lib/prisma.js";
+import { appendCredentialHistory } from "../utils/credentialHistory.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import { createCredentialSyncReceipt, verifyCredentialSyncReceipt } from "../utils/credentialSyncReceipt.js";
 
 dayjs.extend(utc);
 
@@ -30,6 +32,16 @@ const ECHAIN_MEDEX_USER_MOCK_DATA = {
   fileMimeType: "application/pdf",
   fileSizeBytes: 245000,
 };
+const medexReceiptData = (data) => ({
+  institution: data.institution,
+  released: data.released,
+  expired: data.expired,
+  fileName: data.fileName || null,
+  fileUrl: data.fileUrl || null,
+  fileUrlExpiresAt: data.fileUrlExpiresAt || null,
+  fileMimeType: data.fileMimeType || null,
+  fileSizeBytes: data.fileSizeBytes == null ? null : Number(data.fileSizeBytes),
+});
 
 const MEDEX_UPLOAD_DIR = path.join(process.cwd(), "uploads", "medex");
 const MAX_ECHAIN_MEDEX_USER_FILE_BYTES = Number(process.env.ECHAIN_MEDEX_USER_MAX_FILE_BYTES || 2 * 1024 * 1024);
@@ -203,6 +215,10 @@ const getMedexUser = async (req, res) => {
       },
       orderBy: {
         createdAt: 'desc'
+      },
+      include: {
+        requestedChecker: { select: { nik: true, name: true } },
+        verifiedBy: { select: { nik: true, name: true } },
       }
     })
 
@@ -218,6 +234,7 @@ const syncMedexUserFromEchain = async (req, res) => {
       success: true,
       message: "MEDEX data found from e-chain mock mode",
       data: ECHAIN_MEDEX_USER_MOCK_DATA,
+      syncReceipt: createCredentialSyncReceipt({ type: "MEDEX", nik: req.user.nik, data: medexReceiptData(ECHAIN_MEDEX_USER_MOCK_DATA) }),
     });
   }
 
@@ -295,6 +312,7 @@ const syncMedexUserFromEchain = async (req, res) => {
       success: true,
       message: responseBody.message || "MEDEX data found",
       data,
+      syncReceipt: createCredentialSyncReceipt({ type: "MEDEX", nik: req.user.nik, data: medexReceiptData(data) }),
     });
   } catch (error) {
     const isTimeout = error.name === "AbortError";
@@ -337,7 +355,7 @@ const receiveMedexUserVerifiedFromEchain = async (req, res) => {
   }
 
   try {
-    const { eventId, nik, data } = req.body;
+    const { eventId, nik, occurredAt, data } = req.body;
     const user = await prisma.user.findUnique({
       where: { nik },
       select: { nik: true },
@@ -380,6 +398,14 @@ const receiveMedexUserVerifiedFromEchain = async (req, res) => {
     const medexData = {
       userNik: nik,
       isConfirmed: true,
+      isCurrent: true,
+      userConfirmedAt: new Date(occurredAt),
+      source: "ECHAIN",
+      verificationStatus: "APPROVED",
+      requestedCheckerNik: null,
+      verifiedByNik: null,
+      verifiedAt: new Date(occurredAt),
+      verificationNote: "Verified by e-chain",
       institution: data.institution,
       released,
       expired,
@@ -390,7 +416,7 @@ const receiveMedexUserVerifiedFromEchain = async (req, res) => {
       medexData.file = downloadedFile.url;
     }
 
-    const medex = existingMedex
+    let medex = existingMedex
       ? await prisma.medex.update({
           where: { id: existingMedex.id },
           data: medexData,
@@ -398,6 +424,14 @@ const receiveMedexUserVerifiedFromEchain = async (req, res) => {
       : await prisma.medex.create({
           data: medexData,
         });
+    if (!medex.rootVersionId) {
+      medex = await prisma.medex.update({ where: { id: medex.id }, data: { rootVersionId: medex.id } });
+    }
+    await appendCredentialHistory(prisma, {
+      type: "MEDEX", record: medex, eventType: "ECHAIN_SYNCED", actorNik: nik,
+      note: existingMedex ? "Verified MEDEX data refreshed by e-chain." : "Verified MEDEX data received from e-chain.",
+    });
+    await appendCredentialHistory(prisma, { type: "MEDEX", record: medex, eventType: "APPROVED", actorNik: nik, note: "Verified by e-chain" });
 
     return res.status(existingMedex ? 200 : 201).json({
       success: true,
@@ -424,7 +458,7 @@ const receiveMedexUserVerifiedFromEchain = async (req, res) => {
 
 const addMedexUser = async (req, res) => {
   try {
-    const {institution, released, expired, examiner, echainFileUrl, echainFileName, echainFileMimeType} = req.body
+    const {institution, released, expired, examiner, echainFileUrl, echainFileName, echainFileMimeType, source, requestedCheckerNik, syncReceipt} = req.body
     const files = req.files
     const file = files && files.length > 0 ? files[0] : null
     const downloadedFile = !file && echainFileUrl
@@ -435,17 +469,56 @@ const addMedexUser = async (req, res) => {
         })
       : null;
     
-    const medex = await prisma.medex.create({
-      data: {
+    const receiptData = medexReceiptData({ institution, released, expired, fileName: echainFileName, fileUrl: echainFileUrl, fileUrlExpiresAt: req.body.echainFileUrlExpiresAt, fileMimeType: echainFileMimeType, fileSizeBytes: req.body.echainFileSizeBytes });
+    const isEchain = source === "ECHAIN" && req.user.authenticationType !== "LOCAL" && verifyCredentialSyncReceipt({ receipt: syncReceipt, type: "MEDEX", nik: req.user.nik, data: receiptData });
+    if (source === "ECHAIN" && !isEchain) return res.status(400).json({ message: "The e-chain synchronization receipt is invalid or expired. Please sync again." });
+    if (!isEchain && !requestedCheckerNik) {
+      return res.status(400).json({ message: "Please select a checker for manual MEDEX verification." });
+    }
+    if (!isEchain && requestedCheckerNik === req.user.nik) {
+      return res.status(400).json({ message: "You cannot select yourself to verify your own MEDEX record." });
+    }
+    if (!isEchain) {
+      const checker = await prisma.user.findFirst({
+        where: {
+          nik: requestedCheckerNik,
+          deletedAt: null,
+          userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } },
+        },
+        select: { nik: true },
+      });
+      if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
+    }
+
+    const now = new Date();
+    const medex = await prisma.$transaction(async (tx) => {
+      const created = await tx.medex.create({ data: {
         userNik: req.user.nik,
-        isConfirmed: true,
+        isConfirmed: isEchain,
+        isCurrent: isEchain,
+        userConfirmedAt: now,
+        source: isEchain ? "ECHAIN" : "MANUAL",
+        verificationStatus: isEchain ? "APPROVED" : "PENDING",
+        requestedCheckerNik: isEchain ? null : requestedCheckerNik,
+        verifiedAt: isEchain ? now : null,
+        verificationNote: isEchain ? "Verified by e-chain" : null,
         institution,
         released: dayjs.utc(released).toDate(),
         expired: dayjs.utc(`${expired} 23:59:59`).toDate(),
         examiner,      
         file: file ? `/uploads/medex/${file.filename}` : downloadedFile?.url || null,
+      }});
+      const rooted = await tx.medex.update({ where: { id: created.id }, data: { rootVersionId: created.id } });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: isEchain ? "ECHAIN_SYNCED" : "CREATED", actorNik: req.user.nik, checkerNik: requestedCheckerNik || null });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
+      if (isEchain) {
+        await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "APPROVED", actorNik: req.user.nik, note: "Verified by e-chain" });
+      } else {
+        await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "CHECKER_ASSIGNED", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
+        await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "SUBMITTED_FOR_VERIFICATION", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
       }
-    })
+      return rooted;
+    });
     const savedFiles = file
       ? files.map(f => ({
           filename: f.filename,
@@ -470,44 +543,56 @@ const getMedexById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const {institution, released, expired, examiner} = req.body
+    const {institution, released, expired, examiner, requestedCheckerNik} = req.body
     const files = req.files
     const file = files && files.length > 0 ? files[0] : null
    
-    const existingMedex = await prisma.medex.findUnique({
-      where: {id: parseInt(id)},
-      select: {file: true}
+    const existingMedex = await prisma.medex.findFirst({
+      where: { id: parseInt(id), userNik: req.user.nik, deletedAt: null },
     })
-
-    // Delete old file if a new file is being uploaded and old file exists
-    if (file && existingMedex && existingMedex.file) {
-      const oldFilePath = path.join(process.cwd(), existingMedex.file);
-      if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath);
-      }
+    if (!existingMedex) return res.status(404).json({ message: "MEDEX record was not found." });
+    if (existingMedex?.source === "ECHAIN") {
+      return res.status(409).json({ message: "e-chain MEDEX records cannot be edited manually. Sync a new record instead." });
     }
-   
-    const updateData = {
+    const revisionCheckerNik = requestedCheckerNik || existingMedex.requestedCheckerNik || existingMedex.verifiedByNik;
+    if (!revisionCheckerNik || revisionCheckerNik === req.user.nik) {
+      return res.status(400).json({ message: "Please select another checker to verify this MEDEX revision." });
+    }
+    const checker = await prisma.user.findFirst({
+      where: { nik: revisionCheckerNik, deletedAt: null, userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } } },
+      select: { nik: true },
+    });
+    if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
+
+    const revisionData = {
       userNik: req.user.nik,
-      isConfirmed: true,
+      isConfirmed: false,
+      isCurrent: false,
+      rootVersionId: existingMedex.rootVersionId || existingMedex.id,
+      previousVersionId: existingMedex.id,
+      version: (existingMedex.version || 1) + 1,
+      userConfirmedAt: new Date(),
+      source: "MANUAL",
+      verificationStatus: "PENDING",
+      verifiedByNik: null,
+      verifiedAt: null,
+      verificationNote: null,
+      requestedCheckerNik: revisionCheckerNik,
       institution,
       examiner,
       released: dayjs.utc(released).toDate(),
       expired: dayjs.utc(`${expired} 23:59:59`).toDate(),
+      file: file ? `/uploads/medex/${file.filename}` : existingMedex.file,
     }
-    
-    if (file) {
-      updateData.file = `/uploads/medex/${file.filename}`;
-    }
+    const revision = await prisma.$transaction(async (tx) => {
+      const created = await tx.medex.create({ data: revisionData });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: created, eventType: "REVISION_STARTED", actorNik: req.user.nik, checkerNik: created.requestedCheckerNik, previous: existingMedex });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: created, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: created, eventType: "REVISION_SUBMITTED", actorNik: req.user.nik, checkerNik: created.requestedCheckerNik, previous: existingMedex });
+      return created;
+    });
 
-    await prisma.medex.update({
-      where: {
-        id: parseInt(id)
-      },
-      data: updateData
-    })
-
-    res.status(201).json({ success: true,}); 
+    res.status(201).json({ success: true, revision }); 
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -518,12 +603,12 @@ const deleteMedexById = async (req, res) => {
     const now = new Date();
     const { id } = req.params;
   
-    await prisma.medex.update({
-      where: { id: parseInt(id) },
-        data: { 
-          deletedAt: now,
-        }
-      });
+    const record = await prisma.medex.findFirst({ where: { id: parseInt(id), userNik: req.user.nik, deletedAt: null } });
+    if (!record) return res.status(404).json({ message: "MEDEX record was not found." });
+    await prisma.$transaction(async (tx) => {
+      const deleted = await tx.medex.update({ where: { id: record.id }, data: { deletedAt: now, isCurrent: false } });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: deleted, eventType: "DELETED", actorNik: req.user.nik, note: "Credential removed by its owner." });
+    });
     res.status(201).json({ success: true,});
   } catch (error) {
     res.status(500).json({ message: error.message });

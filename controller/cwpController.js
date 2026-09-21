@@ -98,37 +98,10 @@ const getCwps = async (req, res) => {
       return res.status(401).json({ message: "Branch unit data is missing." });
     }
 
-    const sectorIds = await getBranchUnitSectorIds(branchUnitId);
-    const relatedRatings = sectorIds.length
-      ? await prisma.subBranchUnitRating.findMany({
-          where: {
-            sectorId: {
-              in: sectorIds,
-            },
-            deletedAt: null,
-            ratingId: {
-              not: null,
-            },
-          },
-          select: {
-            ratingId: true,
-          },
-        })
-      : [];
-    const ratingIds = [
-      ...new Set(
-        relatedRatings
-          .map((item) => item.ratingId)
-          .filter((ratingId) => Number.isInteger(ratingId)),
-      ),
-    ];
-
     const cwps = await prisma.cwp.findMany({
       where: {
+        branchUnitId,
         deletedAt: null,
-        ratingId: {
-          in: ratingIds,
-        },
       },
       include: {
         rating: true,
@@ -168,6 +141,7 @@ const addCwp = async (req, res) => {
 
     const existingCwp = await prisma.cwp.findFirst({
       where: {
+        branchUnitId,
         cwp,
         ratingId,
         deletedAt: null,
@@ -182,6 +156,7 @@ const addCwp = async (req, res) => {
 
     const createdCwp = await prisma.cwp.create({
       data: {
+        branchUnitId,
         cwp,
         ratingId,
       },
@@ -229,6 +204,7 @@ const updateCwp = async (req, res) => {
     const currentCwp = await prisma.cwp.findFirst({
       where: {
         id,
+        branchUnitId,
         deletedAt: null,
       },
     });
@@ -254,6 +230,7 @@ const updateCwp = async (req, res) => {
         id: {
           not: id,
         },
+        branchUnitId,
         cwp,
         ratingId,
         deletedAt: null,
@@ -304,6 +281,7 @@ const deleteCwp = async (req, res) => {
     const cwp = await prisma.cwp.findFirst({
       where: {
         id,
+        branchUnitId,
         deletedAt: null,
       },
     });

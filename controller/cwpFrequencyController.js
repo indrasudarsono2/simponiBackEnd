@@ -61,6 +61,7 @@ const getRelatedCwpIds = async (branchUnitId) => {
 
   const cwps = await prisma.cwp.findMany({
     where: {
+      branchUnitId,
       deletedAt: null,
       ratingId: {
         in: ratingIds,

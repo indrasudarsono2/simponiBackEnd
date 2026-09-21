@@ -59,6 +59,7 @@ model BranchUnit {
   shiftNames      ShiftName[]
   tokens          token?
   supervisors     Supervisor[]
+  cwps            Cwp[]
 }
 
 model QuestionGroup {
@@ -189,6 +190,8 @@ model McQuestionGroup {
   sector         Sector?         @relation(fields: [sectorId], references: [id])
   multipleChoice MultipleChoice? @relation(fields: [multipleChoiceId], references: [id])
   questionGroup  QuestionGroup?  @relation(fields: [questionGroupId], references: [id])
+
+  @@index([sectorId, questionGroupId, deletedAt])
 }
 
 model MultipleChoiceCorrection {
@@ -210,6 +213,9 @@ model MultipleChoiceCorrection {
   finalScore     FinalScore?     @relation(fields: [finalScoreId], references: [id])
   groupMember    GroupMember?    @relation(fields: [groupMemberId], references: [id])
   mandatoryItem  MandatoryItems? @relation(fields: [mandatoryItemId], references: [id])
+
+  @@index([finalScoreId, deletedAt])
+  @@index([appRatingId, deletedAt])
 }
 
 model Essay {
@@ -246,6 +252,8 @@ model EssayQuestionGroup {
   sector        Sector?        @relation(fields: [sectorId], references: [id])
   essay         Essay?         @relation(fields: [essayId], references: [id])
   questionGroup QuestionGroup? @relation(fields: [questionGroupId], references: [id])
+
+  @@index([sectorId, questionGroupId, deletedAt])
 }
 
 model EssayCorrection {
@@ -266,6 +274,9 @@ model EssayCorrection {
   groupMember GroupMember? @relation(fields: [groupMemberId], references: [id])
   checkerUser User?        @relation("checkerEssay", fields: [checker], references: [nik])
   finalScore  FinalScore?  @relation(fields: [finalScoreId], references: [id])
+
+  @@index([finalScoreId, deletedAt])
+  @@index([appRatingId, deletedAt])
 }
 
 model Rating {
@@ -382,22 +393,23 @@ model Session {
 }
 
 model Event {
-  id              Int       @id @default(autoincrement())
-  sessionId       Int?      @db.Int
-  sectorId        Int?      @db.Int
-  remarkDocId     Int?      @db.Int
-  event           String?   @db.VarChar(150)
-  formFillingDate DateTime?
-  startDate       DateTime?
-  finishDate      DateTime?
-  forExpiredDate  DateTime?
-  briefingFile    String?   @db.Text
-  passingGrade    Float?    @db.Float()
-  isPractical     Boolean   @default(false)
-  isSimulator     Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  id                 Int       @id @default(autoincrement())
+  sessionId          Int?      @db.Int
+  sectorId           Int?      @db.Int
+  remarkDocId        Int?      @db.Int
+  event              String?   @db.VarChar(150)
+  formFillingDate    DateTime?
+  startDate          DateTime?
+  finishDate         DateTime?
+  forExpiredDate     DateTime?
+  briefingFile       String?   @db.Text
+  recommendationFile String?   @db.Text
+  passingGrade       Float?    @db.Float()
+  isPractical        Boolean   @default(false)
+  isSimulator        Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
   session        Session?                @relation(fields: [sessionId], references: [id])
   sector         Sector?                 @relation(fields: [sectorId], references: [id])
@@ -408,6 +420,9 @@ model Event {
   finalScores    FinalScore[]
   previews       Preview[]
   matsSelections MatsQuestionSelection[]
+
+  @@index([deletedAt, createdAt])
+  @@index([sectorId, deletedAt])
 }
 
 model EventQuestion {
@@ -451,6 +466,9 @@ model EventUser {
   user            User?            @relation(fields: [userNik], references: [nik])
   applicationDocs ApplicationDoc[]
   attendaces      Attendance?
+
+  @@index([eventId, deletedAt])
+  @@index([userNik, deletedAt])
 }
 
 model Group {
@@ -501,38 +519,125 @@ model CheckerGroup {
 }
 
 model Medex {
-  id          Int       @id @default(autoincrement())
-  isConfirmed Boolean   @default(false)
-  institution String?   @db.VarChar(150)
-  userNik     String?   @db.VarChar(150)
-  released    DateTime?
-  expired     DateTime?
-  examiner    String?   @db.VarChar(150)
-  file        String?   @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id                  Int                          @id @default(autoincrement())
+  isConfirmed         Boolean                      @default(false)
+  institution         String?                      @db.VarChar(150)
+  userNik             String?                      @db.VarChar(150)
+  released            DateTime?
+  expired             DateTime?
+  examiner            String?                      @db.VarChar(150)
+  file                String?                      @db.Text
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  deletedAt           DateTime?
+  source              CredentialSource             @default(LEGACY)
+  verificationStatus  CredentialVerificationStatus @default(APPROVED)
+  requestedCheckerNik String?                      @db.VarChar(191)
+  verifiedByNik       String?                      @db.VarChar(191)
+  verifiedAt          DateTime?
+  verificationNote    String?                      @db.Text
+  rootVersionId       Int?                         @db.Int
+  previousVersionId   Int?                         @db.Int
+  version             Int                          @default(1)
+  isCurrent           Boolean                      @default(true)
+  userConfirmedAt     DateTime?
 
-  user            User?            @relation(fields: [userNik], references: [nik])
-  applicationDocs ApplicationDoc[]
+  user             User?            @relation(fields: [userNik], references: [nik])
+  requestedChecker User?            @relation("MedexRequestedChecker", fields: [requestedCheckerNik], references: [nik])
+  verifiedBy       User?            @relation("MedexVerifiedBy", fields: [verifiedByNik], references: [nik])
+  applicationDocs  ApplicationDoc[]
+
+  @@index([requestedCheckerNik, verificationStatus, deletedAt])
+  @@index([userNik, verificationStatus, expired])
+  @@index([rootVersionId, version])
+  @@index([userNik, isCurrent, verificationStatus, deletedAt])
 }
 
 model Ielp {
-  id          Int       @id @default(autoincrement())
-  isConfirmed Boolean   @default(false)
-  userNik     String?   @db.VarChar(150)
-  released    DateTime?
-  expired     DateTime?
-  rater       String?   @db.VarChar(150)
-  institution String?   @db.VarChar(150)
-  level       String?   @db.VarChar(150)
-  file        String?   @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id                  Int                          @id @default(autoincrement())
+  isConfirmed         Boolean                      @default(false)
+  userNik             String?                      @db.VarChar(150)
+  released            DateTime?
+  expired             DateTime?
+  rater               String?                      @db.VarChar(150)
+  institution         String?                      @db.VarChar(150)
+  level               String?                      @db.VarChar(150)
+  file                String?                      @db.Text
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  deletedAt           DateTime?
+  source              CredentialSource             @default(LEGACY)
+  verificationStatus  CredentialVerificationStatus @default(APPROVED)
+  requestedCheckerNik String?                      @db.VarChar(191)
+  verifiedByNik       String?                      @db.VarChar(191)
+  verifiedAt          DateTime?
+  verificationNote    String?                      @db.Text
+  rootVersionId       Int?                         @db.Int
+  previousVersionId   Int?                         @db.Int
+  version             Int                          @default(1)
+  isCurrent           Boolean                      @default(true)
+  userConfirmedAt     DateTime?
 
-  user            User?            @relation(fields: [userNik], references: [nik])
-  applicationDocs ApplicationDoc[]
+  user             User?            @relation(fields: [userNik], references: [nik])
+  requestedChecker User?            @relation("IelpRequestedChecker", fields: [requestedCheckerNik], references: [nik])
+  verifiedBy       User?            @relation("IelpVerifiedBy", fields: [verifiedByNik], references: [nik])
+  applicationDocs  ApplicationDoc[]
+
+  @@index([requestedCheckerNik, verificationStatus, deletedAt])
+  @@index([userNik, verificationStatus, expired])
+  @@index([rootVersionId, version])
+  @@index([userNik, isCurrent, verificationStatus, deletedAt])
+}
+
+model CredentialHistory {
+  id               Int                    @id @default(autoincrement())
+  credentialType   CredentialHistoryType
+  credentialId     Int                    @db.Int
+  rootCredentialId Int                    @db.Int
+  version          Int                    @default(1)
+  eventType        CredentialHistoryEvent
+  actorNik         String?                @db.VarChar(191)
+  checkerNik       String?                @db.VarChar(191)
+  note             String?                @db.Text
+  file             String?                @db.Text
+  snapshot         String?                @db.LongText
+  changes          String?                @db.LongText
+  createdAt        DateTime               @default(now())
+
+  @@index([credentialType, rootCredentialId, createdAt])
+  @@index([credentialType, credentialId, createdAt])
+}
+
+enum CredentialHistoryType {
+  IELP
+  MEDEX
+}
+
+enum CredentialHistoryEvent {
+  LEGACY_IMPORTED
+  CREATED
+  PERSONALLY_CONFIRMED
+  CHECKER_ASSIGNED
+  SUBMITTED_FOR_VERIFICATION
+  APPROVED
+  REJECTED
+  REVISION_STARTED
+  REVISION_SUBMITTED
+  SUPERSEDED
+  ECHAIN_SYNCED
+  DELETED
+}
+
+enum CredentialSource {
+  ECHAIN
+  MANUAL
+  LEGACY
+}
+
+enum CredentialVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model License {
@@ -602,6 +707,9 @@ model ApplicationDoc {
   logbook       LogBookUser?  @relation(fields: [logbookUserId], references: [id])
   appRatings    AppRating[]
   verifications Verification?
+
+  @@index([userNik, deletedAt])
+  @@index([eventUserId, deletedAt])
 }
 
 model Verification {
@@ -640,6 +748,9 @@ model AppRating {
   matsSelections                MatsQuestionSelection[]
   examinationInvalidations      ExaminationInvalidation[]
   practicalRecheckAuthorization PracticalRecheckAuthorization?
+
+  @@index([applicationDocId, deletedAt])
+  @@index([statusId, deletedAt])
 }
 
 model PracticalRecheckAuthorization {
@@ -676,25 +787,25 @@ model PracticalRecheckAttempt {
 }
 
 model User {
-  nik                  String    @id
-  licenseUserId        String?   @unique @db.VarChar(20)
-  professionInBranchId Int?      @db.Int
-  sectorId             Int?      @db.Int
-  branchId             Int?      @db.Int
-  branchUnitId         Int?      @db.Int
-  name                 String?   @db.VarChar(150)
-  password             String?   @db.VarChar(200)
+  nik                  String              @id
+  licenseUserId        String?             @unique @db.VarChar(20)
+  professionInBranchId Int?                @db.Int
+  sectorId             Int?                @db.Int
+  branchId             Int?                @db.Int
+  branchUnitId         Int?                @db.Int
+  name                 String?             @db.VarChar(150)
+  password             String?             @db.VarChar(200)
   dateOfBirth          DateTime?
   placeOfBirth         String?
-  personalAddress      String?   @db.Text
-  nationality          String?   @db.VarChar(100)
-  phoneNumber          String?   @db.VarChar(100)
-  genderId             Int?      @db.Int
-  email                String?   @db.VarChar(200)
+  personalAddress      String?             @db.Text
+  nationality          String?             @db.VarChar(100)
+  phoneNumber          String?             @db.VarChar(100)
+  genderId             Int?                @db.Int
+  email                String?             @db.VarChar(200)
   authenticationType   AuthenticationType? @default(LOCAL)
-  tokenVersion         Int       @default(0) @db.Int
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  tokenVersion         Int                 @default(0) @db.Int
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   deletedAt            DateTime?
 
   professionInBranch    ProfessionInBranch?   @relation(fields: [professionInBranchId], references: [id])
@@ -729,6 +840,10 @@ model User {
   loginSecurity         UserLoginSecurity?
   authenticationAudits  AuthenticationAudit[]
   passwordResetTokens   PasswordResetToken[]
+  requestedMedexReviews Medex[]               @relation("MedexRequestedChecker")
+  verifiedMedexReviews  Medex[]               @relation("MedexVerifiedBy")
+  requestedIelpReviews  Ielp[]                @relation("IelpRequestedChecker")
+  verifiedIelpReviews   Ielp[]                @relation("IelpVerifiedBy")
 }
 
 enum AuthenticationType {
@@ -796,6 +911,9 @@ model UserRoles {
   user           User?           @relation(fields: [userNik], references: [nik])
   roles          Roles?          @relation(fields: [roleId], references: [id])
   checkerRatings CheckerRating[]
+
+  @@index([userNik, deletedAt])
+  @@index([roleId, deletedAt])
 }
 
 model CheckerRating {
@@ -1084,6 +1202,8 @@ model Preview {
   appRating   AppRating?   @relation(fields: [appRatingId], references: [id])
   groupMember GroupMember? @relation(fields: [groupMemberId], references: [id])
   event       Event?       @relation(fields: [eventId], references: [id])
+
+  @@index([appRatingId, deletedAt, createdAt])
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1203,6 +1323,8 @@ model CwpFrequency {
 
   statusFrequencies StatusFrequency[]
   cwp               Cwp?              @relation(fields: [cwpId], references: [id])
+
+  @@index([cwpId, deletedAt])
 }
 
 model SectorCwp {
@@ -1216,22 +1338,29 @@ model SectorCwp {
 
   cwp    Cwp?    @relation(fields: [cwpId], references: [id])
   sector Sector? @relation(fields: [sectorId], references: [id])
+
+  @@index([sectorId, deletedAt])
+  @@index([cwpId, deletedAt])
 }
 
 model Cwp {
-  id       Int     @id @default(autoincrement())
-  ratingId Int?    @db.Int()
-  cwp      String? @db.VarChar(30)
+  id           Int     @id @default(autoincrement())
+  branchUnitId Int?    @db.Int()
+  ratingId     Int?    @db.Int()
+  cwp          String? @db.VarChar(30)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  branchUnit     BranchUnit?     @relation(fields: [branchUnitId], references: [id])
   rating         Rating?         @relation(fields: [ratingId], references: [id])
   sectorCwps     SectorCwp[]
   cwpFrequencies CwpFrequency[]
   logBooks       LogBook[]
   cwpSupervisors CwpSupervisor[]
+
+  @@index([branchUnitId, deletedAt])
 }
 
 model ShiftName {

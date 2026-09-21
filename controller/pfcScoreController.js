@@ -183,6 +183,7 @@ const getScoreRecap = async (req, res) => {
             startDate: true,
             finishDate: true,
             passingGrade: true,
+            remarkDoc: { select: { remark: true } },
             sector: {
               select: {
                 branchUnit: {
@@ -202,15 +203,27 @@ const getScoreRecap = async (req, res) => {
               take: 1
             },
             applicationDoc: {
-              select: {
-                number: true,
-                user: {
-                  select: {
-                    nik: true,
-                    name: true,
-                    branch: { select: { id: true, branch: true } }
+              include: {
+                status: true,
+                ielp: true,
+                medex: true,
+                logbook: true,
+                license: true,
+                appRatings: { include: { rating: true } },
+                eventUser: {
+                  include: {
+                    event: { include: { remarkDoc: true } }
                   }
-                }
+                },
+                user: {
+                  include: {
+                    gender: true,
+                    branch: true,
+                    competences: { include: { rating: true } }
+                  }
+                },
+                ojtUser: true,
+                verifications: true
               }
             },
             practicalTests: {
@@ -268,12 +281,17 @@ const getScoreRecap = async (req, res) => {
         hasEvidence: (rating?.previews?.length || 0) > 0,
         scoreDate: item.createdAt,
         event: item.event,
+        remarkDoc: item.event?.remarkDoc?.remark || null,
         branch: item.event?.sector?.branchUnit?.branch || null,
         user: {
           nik: rating?.applicationDoc?.user?.nik || null,
           name: rating?.applicationDoc?.user?.name || null
         },
         applicationDocument: rating?.applicationDoc?.number || null,
+        relatedDocuments: rating?.applicationDoc ? {
+          applicationDocument: rating.applicationDoc,
+          userData: rating.applicationDoc.user
+        } : null,
         rating: rating?.rating?.rating || null,
         multipleChoiceScore: item.multipleChoiceScore,
         essayScore: item.essayScore,

@@ -7,6 +7,17 @@ import path from "path";
 
 dayjs.extend(utc);
 
+const eventFileUrl = (file) => file
+  ? `/uploads/event/${file.fieldname === "recommendationFile" ? "recommendation" : "briefing"}/${file.filename}`
+  : null;
+
+const removeStoredFile = (storedPath) => {
+  if (!storedPath) return;
+  const relativePath = storedPath.replace(/^[/\\]+/, "");
+  const absolutePath = path.join(process.cwd(), relativePath);
+  if (fs.existsSync(absolutePath)) fs.unlinkSync(absolutePath);
+};
+
 const getEvents = async (req, res) => {
   try {
     const session = await prisma.session.findMany({
@@ -55,6 +66,7 @@ const getEvents = async (req, res) => {
             remarkDoc: true,
             passingGrade: true,
             briefingFile: true,
+            recommendationFile: true,
             isPractical: true,
             isSimulator: true
           },
@@ -78,13 +90,26 @@ const getEvents = async (req, res) => {
 const addEvents = async (req, res) => {
   try {
     // Access uploaded files (upload.any() stores in req.files array)
-    const files = req.files;
-    const file = files && files.length > 0 ? files[0] : null;
+    const files = Array.isArray(req.files) ? req.files : [];
+    const briefingFile = files.find((file) => file.fieldname === "briefingFile") || null;
+    const recommendationFile = files.find((file) => file.fieldname === "recommendationFile") || null;
     
     // Access other form fields from req.body
     const { sessionId, sectorId, remarkDocId, eventName, startDate, finishDate, forExpDate, formFillingDate, passingGrade, isPractical, isSimulator} = req.body;
     const cleanIsPractical = isPractical === 'true' || isPractical === true;
     const cleanIsSimulator = isSimulator === 'true' || isSimulator === true;
+    const remarkDoc = await prisma.remarkDoc.findFirst({
+      where: { id: parseInt(remarkDocId), deletedAt: null },
+      select: { remark: true }
+    });
+    if (!remarkDoc) {
+      return res.status(400).json({ message: "Invalid remark." });
+    }
+    if (remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN" && !recommendationFile) {
+      return res.status(400).json({
+        message: "Recommendation letter is required for PENERBITAN."
+      });
+    }
     // Example: Create event with file URL
     const event = await prisma.event.create({
       data: {
@@ -100,7 +125,8 @@ const addEvents = async (req, res) => {
         isPractical: Boolean(cleanIsPractical),
         isSimulator: Boolean(cleanIsSimulator),
         // Store file URL if file was uploaded
-        briefingFile: file ? `/uploads/event/${file.filename}` : null,
+        briefingFile: eventFileUrl(briefingFile),
+        recommendationFile: eventFileUrl(recommendationFile),
       }
     });
     
@@ -112,7 +138,7 @@ const addEvents = async (req, res) => {
         originalname: f.originalname,
         mimetype: f.mimetype,
         size: f.size,
-        url: `/uploads/event/${f.filename}`
+        url: eventFileUrl(f)
       })) : null
     });
     
@@ -125,8 +151,9 @@ const getEventById = async (req, res) => {
   try {
     const { id } = req.params;
     // Access uploaded files (upload.any() stores in req.files array)
-    const files = req.files;
-    const file = files && files.length > 0 ? files[0] : null;
+    const files = Array.isArray(req.files) ? req.files : [];
+    const briefingFile = files.find((file) => file.fieldname === "briefingFile") || null;
+    const recommendationFile = files.find((file) => file.fieldname === "recommendationFile") || null;
     
     // Access other form fields from req.body
     const { sessionId, sectorId, remarkDocId, eventName, startDate, finishDate, forExpDate, formFillingDate, passingGrade, isPractical, isSimulator} = req.body;
@@ -135,17 +162,23 @@ const getEventById = async (req, res) => {
     // Get existing event to find old briefingFile path
     const existingEvent = await prisma.event.findUnique({
       where: { id: parseInt(id) },
-      select: { briefingFile: true }
+      select: { briefingFile: true, recommendationFile: true }
     });
-    
-    // Delete old file if a new file is being uploaded and old file exists
-    if (file && existingEvent && existingEvent.briefingFile) {
-      const oldFilePath = path.join(process.cwd(), existingEvent.briefingFile);
-      if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath);
-      }
+
+    const remarkDoc = await prisma.remarkDoc.findFirst({
+      where: { id: parseInt(remarkDocId), deletedAt: null },
+      select: { remark: true }
+    });
+    if (!remarkDoc) {
+      return res.status(400).json({ message: "Invalid remark." });
     }
-    
+    const isPenerbitan = remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN";
+    if (isPenerbitan && !recommendationFile && !existingEvent?.recommendationFile) {
+      return res.status(400).json({
+        message: "Recommendation letter is required for PENERBITAN."
+      });
+    }
+
     await prisma.event.update({
       where: {
         id: parseInt(id)
@@ -163,9 +196,20 @@ const getEventById = async (req, res) => {
         isPractical: Boolean(cleanIsPractical),
         isSimulator: Boolean(cleanIsSimulator),
         // Store file URL if file was uploaded, otherwise keep existing
-        briefingFile: file ? `/uploads/event/${file.filename}` : existingEvent?.briefingFile,
+        briefingFile: briefingFile
+          ? eventFileUrl(briefingFile)
+          : existingEvent?.briefingFile,
+        recommendationFile: isPenerbitan
+          ? (recommendationFile
+              ? eventFileUrl(recommendationFile)
+              : existingEvent?.recommendationFile)
+          : null,
       }
     })
+    if (briefingFile) removeStoredFile(existingEvent?.briefingFile);
+    if (recommendationFile || !isPenerbitan) {
+      removeStoredFile(existingEvent?.recommendationFile);
+    }
     res.status(201).json({ success: true });
   } catch (error) {
     res.status(500).json({ message: error.message });

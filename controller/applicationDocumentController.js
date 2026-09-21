@@ -41,6 +41,29 @@ const getNextApplicationNumber = (baseNumber, existingNumbers) => {
   return `${baseNumber}${numberToLetterSuffix(nextSequenceNumber)}`;
 };
 
+const getApprovedCredential = async (model, id, userNik, label) => {
+  const parsedId = Number(id);
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    return { error: `${label} is required.` };
+  }
+
+  const validityWhere = label === "IELP"
+    ? { OR: [{ expired: { gte: new Date() } }, { level: "6", expired: null }] }
+    : { expired: { gte: new Date() } };
+  const record = await model.findFirst({
+    where: {
+      id: parsedId,
+      userNik,
+      deletedAt: null,
+      isConfirmed: true,
+      verificationStatus: "APPROVED",
+      ...validityWhere,
+    },
+    select: { id: true },
+  });
+  return record ? { record } : { error: `Selected ${label} is not approved, has expired, or does not belong to this user.` };
+};
+
 const getApplicationDoc = async (req, res) => {
   // const sect = 8
   const sect = req.user.sectorId
@@ -367,6 +390,12 @@ const addApplicationDoc = async (req, res) => {
   try {
     const {eventId, groupMemberId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtLicenseId, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
     const parsedOjtLicenseId = (ojtLicenseId ?? ojtNik) !== '' ? (ojtLicenseId ?? ojtNik) : null
+    const [medexValidation, ielpValidation] = await Promise.all([
+      getApprovedCredential(prisma.medex, medexId, req.user.nik, "MEDEX"),
+      getApprovedCredential(prisma.ielp, ielpId, req.user.nik, "IELP"),
+    ]);
+    const credentialError = medexValidation.error || ielpValidation.error;
+    if (credentialError) return res.status(422).json({ success: false, message: credentialError });
     
     const eventUser = await prisma.eventUser.findFirst({
       where: {
@@ -493,8 +522,8 @@ const addApplicationDoc = async (req, res) => {
         userNik: req.user.nik,
         // userNik: "10011520",
         number,
-        medexId: parseInt(medexId),
-        ielpId: parseInt(ielpId),
+        medexId: medexValidation.record.id,
+        ielpId: ielpValidation.record.id,
         eventUserId: parseInt(eventUserId),
         licenseId: parseInt(licenseId),
         logbookUserId: parseInt(logbookUserId),
@@ -571,6 +600,12 @@ const getApplicationDocById = async (req, res) => {
     const {id} = req.params
     const {eventId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtLicenseId, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
     const parsedOjtLicenseId = (ojtLicenseId ?? ojtNik) !== '' ? (ojtLicenseId ?? ojtNik) : null
+    const [medexValidation, ielpValidation] = await Promise.all([
+      getApprovedCredential(prisma.medex, medexId, req.user.nik, "MEDEX"),
+      getApprovedCredential(prisma.ielp, ielpId, req.user.nik, "IELP"),
+    ]);
+    const credentialError = medexValidation.error || ielpValidation.error;
+    if (credentialError) return res.status(422).json({ success: false, message: credentialError });
 
     const eventUser = await prisma.eventUser.findFirst({
       where: {
@@ -650,8 +685,8 @@ const getApplicationDocById = async (req, res) => {
     const checkerGroup = eventUser.event.groups[0].checkerGroups 
     
     const data = {
-      medexId: parseInt(medexId),
-      ielpId: parseInt(ielpId),
+      medexId: medexValidation.record.id,
+      ielpId: ielpValidation.record.id,
       licenseId: parseInt(licenseId),
       logbookUserId: parseInt(logbookUserId),
       atsName: atsName !== '' ? atsName : null,

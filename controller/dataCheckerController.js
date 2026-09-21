@@ -23,6 +23,10 @@ const getIelpCheckerData = async (req, res) => {
           },
           select: {
             id: true,
+            version: true,
+            isCurrent: true,
+            verificationStatus: true,
+            source: true,
             released: true,
             expired: true,
             institution: true,
@@ -64,6 +68,10 @@ const getMedexCheckerData = async (req, res) => {
           },
           select: {
             id: true,
+            version: true,
+            isCurrent: true,
+            verificationStatus: true,
+            source: true,
             released: true,
             expired: true,
             institution: true,

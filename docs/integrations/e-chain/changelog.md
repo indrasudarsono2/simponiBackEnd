@@ -1,5 +1,7 @@
 # e-chain Integration Changelog
 
+- Added checker-approved manual IELP and MEDEX outbound interfaces, including complete credential metadata, signed document URLs, confirmation behavior, and fail-safe approval semantics.
+
 ## 2026-07-10
 
 - Created initial e-chain integration documentation structure.

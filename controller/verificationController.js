@@ -121,7 +121,13 @@ const getVerification = async (req, res) => {
         }
       }
     })
-    const ratingId = rating.sector.subBranchUnitRatings.map(d => d.ratingId).flat();
+    if (!rating?.sector) {
+      return res.status(400).json({
+        message: "Your account has no sector assigned. Please ask the administrator to assign a sector before opening verification data."
+      });
+    }
+
+    const ratingId = rating.sector.subBranchUnitRatings.map(d => d.ratingId);
     
     const group = await prisma.group.findMany({
       where: {

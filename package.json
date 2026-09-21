@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node app.js",
     "start:production": "node app.js",
-    "test": "node test/security.test.js && node test/airnav.test.js && node test/https.test.js",
+    "test": "node test/security.test.js && node test/airnav.test.js && node test/https.test.js && node test/credentialVerification.test.js && node test/examinationStatus.test.js",
     "dev": "nodemon --exec tsx app.js",
     "generate": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",

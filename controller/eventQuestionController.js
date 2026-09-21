@@ -51,6 +51,10 @@ const getEventQuestions = async (req, res) => {
         }
       },
       select: {
+        id: true,
+        eventId: true,
+        sectorId: true,
+        kindOfQuestionId: true,
         event: {
           where: {
             deletedAt: null

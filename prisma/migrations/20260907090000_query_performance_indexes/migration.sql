@@ -1,0 +1,40 @@
+CREATE INDEX `McQuestionGroup_sectorId_questionGroupId_deletedAt_idx`
+  ON `McQuestionGroup`(`sectorId`, `questionGroupId`, `deletedAt`);
+CREATE INDEX `MultipleChoiceCorrection_finalScoreId_deletedAt_idx`
+  ON `MultipleChoiceCorrection`(`finalScoreId`, `deletedAt`);
+CREATE INDEX `MultipleChoiceCorrection_appRatingId_deletedAt_idx`
+  ON `MultipleChoiceCorrection`(`appRatingId`, `deletedAt`);
+CREATE INDEX `EssayQuestionGroup_sectorId_questionGroupId_deletedAt_idx`
+  ON `EssayQuestionGroup`(`sectorId`, `questionGroupId`, `deletedAt`);
+CREATE INDEX `EssayCorrection_finalScoreId_deletedAt_idx`
+  ON `EssayCorrection`(`finalScoreId`, `deletedAt`);
+CREATE INDEX `EssayCorrection_appRatingId_deletedAt_idx`
+  ON `EssayCorrection`(`appRatingId`, `deletedAt`);
+CREATE INDEX `Event_deletedAt_createdAt_idx`
+  ON `Event`(`deletedAt`, `createdAt`);
+CREATE INDEX `Event_sectorId_deletedAt_idx`
+  ON `Event`(`sectorId`, `deletedAt`);
+CREATE INDEX `EventUser_eventId_deletedAt_idx`
+  ON `EventUser`(`eventId`, `deletedAt`);
+CREATE INDEX `EventUser_userNik_deletedAt_idx`
+  ON `EventUser`(`userNik`, `deletedAt`);
+CREATE INDEX `ApplicationDoc_userNik_deletedAt_idx`
+  ON `ApplicationDoc`(`userNik`, `deletedAt`);
+CREATE INDEX `ApplicationDoc_eventUserId_deletedAt_idx`
+  ON `ApplicationDoc`(`eventUserId`, `deletedAt`);
+CREATE INDEX `AppRating_applicationDocId_deletedAt_idx`
+  ON `AppRating`(`applicationDocId`, `deletedAt`);
+CREATE INDEX `AppRating_statusId_deletedAt_idx`
+  ON `AppRating`(`statusId`, `deletedAt`);
+CREATE INDEX `UserRoles_userNik_deletedAt_idx`
+  ON `UserRoles`(`userNik`, `deletedAt`);
+CREATE INDEX `UserRoles_roleId_deletedAt_idx`
+  ON `UserRoles`(`roleId`, `deletedAt`);
+CREATE INDEX `Preview_appRatingId_deletedAt_createdAt_idx`
+  ON `Preview`(`appRatingId`, `deletedAt`, `createdAt`);
+CREATE INDEX `CwpFrequency_cwpId_deletedAt_idx`
+  ON `CwpFrequency`(`cwpId`, `deletedAt`);
+CREATE INDEX `SectorCwp_sectorId_deletedAt_idx`
+  ON `SectorCwp`(`sectorId`, `deletedAt`);
+CREATE INDEX `SectorCwp_cwpId_deletedAt_idx`
+  ON `SectorCwp`(`cwpId`, `deletedAt`);

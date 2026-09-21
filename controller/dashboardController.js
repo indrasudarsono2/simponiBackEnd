@@ -47,48 +47,170 @@ const getDashboardOperational = async (req, res) => {
   // const prof = 1
   const prof = req.user.professionId
   try {
-    const user = await prisma.user.findFirst({
-      where: {
-        nik: userN
-      },
-      include: {
-        medex: {
-          orderBy: {
-            updatedAt: "desc"
-          },
-          take: 1
+    const [user, validRatings] = await Promise.all([
+      prisma.user.findFirst({
+        where: {
+          nik: userN,
+          deletedAt: null,
         },
-        ielp: {
-          orderBy: {
-            updatedAt: "desc"
+        include: {
+          medex: {
+            orderBy: {
+              updatedAt: "desc"
+            },
+            take: 1
           },
-          take: 1
-        },
-        eventUsers: {
-          where: {
-            applicationDocs: {
-              some: {
-                statusId: 2
+          ielp: {
+            orderBy: {
+              updatedAt: "desc"
+            },
+            take: 1
+          },
+          eventUsers: {
+            where: {
+              applicationDocs: {
+                some: {
+                  statusId: 2
+                }
               }
-            }
-          },
-          include: {
-            event: true,
-            applicationDocs: {
-              where: {
-                deletedAt: null
+            },
+            include: {
+              event: true,
+              applicationDocs: {
+                where: {
+                  deletedAt: null,
+                  statusId: 2,
+                },
+                orderBy: {
+                  createdAt: 'desc'
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          }
+        },
+      }),
+      prisma.userRating.findMany({
+        where: {
+          userId: userN,
+          deletedAt: null,
+          expireddate: { gte: new Date() },
+          rating: { deletedAt: null },
+          finalScore: {
+            deletedAt: null,
+            isInvalidated: false,
+            status: { status: "SUCCESS", deletedAt: null },
+            appRating: {
+              deletedAt: null,
+              applicationDoc: {
+                userNik: userN,
+                deletedAt: null,
               },
-              orderBy: {
-                createdAt: 'desc'
-              },
-              take: 1
-            }
+            },
           },
-        }
-      },
-    })
+        },
+        orderBy: [
+          { finalScore: { createdAt: "desc" } },
+          { updatedAt: "desc" },
+          { id: "desc" },
+        ],
+        select: {
+          id: true,
+          expireddate: true,
+          rating: {
+            select: { id: true, rating: true },
+          },
+          finalScore: {
+            select: {
+              id: true,
+              finalScore: true,
+              createdAt: true,
+              appRating: {
+                select: {
+                  applicationDoc: {
+                    select: { id: true, number: true },
+                  },
+                  practicalTests: {
+                    where: {
+                      deletedAt: null,
+                      score: { not: null },
+                    },
+                    select: {
+                      id: true,
+                      score: true,
+                      kindOfPractical: {
+                        select: { kind: true },
+                      },
+                    },
+                    orderBy: { id: "asc" },
+                  },
+                },
+              },
+              cwpSnapshots: {
+                select: {
+                  cwpId: true,
+                  cwpName: true,
+                  sectorName: true,
+                  frequencies: {
+                    select: {
+                      id: true,
+                      frequency: true,
+                      isPrimary: true,
+                    },
+                    orderBy: [
+                      { isPrimary: "desc" },
+                      { frequency: "asc" },
+                    ],
+                  },
+                },
+                orderBy: { cwpName: "asc" },
+              },
+            },
+          },
+        },
+      }),
+    ]);
 
-    res.json(user);
+    if (!user) {
+      return res.status(404).json({ message: "User was not found." });
+    }
+
+    const latestValidRatingByType = [];
+    const seenRatingIds = new Set();
+    for (const userRating of validRatings) {
+      const ratingId = userRating.rating?.id;
+      if (!ratingId || seenRatingIds.has(ratingId)) continue;
+      seenRatingIds.add(ratingId);
+      latestValidRatingByType.push(userRating);
+    }
+
+    const mapRatingAuthority = (userRating) => ({
+      id: userRating.id,
+      rating: userRating.rating,
+      expiredAt: userRating.expireddate,
+      finalScoreId: userRating.finalScore?.id || null,
+      finalScore: userRating.finalScore?.finalScore ?? null,
+      finalScoreCreatedAt: userRating.finalScore?.createdAt || null,
+      applicationDoc: userRating.finalScore?.appRating?.applicationDoc || null,
+      practicalScores: (userRating.finalScore?.appRating?.practicalTests || []).map((test) => ({
+        id: test.id,
+        kind: test.kindOfPractical?.kind || "PRACTICAL",
+        score: test.score,
+      })),
+      cwps: (userRating.finalScore?.cwpSnapshots || []).map((snapshot) => ({
+        id: snapshot.cwpId,
+        name: snapshot.cwpName,
+        sector: snapshot.sectorName,
+        frequencies: snapshot.frequencies,
+      })),
+    });
+
+    res.json({
+      ...user,
+      currentRatingAuthorities: latestValidRatingByType.map(mapRatingAuthority),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -97,6 +219,24 @@ const getDashboardOperational = async (req, res) => {
 const postDashboardToken = async(req, res) => {
   try {
     const {applicationDocId, token} = req.body
+    const parsedApplicationDocId = Number(applicationDocId);
+    if (!Number.isInteger(parsedApplicationDocId) || parsedApplicationDocId <= 0) {
+      return res.status(400).json({ message: "Invalid application document." });
+    }
+
+    const applicationDoc = await prisma.applicationDoc.findFirst({
+      where: {
+        id: parsedApplicationDocId,
+        userNik: req.user.nik,
+        statusId: 2,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!applicationDoc) {
+      return res.status(404).json({ message: "Application document was not found." });
+    }
+
     const now = dayjs.utc().toDate()
     const tokenDb = await prisma.token.findFirst({
       where: {
@@ -113,7 +253,7 @@ const postDashboardToken = async(req, res) => {
     if(tokenDb && tokenDb.token === token){
       await prisma.applicationDoc.update({
         where: {
-          id: applicationDocId
+          id: applicationDoc.id
         },
         data: {
           briefingDate: dayjs.utc().toDate()

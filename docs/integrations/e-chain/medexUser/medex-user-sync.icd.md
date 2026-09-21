@@ -1,5 +1,41 @@
 # MEDEX User Sync ICD
 
+## Checker-approved manual MEDEX push to e-chain
+
+After the assigned checker confirms approval, SIMPONI sends the verified manual MEDEX record to:
+
+```http
+POST {ECHAIN_BASE_URL}{ECHAIN_MEDEX_VERIFIED_SEND_PATH}
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {ECHAIN_BEARER_TOKEN}
+X-API-Key: {ECHAIN_API_KEY}
+```
+
+The default path is `/api/integrations/simponi/medex-user/verified`. Authentication headers are included when configured. The request body is:
+
+```json
+{
+  "credentialId": 51,
+  "nik": "10077773",
+  "institution": "Aviation Medical Center",
+  "released": "2026-09-07",
+  "expired": "2027-09-07",
+  "examiner": "Dr. EXAMPLE",
+  "verifiedByNik": "10012345",
+  "verifiedAt": "2026-09-08T10:15:00.000Z",
+  "file": {
+    "fileName": "medex.pdf",
+    "fileUrl": "https://simponi.example/api/files/signed?...",
+    "fileMimeType": "application/pdf"
+  }
+}
+```
+
+`released` and `expired` use `YYYY-MM-DD`. `fileUrl` is a temporary signed SIMPONI URL from which e-chain downloads the document.
+
+e-chain returns the common success envelope and may provide `data.echainRequestId`. If e-chain times out, rejects the request, or returns an unsuccessful envelope, SIMPONI does not approve the MEDEX record; it remains Pending so the checker can retry safely.
+
 ## Document Status
 
 | Item | Value |

@@ -418,3 +418,20 @@ test("CSRF middleware accepts matching tokens and safe methods", () => {
   enforceCsrf({ method: "GET", headers: {}, get: () => undefined }, response(), () => { getAllowed = true; });
   assert.equal(getAllowed, true);
 });
+
+test("CWP management scopes records and mutations to the authenticated branch unit", async () => {
+  const controllers = await Promise.all([
+    "cwpController.js",
+    "cwpSectorController.js",
+    "cwpFrequencyController.js",
+    "cwpSupervisorController.js",
+  ].map((file) => fs.readFile(new URL(`../controller/${file}`, import.meta.url), "utf8")));
+
+  for (const controller of controllers) {
+    assert.match(controller, /branchUnitId/);
+    assert.match(controller, /prisma\.cwp\.findMany\([\s\S]*?branchUnitId/);
+  }
+
+  assert.match(controllers[0], /prisma\.cwp\.create\([\s\S]*?branchUnitId/);
+  assert.match(controllers[0], /prisma\.cwp\.findFirst\([\s\S]*?branchUnitId/);
+});

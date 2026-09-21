@@ -164,6 +164,184 @@ const postUserCheckerScoreEvidance = async (req, res) => {
   }
 }
 
+const getReExaminationHistory = async (req, res) => {
+  try {
+    if (!hasRole(req, ROLES.CHECKER_ADMIN) && !hasRole(req, ROLES.GENERAL_CHECKER)) {
+      return res.status(403).json({ message: "Only CHECKER ADMIN or GENERAL CHECKER may view re-examination history." });
+    }
+
+    const appRatingId = Number(req.params?.appRatingId);
+    if (!Number.isInteger(appRatingId) || appRatingId <= 0) {
+      return res.status(400).json({ message: "A valid appRatingId is required." });
+    }
+
+    const appRating = await prisma.appRating.findFirst({
+      where: { id: appRatingId, deletedAt: null },
+      select: {
+        id: true,
+        createdAt: true,
+        updatedAt: true,
+        status: { select: { status: true } },
+        rating: { select: { rating: true } },
+        applicationDoc: {
+          select: {
+            number: true,
+            eventUser: {
+              select: {
+                user: { select: { nik: true, name: true } },
+                event: {
+                  select: {
+                    id: true,
+                    event: true,
+                    sector: { select: { branchUnitId: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        finalScores: {
+          where: { deletedAt: null },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            statusId: true,
+            essayScore: true,
+            multipleChoiceScore: true,
+            finalScore: true,
+            isInvalidated: true,
+            invalidatedAt: true,
+            invalidatedBy: true,
+            invalidationReason: true,
+            createdAt: true,
+            updatedAt: true,
+            status: { select: { status: true } },
+            essayCorrections: {
+              select: {
+                checker: true,
+                checkerUser: { select: { name: true } },
+              },
+            },
+          },
+        },
+        examinationInvalidations: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            finalScoreId: true,
+            invalidatedBy: true,
+            reason: true,
+            fraudCategory: true,
+            previousStatusId: true,
+            previousScore: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!appRating) {
+      return res.status(404).json({ message: "Examination rating was not found." });
+    }
+
+    const event = appRating.applicationDoc?.eventUser?.event;
+    if (!event) {
+      return res.status(409).json({ message: "The examination event could not be identified." });
+    }
+    if (
+      hasRole(req, ROLES.CHECKER_ADMIN) &&
+      Number(event.sector?.branchUnitId) !== Number(req.user.branchUnitId)
+    ) {
+      return res.status(403).json({ message: "This examination is outside your branch unit." });
+    }
+
+    const actorNiks = [
+      ...appRating.examinationInvalidations.map((item) => item.invalidatedBy),
+      ...appRating.finalScores.map((item) => item.invalidatedBy),
+    ].filter(Boolean);
+    const actors = actorNiks.length
+      ? await prisma.user.findMany({
+          where: { nik: { in: [...new Set(actorNiks)] } },
+          select: { nik: true, name: true },
+        })
+      : [];
+    const actorNameByNik = new Map(actors.map((actor) => [actor.nik, actor.name]));
+    const invalidationByScoreId = new Map(
+      appRating.examinationInvalidations.map((item) => [item.finalScoreId, item]),
+    );
+
+    const attempts = appRating.finalScores.map((score, index) => {
+      const invalidation = invalidationByScoreId.get(score.id) || null;
+      const checkerMap = new Map();
+      for (const correction of score.essayCorrections || []) {
+        if (!correction.checker) continue;
+        checkerMap.set(
+          correction.checker,
+          correction.checkerUser?.name || correction.checker,
+        );
+      }
+
+      return {
+        attemptNumber: index + 1,
+        finalScoreId: score.id,
+        status: score.status?.status || null,
+        essayScore: score.essayScore,
+        multipleChoiceScore: score.multipleChoiceScore,
+        finalScore: score.finalScore,
+        isInvalidated: score.isInvalidated,
+        startedAt: score.createdAt,
+        completedAt: score.updatedAt,
+        checkers: [...checkerMap].map(([nik, name]) => ({ nik, name })),
+        invalidation: invalidation
+          ? {
+              id: invalidation.id,
+              invalidatedBy: invalidation.invalidatedBy,
+              invalidatedByName:
+                actorNameByNik.get(invalidation.invalidatedBy) || invalidation.invalidatedBy,
+              reason: invalidation.reason,
+              fraudCategory: invalidation.fraudCategory,
+              previousStatusId: invalidation.previousStatusId,
+              previousScore: invalidation.previousScore,
+              invalidatedAt: invalidation.createdAt,
+            }
+          : score.isInvalidated
+            ? {
+                invalidatedBy: score.invalidatedBy,
+                invalidatedByName:
+                  actorNameByNik.get(score.invalidatedBy) || score.invalidatedBy,
+                reason: score.invalidationReason,
+                fraudCategory: null,
+                previousStatusId: score.statusId,
+                previousScore: score.finalScore,
+                invalidatedAt: score.invalidatedAt,
+              }
+            : null,
+      };
+    });
+
+    const latestInvalidation = appRating.examinationInvalidations.at(-1) || null;
+    const hasAttemptAfterLatestInvalidation = latestInvalidation
+      ? appRating.finalScores.some(
+          (score) => new Date(score.createdAt).getTime() > new Date(latestInvalidation.createdAt).getTime(),
+        )
+      : false;
+
+    return res.json({
+      appRatingId: appRating.id,
+      user: appRating.applicationDoc?.eventUser?.user || null,
+      applicationDocument: appRating.applicationDoc?.number || null,
+      event: { id: event.id, event: event.event },
+      rating: appRating.rating?.rating || null,
+      currentStatus: appRating.status?.status || null,
+      attempts,
+      pendingReExamination:
+        Boolean(latestInvalidation) && !hasAttemptAfterLatestInvalidation,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 const invalidateExaminationAttempt = async (req, res) => {
   try {
     if (!hasRole(req, ROLES.CHECKER_ADMIN) && !hasRole(req, ROLES.GENERAL_CHECKER)) {
@@ -537,4 +715,4 @@ const grantPracticalRecheck = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-export { getUserCheckerScore, postUserCheckerScore, postUserCheckerScoreEvidance, invalidateExaminationAttempt, getUserCheckerPractical, postUserCheckerPractical, grantPracticalRecheck };
+export { getUserCheckerScore, postUserCheckerScore, postUserCheckerScoreEvidance, getReExaminationHistory, invalidateExaminationAttempt, getUserCheckerPractical, postUserCheckerPractical, grantPracticalRecheck };

@@ -5,6 +5,66 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 
+const unfinishedRatingWhere = {
+  deletedAt: null,
+  finalScores: {
+    none: {
+      deletedAt: null,
+      isInvalidated: false,
+    },
+  },
+};
+
+const eligibleApplicationDocWhere = {
+  deletedAt: null,
+  statusId: 2,
+  appRatings: {
+    some: unfinishedRatingWhere,
+  },
+};
+
+const normalizeEventUserIds = (value) => {
+  const rawIds = Array.isArray(value) ? value : value == null ? [] : [value];
+  return [...new Set(rawIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+};
+
+const findUnavailableEventUserIds = async ({
+  eventUserIds,
+  branchUnitId,
+  currentRoomId = null,
+}) => {
+  const eligibleUsers = await prisma.eventUser.findMany({
+    where: {
+      id: { in: eventUserIds },
+      deletedAt: null,
+      event: {
+        is: {
+          deletedAt: null,
+          sector: {
+            is: {
+              deletedAt: null,
+              branchUnitId,
+            },
+          },
+        },
+      },
+      OR: [
+        {
+          applicationDocs: { some: eligibleApplicationDocWhere },
+          attendaces: { is: null },
+        },
+        ...(currentRoomId
+          ? [{ attendaces: { is: { roomId: currentRoomId, deletedAt: null } } }]
+          : []),
+      ],
+    },
+    select: { id: true },
+  });
+
+  const eligibleIds = new Set(eligibleUsers.map(({ id }) => id));
+  return eventUserIds.filter((id) => !eligibleIds.has(id));
+};
+
 const getRoom = async (req, res) => {
   // const branchUnitId = 17
   // const branchUnitId = 5
@@ -17,7 +77,6 @@ const getRoom = async (req, res) => {
   // const prof = 1
   // const prof = req.user.professionId
   try {
-    const now = dayjs.utc().toDate();
     const event = await prisma.sector.findMany({
       where: {
         deletedAt: null,
@@ -28,14 +87,11 @@ const getRoom = async (req, res) => {
             eventUsers: {
               some: {
                 deletedAt: null,
+                attendaces: {
+                  is: null,
+                },
                 applicationDocs: {
-                  some: {
-                    deletedAt: null,
-                    statusId: 2,
-                    briefingDate: {
-                      not: null
-                    }
-                  }
+                  some: eligibleApplicationDocWhere,
                 }
               }
             }
@@ -55,14 +111,21 @@ const getRoom = async (req, res) => {
             eventUsers: {
               where: {
                 deletedAt: null,
+                attendaces: {
+                  is: null,
+                },
                 applicationDocs: {
-                  some: {
-                    deletedAt: null
-                  }
+                  some: eligibleApplicationDocWhere,
                 }
               },
               select: {
                 id: true,
+                userNik: true,
+                user: {
+                  select: {
+                    name: true
+                  }
+                },
                 attendaces: {
                   where: {
                     deletedAt: null
@@ -70,11 +133,7 @@ const getRoom = async (req, res) => {
                 },
                 applicationDocs: {
                   where: {
-                    deletedAt:null,
-                    statusId: 2,
-                    briefingDate: {
-                      not: null
-                    }
+                    ...eligibleApplicationDocWhere,
                   },
                   select: {
                     id: true,
@@ -85,9 +144,7 @@ const getRoom = async (req, res) => {
                       }
                     },
                     appRatings: {
-                      where: {
-                        deletedAt: null
-                      },
+                      where: unfinishedRatingWhere,
                       select: {
                         id: true,
                         rating: {
@@ -176,6 +233,21 @@ const postRoom = async(req, res) => {
     const file = files && files.length > 0 ? files[0] : null;
 
     const {eventUsersId, startDate, finishDate, name} = req.body
+    const normalizedEventUserIds = normalizeEventUserIds(eventUsersId);
+    if (normalizedEventUserIds.length === 0) {
+      return res.status(400).json({ message: "At least one eligible event user is required." });
+    }
+
+    const unavailableIds = await findUnavailableEventUserIds({
+      eventUserIds: normalizedEventUserIds,
+      branchUnitId: req.user.branchUnitId,
+    });
+    if (unavailableIds.length > 0) {
+      return res.status(409).json({
+        message: "One or more users are no longer available. Refresh the Room page and select again.",
+        eventUserIds: unavailableIds,
+      });
+    }
     
     await prisma.room.create({
       data: {
@@ -186,7 +258,7 @@ const postRoom = async(req, res) => {
         file: file ? `/uploads/room/${file.filename}` : null,
         attendances: {
           createMany: {
-            data: eventUsersId.map(id => ({eventUserId: parseInt(id)}))
+            data: normalizedEventUserIds.map(eventUserId => ({eventUserId}))
           }
         }
       }
@@ -194,6 +266,11 @@ const postRoom = async(req, res) => {
 
     res.json({message: "Success"});
   } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        message: "A selected user has already been assigned to another Room. Refresh and select again.",
+      });
+    }
     res.status(500).json({ message: error.message });
   }
 }
@@ -207,6 +284,10 @@ const editRoom = async(req, res) => {
     const file = files && files.length > 0 ? files[0] : null;
 
     const {eventUsersId, startDate, finishDate, name} = req.body
+    const normalizedEventUserIds = normalizeEventUserIds(eventUsersId);
+    if (normalizedEventUserIds.length === 0) {
+      return res.status(400).json({ message: "At least one eligible event user is required." });
+    }
 
     const room = await prisma.room.findUnique({
       where: {
@@ -226,7 +307,7 @@ const editRoom = async(req, res) => {
       attendances: {
         deleteMany: {},
         createMany: {
-          data: eventUsersId.map(id => ({eventUserId: parseInt(id)}))
+          data: normalizedEventUserIds.map(eventUserId => ({eventUserId}))
         }
       }
     }
@@ -241,6 +322,17 @@ const editRoom = async(req, res) => {
     }
 
     if (!room) return res.status(404).json({ message: "Room not found." });
+    const unavailableIds = await findUnavailableEventUserIds({
+      eventUserIds: normalizedEventUserIds,
+      branchUnitId: req.user.branchUnitId,
+      currentRoomId: parseInt(id),
+    });
+    if (unavailableIds.length > 0) {
+      return res.status(409).json({
+        message: "One or more users are no longer available. Refresh the Room page and select again.",
+        eventUserIds: unavailableIds,
+      });
+    }
     await prisma.room.update({
       where: {
         id: parseInt(id)
@@ -250,6 +342,11 @@ const editRoom = async(req, res) => {
 
     res.json({message: "Success"});
   } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        message: "A selected user has already been assigned to another Room. Refresh and select again.",
+      });
+    }
     res.status(500).json({ message: error.message });
   }
 }
