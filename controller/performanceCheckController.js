@@ -139,6 +139,12 @@ const getEvent = async (req, res) => {
                   },
                   select: {
                     id: true,
+                    appRating: {
+                      select: {
+                        id: true,
+                        rating: { select: { rating: true } },
+                      }
+                    },
                     essay: {
                       select: {
                         question: true,

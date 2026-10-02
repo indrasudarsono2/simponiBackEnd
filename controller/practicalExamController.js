@@ -397,29 +397,44 @@ const getPractical = async(req, res) => {
       select: { id: true }
     });
     const eligibleStatusIds = [5, 6, 7, waitingPracticalStatus?.id].filter(Boolean);
+    const eligibleRating = {
+      statusId: { in: eligibleStatusIds },
+      finalScores: {
+        some: {
+          deletedAt: null,
+          isInvalidated: false,
+          statusId: { in: eligibleStatusIds },
+          groupMember: { group: { pic: userN } }
+        }
+      }
+    };
+    if (req.query.view === 'events') {
+      const events = await prisma.event.findMany({
+        where: {
+          deletedAt: null,
+          eventUsers: {
+            some: {
+              applicationDocs: {
+                some: { deletedAt: null, appRatings: { some: eligibleRating } }
+              }
+            }
+          }
+        },
+        select: { id: true, event: true, createdAt: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+      });
+      return res.json({ events });
+    }
+    const eventId = Number(req.query.eventId);
+    if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+      return res.status(400).json({ message: 'Select an event to load practical exam data.' });
+    }
     // const userN = "10077770"
     const applicationDoc = await prisma.applicationDoc.findMany({
       where: {
         deletedAt: null,
-        appRatings: {
-          some: {
-            statusId: { in: eligibleStatusIds },
-            finalScores:{
-              some: {
-                deletedAt: null,
-                isInvalidated: false,
-                statusId: {
-                  in: eligibleStatusIds
-                },
-                groupMember: {
-                  group: {
-                    pic: userN
-                  }
-                }
-              }
-            },
-          }
-        }
+        eventUser: { eventId },
+        appRatings: { some: eligibleRating }
       },
       select: {
         id: true,
@@ -518,8 +533,11 @@ const getPractical = async(req, res) => {
 
     const rechecks = await prisma.practicalRecheckAttempt.findMany({
       where: {
-        authorization: { status: { in: ["ACTIVE", "SUCCESS", "FAILED"] } },
-        practicalTest: { groupMember: { group: { pic: userN } } }
+        practicalTest: { groupMember: { group: { pic: userN } } },
+        authorization: {
+          status: { in: ["ACTIVE", "SUCCESS", "FAILED"] },
+          appRating: { applicationDoc: { eventUser: { eventId } } }
+        }
       },
       select: {
         id: true,

@@ -150,9 +150,16 @@ const getGroups = async (req, res) => {
           in: eventId
         },
       },
+      orderBy: [
+        { event: { createdAt: 'desc' } },
+        { eventId: 'desc' },
+        { createdAt: 'desc' },
+        { id: 'desc' }
+      ],
       select: {
         id:true,
         group: true,
+        createdAt: true,
         userPic: {
           select: {
             name: true
@@ -193,6 +200,7 @@ const getGroups = async (req, res) => {
           select: {
             id: true,
             event: true,
+            createdAt: true,
             remarkDoc: {
               where: {
                 deletedAt: null

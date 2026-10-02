@@ -341,18 +341,14 @@ const getApplicationDoc = async (req, res) => {
           where: {
             deletedAt: null
           },
-          orderBy: {
-            createdAt: 'desc'
-          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 6
         },
         license: {
           where: {
             deletedAt: null
           },
-          orderBy: {
-            createdAt: 'desc'
-          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 6
         },
         competences: {
