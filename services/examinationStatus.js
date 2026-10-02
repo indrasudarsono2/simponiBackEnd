@@ -20,6 +20,18 @@ export const EXAMINATION_STATUSES = Object.freeze({
   EXPIRED: "EXPIRED",
 });
 
+export const deriveMode1TheoryOutcome = ({ passed, difficulty, attemptCount, waitingPracticalStatusId = null }) => {
+  if (passed) {
+    const statusId = waitingPracticalStatusId ?? 7;
+    return { finalScoreStatusId: statusId, appRatingStatusId: statusId };
+  }
+
+  return {
+    finalScoreStatusId: 6,
+    appRatingStatusId: String(difficulty).toUpperCase() === "EASY" || attemptCount === 1 ? 5 : 6,
+  };
+};
+
 export const deriveRatingExaminationStatus = ({
   appRating,
   event,
@@ -38,6 +50,15 @@ export const deriveRatingExaminationStatus = ({
   const latestFinalScore = finalScores[0] || null;
   const finalStatusName = String(latestFinalScore?.status?.status || "").toUpperCase();
   const completedAt = latestFinalScore?.updatedAt || latestFinalScore?.createdAt || null;
+
+  if (statusName === "RECHECK" && finalStatusName !== "SUCCESS") {
+    return {
+      status: EXAMINATION_STATUSES.IN_PROGRESS,
+      message: "A theory re-check is available. Restart with the Essay examination.",
+      completedAt: null,
+      canStart: true,
+    };
+  }
 
   if (["SUCCESS", "FAILED"].includes(finalStatusName || statusName)) {
     return {

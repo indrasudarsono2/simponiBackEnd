@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import { issueCertificate } from "../services/certificate.js";
 
 const getUserScore = async (req, res) => {
   // const userN = "10077770"
@@ -61,7 +62,11 @@ const getUserScore = async (req, res) => {
                   },
                   essayScore: true,
                   multipleChoiceScore: true,
-                  finalScore: true
+                  finalScore: true,
+                  userRatings: {
+                    where: { deletedAt: null, userId: userN },
+                    select: { id: true }
+                  }
                   }
                 }
               }
@@ -74,6 +79,45 @@ const getUserScore = async (req, res) => {
     res.json(eventUser);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const getUserCertificate = async (req, res) => {
+  const finalScoreId = Number(req.params.finalScoreId);
+  if (!Number.isSafeInteger(finalScoreId) || finalScoreId < 1) {
+    return res.status(400).json({ message: "Invalid score ID." });
+  }
+  try {
+    const score = await prisma.finalScore.findFirst({
+      where: {
+        id: finalScoreId,
+        deletedAt: null,
+        isInvalidated: false,
+        appRating: {
+          deletedAt: null,
+          applicationDoc: { deletedAt: null, userNik: req.user.nik },
+        },
+      },
+      select: { id: true },
+    });
+    if (!score) {
+      return res.status(404).json({ message: "Certificate is not available for this rating." });
+    }
+    const certificate = await prisma.$transaction((tx) => issueCertificate(tx, score.id));
+    const snapshot = certificate.snapshot;
+    res.set("Cache-Control", "private, no-store");
+    return res.json({
+      finalScoreId: certificate.finalScoreId,
+      certificateNumber: certificate.number,
+      publicId: certificate.publicId,
+      issuedAt: certificate.issuedAt,
+      ...snapshot,
+    });
+  } catch (error) {
+    if (error.message === "CERTIFICATE_NOT_ELIGIBLE") {
+      return res.status(404).json({ message: "Certificate is not available for this rating." });
+    }
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -193,4 +237,4 @@ const getUserScorePractical = async (req, res)=> {
     res.status(500).json({ message: error.message });
   }
 }
-export { getUserScore, getUserScorePractical };
+export { getUserScore, getUserScorePractical, getUserCertificate };

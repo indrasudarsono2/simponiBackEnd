@@ -47,7 +47,7 @@ const getDashboardOperational = async (req, res) => {
   // const prof = 1
   const prof = req.user.professionId
   try {
-    const [user, validRatings] = await Promise.all([
+    const [user, validRatings, scoredRatings] = await Promise.all([
       prisma.user.findFirst({
         where: {
           nik: userN,
@@ -127,10 +127,21 @@ const getDashboardOperational = async (req, res) => {
               id: true,
               finalScore: true,
               createdAt: true,
+              event: { select: { passingGrade: true, practicalPassingGrade: true } },
               appRating: {
                 select: {
                   applicationDoc: {
                     select: { id: true, number: true },
+                  },
+                  finalScores: {
+                    where: { deletedAt: null, isInvalidated: false },
+                    orderBy: { id: "asc" },
+                    select: {
+                      id: true,
+                      finalScore: true,
+                      status: { select: { status: true } },
+                      event: { select: { passingGrade: true } },
+                    },
                   },
                   practicalTests: {
                     where: {
@@ -142,6 +153,11 @@ const getDashboardOperational = async (req, res) => {
                       score: true,
                       kindOfPractical: {
                         select: { kind: true },
+                      },
+                      recheckAttempts: {
+                        orderBy: { createdAt: "desc" },
+                        take: 1,
+                        select: { score: true },
                       },
                     },
                     orderBy: { id: "asc" },
@@ -171,6 +187,47 @@ const getDashboardOperational = async (req, res) => {
           },
         },
       }),
+      prisma.appRating.findMany({
+        where: {
+          deletedAt: null,
+          applicationDoc: { userNik: userN, deletedAt: null },
+          OR: [
+            { finalScores: { some: { deletedAt: null, isInvalidated: false, finalScore: { not: null } } } },
+            { practicalTests: { some: { deletedAt: null, score: { not: null } } } },
+          ],
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          rating: { select: { id: true, rating: true } },
+          applicationDoc: {
+            select: {
+              number: true,
+              eventUser: { select: { event: { select: { event: true, passingGrade: true, practicalPassingGrade: true } } } },
+            },
+          },
+          finalScores: {
+            where: { deletedAt: null, isInvalidated: false, finalScore: { not: null } },
+            orderBy: { id: "desc" },
+            take: 1,
+            select: { id: true, finalScore: true, createdAt: true, status: { select: { status: true } } },
+          },
+          practicalTests: {
+            where: { deletedAt: null, score: { not: null } },
+            orderBy: { id: "asc" },
+            select: {
+              id: true,
+              score: true,
+              kindOfPractical: { select: { kind: true } },
+              recheckAttempts: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { score: true },
+              },
+            },
+          },
+        },
+      }),
     ]);
 
     if (!user) {
@@ -192,13 +249,27 @@ const getDashboardOperational = async (req, res) => {
       expiredAt: userRating.expireddate,
       finalScoreId: userRating.finalScore?.id || null,
       finalScore: userRating.finalScore?.finalScore ?? null,
+      theoryScoreStarred: (userRating.finalScore?.appRating?.finalScores || []).some((score) =>
+        score.id < userRating.finalScore.id && (
+          String(score.status?.status || "").toUpperCase() === "FAILED" ||
+          (score.finalScore != null && score.event?.passingGrade != null && score.finalScore < score.event.passingGrade)
+        )
+      ),
       finalScoreCreatedAt: userRating.finalScore?.createdAt || null,
       applicationDoc: userRating.finalScore?.appRating?.applicationDoc || null,
-      practicalScores: (userRating.finalScore?.appRating?.practicalTests || []).map((test) => ({
-        id: test.id,
-        kind: test.kindOfPractical?.kind || "PRACTICAL",
-        score: test.score,
-      })),
+      practicalScores: (userRating.finalScore?.appRating?.practicalTests || []).map((test) => {
+        const latestScore = test.recheckAttempts[0]?.score ?? test.score;
+        return {
+          id: test.id,
+          kind: test.kindOfPractical?.kind || "PRACTICAL",
+          score: latestScore,
+          starred: test.recheckAttempts[0]?.score != null &&
+            test.score != null &&
+            userRating.finalScore?.event?.practicalPassingGrade != null &&
+            test.score < userRating.finalScore.event.practicalPassingGrade &&
+            latestScore >= userRating.finalScore.event.practicalPassingGrade,
+        };
+      }),
       cwps: (userRating.finalScore?.cwpSnapshots || []).map((snapshot) => ({
         id: snapshot.cwpId,
         name: snapshot.cwpName,
@@ -207,9 +278,48 @@ const getDashboardOperational = async (req, res) => {
       })),
     });
 
+    const latestScoredRatings = [...scoredRatings].sort((a, b) => {
+      const aDate = a.finalScores[0]?.createdAt || a.createdAt;
+      const bDate = b.finalScores[0]?.createdAt || b.createdAt;
+      return new Date(bDate).getTime() - new Date(aDate).getTime() || b.id - a.id;
+    });
+    const seenScoredRatingIds = new Set();
+    const latestFailedResults = [];
+    for (const rating of latestScoredRatings) {
+      const ratingId = rating.rating?.id;
+      if (!ratingId || seenScoredRatingIds.has(ratingId)) continue;
+      seenScoredRatingIds.add(ratingId);
+
+      const event = rating.applicationDoc?.eventUser?.event;
+      const theory = rating.finalScores[0] || null;
+      const theoryFailed = theory?.finalScore != null && (
+        String(theory.status?.status || "").toUpperCase() === "FAILED" ||
+        (event?.passingGrade != null && theory.finalScore < event.passingGrade)
+      );
+      const practical = rating.practicalTests.map((test) => {
+        const score = test.recheckAttempts[0]?.score ?? test.score;
+        return {
+          kind: test.kindOfPractical?.kind || "PRACTICAL",
+          score,
+          failed: score != null && event?.practicalPassingGrade != null && score < event.practicalPassingGrade,
+        };
+      });
+      if (!theoryFailed && !practical.some((test) => test.failed)) continue;
+      latestFailedResults.push({
+        id: rating.id,
+        rating: rating.rating?.rating || "-",
+        event: event?.event || "-",
+        applicationNumber: rating.applicationDoc?.number || "-",
+        theoryScore: theory?.finalScore ?? null,
+        theoryFailed,
+        practicalScores: practical,
+      });
+    }
+
     res.json({
       ...user,
       currentRatingAuthorities: latestValidRatingByType.map(mapRatingAuthority),
+      latestFailedResults,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

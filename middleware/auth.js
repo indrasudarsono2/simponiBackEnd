@@ -28,7 +28,7 @@ const authenticateToken = async (req, res, next) => {
     const currentUser = await prisma.user.findFirst({
       where: { nik: decoded.nik, deletedAt: null },
       select: {
-        nik: true, name: true, email: true, branchId: true, branchUnitId: true,
+        nik: true, name: true, email: true, branchId: true, branchUnitId: true, licenseUserId: true,
         tokenVersion: true,
         authenticationType: true,
         sectorId: true, professionInBranchId: true,
@@ -74,6 +74,7 @@ const authenticateToken = async (req, res, next) => {
       menuNames,
       branchId: currentUser.branchId,
       branchUnitId: currentUser.branchUnitId,
+      licenseUserId: currentUser.licenseUserId,
       sectorId: currentUser.sectorId,
       professionInBranchId: currentUser.professionInBranchId,
       professionId: currentUser.professionInBranch?.professionId ?? null,

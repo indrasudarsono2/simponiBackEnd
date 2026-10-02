@@ -1,6 +1,10 @@
 import prisma from "../lib/prisma.js";
 import config from "../utils/config.js";
 
+const isValidWeight = (value) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1;
+const closeToOne = (value) => Math.abs(value - 1) < 0.000001;
+const percent = (value) => `${(value * 100).toFixed(0)}%`;
+
 const getEventQuestions = async (req, res) => {
   try {
     const branchUnitId = req.user.branchUnitId;
@@ -34,7 +38,8 @@ const getEventQuestions = async (req, res) => {
               select: {
                 id: true,
                 event: true,
-                sectorId: true
+                sectorId: true,
+                theoryMode: true
               }
             }
           }
@@ -61,7 +66,8 @@ const getEventQuestions = async (req, res) => {
           },
           select: {
             id: true,
-            event: true
+            event: true,
+            theoryMode: true
           }
         },
         kindOfQuestion: {
@@ -94,17 +100,30 @@ const getEventQuestions = async (req, res) => {
 const addEventQuestions = async (req, res) => {
   try {
     const {eventId, sectorId, kindOfQuestionId, quantity, persentage, minutes} = req.body
-    
-    await prisma.eventQuestion.create({
-      data: {
-        eventId,
-        sectorId,
-        kindOfQuestionId,
-        quantity,
-        persentage,
-        minutes
-      }
-    })
+    if (!isValidWeight(persentage) || !Number.isInteger(Number(quantity)) || Number(quantity) < 1 || ![1, 2].includes(Number(kindOfQuestionId))) {
+      return res.status(400).json({ message: "Provide a valid question type, quantity, and percentage between 0% and 100%." });
+    }
+    const event = await prisma.event.findFirst({ where: { id: Number(eventId), deletedAt: null, sector: { branchUnitId: req.user.branchUnitId } }, select: { theoryMode: true, sectorId: true } });
+    if (!event || Number(sectorId) !== event.sectorId) return res.status(403).json({ message: "Event is outside your branch unit or sector." });
+    if (event.theoryMode === "MODE_1" && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1)) return res.status(400).json({ message: "Minutes are required for Mode 1." });
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.event.update({ where: { id: Number(eventId) }, data: { updatedAt: new Date() } });
+      const existing = await tx.eventQuestion.findMany({ where: { eventId: Number(eventId), deletedAt: null, kindOfQuestionId: { in: [1, 2] } }, select: { kindOfQuestionId: true, persentage: true } });
+      if (existing.some((item) => item.kindOfQuestionId === Number(kindOfQuestionId))) return { error: "This question type is already configured for the event." };
+      const remaining = 1 - existing.reduce((sum, item) => sum + Number(item.persentage || 0), 0);
+      if (existing.length && !closeToOne(Number(persentage) + (1 - remaining))) return { error: `Essay and Multiple Choice must total 100%. The remaining percentage is ${percent(remaining)}.` };
+      if (!existing.length && Number(persentage) > 1) return { error: "Percentage cannot exceed 100%." };
+      await tx.eventQuestion.create({ data: {
+        eventId: Number(eventId),
+        sectorId: event.sectorId,
+        kindOfQuestionId: Number(kindOfQuestionId),
+        quantity: Number(quantity),
+        persentage: Number(persentage),
+        minutes: event.theoryMode === "MODE_2" ? null : Number(minutes)
+      } });
+      return { success: true };
+    });
+    if (result.error) return res.status(400).json({ message: result.error });
 
     res.status(201).json({ success: true});
   } catch (error) {
@@ -115,21 +134,33 @@ const getEventQuestionById = async (req, res) => {
   try {
     const { id } = req.params;
     const {eventId, sectorId, kindOfQuestionId, quantity, persentage, minutes} = req.body
-    await prisma.eventQuestion.update({
-      where: {
-        id: parseInt(id)
-      },
-      data: {
-        eventId,
-        sectorId,
-        kindOfQuestionId,
-        quantity,
-        persentage,
-        minutes
-      }
-    })
+    if (!isValidWeight(persentage) || !Number.isInteger(Number(quantity)) || Number(quantity) < 1) {
+      return res.status(400).json({ message: "Provide a valid quantity and percentage between 0% and 100%." });
+    }
+    const event = await prisma.event.findFirst({ where: { id: Number(eventId), deletedAt: null, sector: { branchUnitId: req.user.branchUnitId } }, select: { theoryMode: true, sectorId: true } });
+    if (!event || Number(sectorId) !== event.sectorId) return res.status(403).json({ message: "Event is outside your branch unit or sector." });
+    if (event.theoryMode === "MODE_1" && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1)) return res.status(400).json({ message: "Minutes are required for Mode 1." });
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.event.update({ where: { id: Number(eventId) }, data: { updatedAt: new Date() } });
+      const current = await tx.eventQuestion.findFirst({ where: { id: Number(id), eventId: Number(eventId), deletedAt: null }, select: { kindOfQuestionId: true } });
+      if (!current) return { error: "Event question not found in this event." };
+      if (current.kindOfQuestionId !== Number(kindOfQuestionId)) return { error: "Question type cannot be changed. Remove and recreate this configuration instead." };
+      const others = await tx.eventQuestion.findMany({ where: { eventId: Number(eventId), id: { not: Number(id) }, deletedAt: null, kindOfQuestionId: { in: [1, 2] } }, select: { id: true } });
+      if (others.length > 1) return { error: "Duplicate theory question types must be resolved before editing percentages." };
+      await tx.eventQuestion.update({ where: { id: Number(id) }, data: {
+        eventId: Number(eventId),
+        sectorId: event.sectorId,
+        kindOfQuestionId: Number(kindOfQuestionId),
+        quantity: Number(quantity),
+        persentage: Number(persentage),
+        minutes: event.theoryMode === "MODE_2" ? null : Number(minutes)
+      } });
+      if (others[0]) await tx.eventQuestion.update({ where: { id: others[0].id }, data: { persentage: Number((1 - Number(persentage)).toFixed(6)) } });
+      return { success: true, otherPercentage: others[0] ? 1 - Number(persentage) : null };
+    });
+    if (result.error) return res.status(400).json({ message: result.error });
     
-    res.status(201).json({ success: true});
+    res.status(201).json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

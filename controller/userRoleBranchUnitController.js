@@ -36,7 +36,8 @@ const getUserRoleBranchUnit = async (req, res) => {
 
     const role = await prisma.roles.findMany({
       where: {
-        deletedAt: null
+        deletedAt: null,
+        role: { not: "GENERAL ADMIN" }
       }
     })
 
@@ -61,15 +62,32 @@ const getUpdateData = async (req, res) => {
   try {
     const { id } = req.params;
     const { roleIds } = req.body;
+
+    const parsedRoleIds = Array.isArray(roleIds) ? [...new Set(roleIds.map(Number))] : [];
+    if (parsedRoleIds.length === 0 || parsedRoleIds.some((roleId) => !Number.isInteger(roleId) || roleId <= 0)) {
+      return res.status(400).json({ message: "Select at least one valid role." });
+    }
+
     const user = await prisma.user.findFirst({ where: { nik: id, branchUnitId: req.user.branchUnitId, deletedAt: null }, select: { nik: true } });
-    const allowedRoles = await prisma.roles.findMany({ where: { id: { in: (roleIds || []).map(Number) }, deletedAt: null, role: { in: ["OPERATIONAL", "CHECKER", "SUPERVISOR", "DOCTOR"] } }, select: { id: true } });
-    if (!user || allowedRoles.length !== new Set(roleIds || []).size) return res.status(403).json({ message: "User or requested role is outside your authority." });
+    if (!user) return res.status(404).json({ message: "User not found in this branch unit." });
+    const allowedRoles = await prisma.roles.findMany({
+      where: { id: { in: parsedRoleIds }, deletedAt: null, role: { not: "GENERAL ADMIN" } },
+      select: { id: true }
+    });
+    if (allowedRoles.length !== parsedRoleIds.length) {
+      return res.status(403).json({ message: "One or more roles are outside your authority." });
+    }
+
+    const protectedRoles = await prisma.roles.findMany({
+      where: { role: "GENERAL ADMIN" },
+      select: { id: true }
+    });
     
     await prisma.user.update({
       where: { nik: id },
       data: {
         userRoles: {
-          deleteMany: {},
+          deleteMany: { roleId: { notIn: protectedRoles.map((role) => role.id) } },
           createMany: {
             data: allowedRoles.map(({ id }) => ({ roleId: id }))
           }

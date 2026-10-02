@@ -113,6 +113,7 @@ const postMember = async (req, res) => {
       select: {
         id: true,
         number: true,
+        eventUser: { select: { event: { select: { event: true } } } },
         appRatings: {
           where: {
             deletedAt: null
@@ -135,6 +136,10 @@ const postMember = async (req, res) => {
               select: {
                 id: true,
                 createdAt: true,
+                essayScore: true,
+                multipleChoiceScore: true,
+                finalScore: true,
+                status: { select: { status: true } },
                 multipleChoiceCorrections: {
                   where: {
                     deletedAt: null
@@ -221,7 +226,14 @@ const postMember = async (req, res) => {
               finalScoreId: finalScore.id,
               createdAt: finalScore.createdAt,
               number: application.number || null,
+              event: application.eventUser?.event?.event || null,
               rating: rating.rating?.rating || null,
+              essayScore: finalScore.essayScore,
+              multipleChoiceScore: finalScore.multipleChoiceScore,
+              finalScore: finalScore.finalScore,
+              status: finalScore.status?.status || null,
+              mcCorrect: (finalScore.multipleChoiceCorrections || []).filter((item) => item.isTrue === true).length,
+              mcTotal: (finalScore.multipleChoiceCorrections || []).length,
               groupStatisticsMap: {},
             };
           }
@@ -326,7 +338,14 @@ const postMember = async (req, res) => {
         finalScoreId: item.finalScoreId,
         createdAt: item.createdAt,
         number: item.number,
+        event: item.event,
         rating: item.rating,
+        essayScore: item.essayScore,
+        multipleChoiceScore: item.multipleChoiceScore,
+        finalScore: item.finalScore,
+        status: item.status,
+        mcCorrect: item.mcCorrect,
+        mcTotal: item.mcTotal,
         groupStatistics: Object.values(item.groupStatisticsMap),
       })),
     };
@@ -440,6 +459,12 @@ const getQuestion = async (req, res) => {
   }
 };
 
+const getMyStatistic = (req, res) => {
+  if (!req.user?.nik) return res.status(401).json({ message: "Authentication required." });
+  req.body = { memberNik: req.user.nik };
+  return postMember(req, res);
+};
+
 const getQuestionDetail = async (req, res) => {
   const questionId = Number(req.params.id);
   try {
@@ -477,4 +502,4 @@ const getQuestionDetail = async (req, res) => {
   }
 }
 
-export { getMember, postMember, getQuestion, getQuestionDetail };
+export { getMember, postMember, getMyStatistic, getQuestion, getQuestionDetail };

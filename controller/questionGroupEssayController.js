@@ -1,6 +1,8 @@
 import prisma from "../lib/prisma.js";
 import config from "../utils/config.js";
 
+const MAX_GROUPS_PER_SECTOR_RATING = 2;
+
 const getQuestionGroups = async (req, res) => {
   try {
     const branchUnitId = Number(req.user?.branchUnitId);
@@ -152,18 +154,17 @@ const addQuestionGroup = async (req, res) => {
       });
     }
 
-    const existingGroup = await prisma.questionGroup.findFirst({
+    const existingGroupCount = await prisma.questionGroup.count({
       where: {
         subBranchUnitRatingId: findSubBranchUnitRating.id,
         kindOfQuestionId: 1,
         deletedAt: null,
       },
-      select: { id: true },
     });
 
-    if (existingGroup) {
+    if (existingGroupCount >= MAX_GROUPS_PER_SECTOR_RATING) {
       return res.status(409).json({
-        message: "This rating has already been declared for the selected sector.",
+        message: "This rating already has the maximum of two question groups for the selected sector.",
       });
     }
   

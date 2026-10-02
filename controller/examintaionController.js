@@ -5,8 +5,11 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { ensureFinalScoreCwpSnapshot } from "../services/finalScoreCwpSnapshot.js";
+import { theoryWeightError } from "../services/theoryWeightValidation.js";
+import { prepareModeOneDraft, markModeOneDraftSubmitted, claimModeOneDraft, releaseModeOneDraftClaim } from "../services/modeOneDraft.js";
 import {
   deriveOverallExaminationStatus,
+  deriveMode1TheoryOutcome,
   deriveRatingExaminationStatus,
 } from "../services/examinationStatus.js";
 
@@ -213,6 +216,17 @@ const getRandomMatsQuestions = async ({
     },
     orderBy: { slot: "asc" },
   });
+  const activeDraft = await prisma.modeOneExamDraft.findUnique({
+    where: { appRatingId_kind: { appRatingId, kind: "MULTIPLE_CHOICE" } },
+    select: { deadlineAt: true, submittedAt: true },
+  });
+  if (activeDraft?.deadlineAt && !activeDraft.submittedAt && existingSelections.length > 0) {
+    return {
+      quantity: existingSelections.length,
+      mode: existingSelections[0].mode,
+      questions: existingSelections.map(({ multipleChoice, mandatoryItemId }) => ({ multipleChoice, mandatoryItemId })),
+    };
+  }
   const canReuseExistingSelection = existingSelections.length > 0
     && existingSelections[0]?.mode === mode
     && (
@@ -306,6 +320,11 @@ const getRandomMatsQuestions = async ({
   };
 };
 
+const isMode2Event = async (eventId) => {
+  const event = await prisma.event.findUnique({ where: { id: Number(eventId) }, select: { theoryMode: true } });
+  return event?.theoryMode === "MODE_2";
+};
+
 const getExamination = async (req, res) => {
   const userN = req.user.nik
   try {
@@ -331,6 +350,8 @@ const getExamination = async (req, res) => {
       select: {
         id: true,
         event: true,
+        theoryMode: true,
+        difficulty: true,
         passingGrade: true,
         startDate: true,
         finishDate: true,
@@ -440,39 +461,44 @@ const getExamination = async (req, res) => {
     const upcomingEvent = [...events]
       .filter((item) => item.startDate && new Date(item.startDate).getTime() > now.getTime())
       .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
-    const event = activeEvent || upcomingEvent || events[0] || null;
-
-    if (!event) {
+    if (events.length === 0) {
       const overall = deriveOverallExaminationStatus({ assigned: false, event: null, now });
-      return res.json({ event: null, ...overall, ratingStatuses: [] });
+      return res.json({ event: null, ...overall, ratingStatuses: [], events: [] });
     }
 
-    const eventUser = event.eventUsers?.[0] || null;
-    const room = eventUser?.attendaces?.room || null;
-    const appRatings = eventUser?.applicationDocs?.flatMap((doc) => doc.appRatings || []) || [];
-    const ratingStatuses = appRatings.map((appRating) => ({
-      appRatingId: appRating.id,
-      rating: appRating.rating?.rating || "-",
-      ...deriveRatingExaminationStatus({ appRating, event, room, now }),
-    }));
-    const statusByRatingId = new Map(
-      ratingStatuses.map((item) => [item.appRatingId, item]),
-    );
-
-    for (const applicationDoc of eventUser?.applicationDocs || []) {
-      for (const appRating of applicationDoc.appRatings || []) {
-        appRating.examinationStatus = statusByRatingId.get(appRating.id) || null;
+    const examinationEvents = events.map((event) => {
+      const eventUser = event.eventUsers?.[0] || null;
+      const room = eventUser?.attendaces?.room || null;
+      const appRatings = eventUser?.applicationDocs?.flatMap((doc) => doc.appRatings || []) || [];
+      const ratingStatuses = appRatings.map((appRating) => ({
+        appRatingId: appRating.id,
+        rating: appRating.rating?.rating || "-",
+        ...deriveRatingExaminationStatus({ appRating, event, room, now }),
+      }));
+      const statusByRatingId = new Map(ratingStatuses.map((item) => [item.appRatingId, item]));
+      for (const applicationDoc of eventUser?.applicationDocs || []) {
+        for (const appRating of applicationDoc.appRatings || []) {
+          appRating.examinationStatus = statusByRatingId.get(appRating.id) || null;
+        }
       }
-    }
 
-    const overall = deriveOverallExaminationStatus({
-      assigned: Boolean(eventUser),
-      event,
-      ratingStatuses,
-      now,
+      let overall = deriveOverallExaminationStatus({ assigned: Boolean(eventUser), event, ratingStatuses, now });
+
+      if (event.theoryMode !== "MODE_2" && event.eventQuestions.length === 0 && ratingStatuses.length > 0 && overall.status !== "COMPLETED") {
+        const message = "No examination questions are configured for this event. Ask Checker Admin to set up Event Questions.";
+        overall = { ...overall, message };
+        for (const ratingStatus of ratingStatuses) {
+          if (ratingStatus.status === "COMPLETED") continue;
+          ratingStatus.message = message;
+          ratingStatus.canStart = false;
+        }
+      }
+      return { event, ...overall, ratingStatuses };
     });
 
-    res.json({ event, ...overall, ratingStatuses })
+    const selectedEvent = activeEvent || upcomingEvent || events[0];
+    const selected = examinationEvents.find((item) => item.event.id === selectedEvent.id);
+    res.json({ ...selected, events: examinationEvents });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -485,6 +511,9 @@ const getEssayQuestion = async (req, res) => {
   // const nik = "10077770"
   try {
     const {eventId, appRatingId} = req.body
+    if (await isMode2Event(eventId)) return res.status(409).json({ message: "Use the shared Mode 2 examination session for this event." });
+    const weightError = await theoryWeightError(eventId);
+    if (weightError) return res.status(409).json({ message: weightError });
     const event = await prisma.event.findFirst({
       where: {
         id: parseInt(eventId)
@@ -632,8 +661,9 @@ const getEssayQuestion = async (req, res) => {
     const eventUserId = event.eventUsers[0].id
     const groupMemberId = event.groups[0].groupMembers[0].id
     const eventDuration = event.eventQuestions.find(d => d.kindOfQuestionId === 1)?.minutes || 0
-    const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes : {time: 0};
-    const timeLeft = eventDuration-monitor.time
+    const timeLeft = monitorTime?.createdAt
+      ? Math.max(0, eventDuration - (Date.now() - new Date(monitorTime.createdAt).getTime()) / 60_000)
+      : eventDuration;
     const randomNumbers = [];
     // const randomNumbers = [1,2,3];
     
@@ -645,7 +675,17 @@ const getEssayQuestion = async (req, res) => {
 
     randomNumbers.sort((a, b) => a - b);
 
-    res.json({essay, eventQuestion, appRatingId, monitorTime, eventUserId, groupMemberId, eventId, randomNumbers})
+    const draft = await prepareModeOneDraft({ kind: "ESSAY", appRatingId, eventId,
+      eventUserId, groupMemberId, ownerNik: req.user.nik, eventQuestion, questions: essay, monitorTime });
+    if (!draft) return res.status(409).json({ message: "This essay attempt is no longer available." });
+    if (!draft.deadlineAt) {
+      return res.json({ essay: [], requiresStart: true, eventQuestion, appRatingId, eventId });
+    }
+    if (new Date(draft.deadlineAt).getTime() <= Date.now()) {
+      return res.status(409).json({ message: "This essay attempt has expired." });
+    }
+    res.json({essay: draft.questionSnapshot, eventQuestion, appRatingId, monitorTime,
+      eventUserId, groupMemberId, eventId, randomNumbers, draftAnswers: draft.answers, deadlineAt: draft.deadlineAt})
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -653,8 +693,26 @@ const getEssayQuestion = async (req, res) => {
 }
 
 const postEssayAnswer = async (req, res) => {
+  let claimedDraftId = null;
   try {
     const {essay, appRatingId, eventUserId, groupMemberId, eventId} = req.body
+    if (await isMode2Event(eventId)) return res.status(409).json({ message: "Mode 2 answers must be submitted through the shared session." });
+    const essayEventQuestionIds = (await prisma.eventQuestion.findMany({
+      where: { eventId: Number(eventId), kindOfQuestionId: 1 },
+      select: { id: true },
+    })).map(({ id }) => id);
+    const essayStartedAt = await prisma.monitorTime.findFirst({
+      where: {
+        appRatingId,
+        deletedAt: null,
+        eventQuestion: { is: { eventId, kindOfQuestionId: 1, deletedAt: null } },
+      },
+      select: { createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const essaySubmittedAt = new Date();
+    claimedDraftId = await claimModeOneDraft({ appRatingId, kind: "ESSAY", ownerNik: req.user.nik,
+      eventId, ids: essay.map((item) => item.essayId), alreadyClaimed: req.modeOneDraftClaimed });
     const updatedAppRating = await prisma.appRating.update({
       where: {
         id: appRatingId
@@ -669,6 +727,8 @@ const postEssayAnswer = async (req, res) => {
             essayScore: 0,
             multipleChoiceScore: 0,
             finalScore: 0,
+            essayStartedAt: essayStartedAt?.createdAt ?? null,
+            essaySubmittedAt,
             essayCorrections: {
               createMany: {
                 data: essay.map(e => ({groupMemberId, essayId: e.essayId, answer:e.answer, appRatingId }))
@@ -677,7 +737,9 @@ const postEssayAnswer = async (req, res) => {
           },
         },
         monitorTimes: {
-          deleteMany: {}
+          deleteMany: {
+            eventQuestionId: { in: essayEventQuestionIds },
+          }
         }
       },
       include: {
@@ -694,9 +756,11 @@ const postEssayAnswer = async (req, res) => {
       await ensureFinalScoreCwpSnapshot(prisma, createdFinalScore.id);
     }
 
+    await markModeOneDraftSubmitted(Number(appRatingId), "ESSAY");
     res.status(200).json({message: "success"});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    await releaseModeOneDraftClaim(claimedDraftId);
+    res.status(error.status || 500).json({ message: error.message });
   }
 }
 
@@ -707,6 +771,9 @@ const getMultipleChoiceQuestion = async (req, res) => {
   // const nik = "10077773"
   try {
     const {eventId, appRatingId} = req.body
+    if (await isMode2Event(eventId)) return res.status(409).json({ message: "Use the shared Mode 2 examination session for this event." });
+    const weightError = await theoryWeightError(eventId);
+    if (weightError) return res.status(409).json({ message: weightError });
     // console.log(eventId, appRatingId)
     const event = await prisma.event.findUnique({
       where: {
@@ -911,8 +978,9 @@ const getMultipleChoiceQuestion = async (req, res) => {
     const eventUserId = event.eventUsers[0].id
     const groupMemberId = event.groups[0].groupMembers[0].id
     const eventDuration = event.eventQuestions.find(d => d.kindOfQuestionId === 2)?.minutes || 0
-    const monitor = event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] ? event.eventUsers[0].applicationDocs[0].appRatings[0].monitorTimes[0] : {time: 0};
-    const timeLeft = eventDuration-monitor.time
+    const timeLeft = monitorTime?.createdAt
+      ? Math.max(0, eventDuration - (Date.now() - new Date(monitorTime.createdAt).getTime()) / 60_000)
+      : eventDuration;
    
     const randomNumbers = [];
     // const randomNumbers = [1,2,3];
@@ -925,7 +993,17 @@ const getMultipleChoiceQuestion = async (req, res) => {
 
     randomNumbers.sort((a, b) => a - b);
 
-    res.json({multipleChoice, eventQuestion, appRatingId, monitorTime, eventUserId, groupMemberId, eventId, randomNumbers})
+    const draft = await prepareModeOneDraft({ kind: "MULTIPLE_CHOICE", appRatingId, eventId,
+      eventUserId, groupMemberId, ownerNik: req.user.nik, eventQuestion, questions: multipleChoice, monitorTime });
+    if (!draft) return res.status(409).json({ message: "This multiple-choice attempt is no longer available." });
+    if (!draft.deadlineAt) {
+      return res.json({ multipleChoice: [], requiresStart: true, eventQuestion, appRatingId, eventId });
+    }
+    if (new Date(draft.deadlineAt).getTime() <= Date.now()) {
+      return res.status(409).json({ message: "This multiple-choice attempt has expired." });
+    }
+    res.json({multipleChoice: draft.questionSnapshot, eventQuestion, appRatingId, monitorTime,
+      eventUserId, groupMemberId, eventId, randomNumbers, draftAnswers: draft.answers, deadlineAt: draft.deadlineAt})
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -933,8 +1011,10 @@ const getMultipleChoiceQuestion = async (req, res) => {
 }
 
 const postMultipleChoiceAnswer = async (req, res) => {
+  let claimedDraftId = null;
   try {
     const {multipleChoice, appRatingId, eventUserId, groupMemberId, eventId} = req.body
+    if (await isMode2Event(eventId)) return res.status(409).json({ message: "Mode 2 answers must be submitted through the shared session." });
     const event = await prisma.event.findUnique({
       where: {
         id: eventId
@@ -942,6 +1022,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
       select: {
         id: true,
         passingGrade: true,
+        difficulty: true,
         isPractical: true,
         isSimulator: true,
         eventQuestions: {
@@ -1039,6 +1120,20 @@ const postMultipleChoiceAnswer = async (req, res) => {
     }
 
     const inputAppRating = async (appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore, finalScoreId) => {
+      const multipleChoiceEventQuestionIds = (await prisma.eventQuestion.findMany({
+        where: { eventId: Number(eventId), kindOfQuestionId: 2 },
+        select: { id: true },
+      })).map(({ id }) => id);
+      const multipleChoiceStartedAt = await prisma.monitorTime.findFirst({
+        where: {
+          appRatingId,
+          deletedAt: null,
+          eventQuestion: { is: { eventId, kindOfQuestionId: 2, deletedAt: null } },
+        },
+        select: { createdAt: true },
+        orderBy: { createdAt: "asc" },
+      });
+      const multipleChoiceSubmittedAt = new Date();
       const createFinalScore = {
         create: {create: {
             eventId,
@@ -1047,6 +1142,8 @@ const postMultipleChoiceAnswer = async (req, res) => {
             essayScore,
             multipleChoiceScore: mcValue,
             finalScore: finalValue,
+            multipleChoiceStartedAt: multipleChoiceStartedAt?.createdAt ?? null,
+            multipleChoiceSubmittedAt,
             multipleChoiceCorrections: {
               createMany: {
                 data: multipleChoice.map(m => ({groupMemberId, multipleChoiceId: m.multipleChoiceId, answer: m.answer, appRatingId, isTrue: m.isTrue, matsMode: m.matsMode, mandatoryItemId: m.mandatoryItemId}))
@@ -1063,6 +1160,8 @@ const postMultipleChoiceAnswer = async (req, res) => {
               essayScore,
               multipleChoiceScore: mcValue,
               finalScore: finalValue,
+              multipleChoiceStartedAt: multipleChoiceStartedAt?.createdAt ?? null,
+              multipleChoiceSubmittedAt,
               multipleChoiceCorrections: {
                 createMany: {
                   data: multipleChoice.map(m => ({groupMemberId, multipleChoiceId: m.multipleChoiceId, answer: m.answer, appRatingId, isTrue: m.isTrue, matsMode: m.matsMode, mandatoryItemId: m.mandatoryItemId}))
@@ -1081,7 +1180,9 @@ const postMultipleChoiceAnswer = async (req, res) => {
           statusId: statusAppRating,
           finalScores: finalScr,
           monitorTimes: {
-            deleteMany: {}
+            deleteMany: {
+              eventQuestionId: { in: multipleChoiceEventQuestionIds },
+            }
           }
         },
         include: {
@@ -1156,6 +1257,8 @@ const postMultipleChoiceAnswer = async (req, res) => {
         }
       }
     })
+    claimedDraftId = await claimModeOneDraft({ appRatingId, kind: "MULTIPLE_CHOICE", ownerNik: req.user.nik,
+      eventId, ids: multipleChoice.map((item) => item.multipleChoiceId), alreadyClaimed: req.modeOneDraftClaimed });
     
     if(event.eventQuestions.length > 1){
       const finalValue = finalScore[finalScore.length - 1].essayScore + mcValue
@@ -1164,21 +1267,12 @@ const postMultipleChoiceAnswer = async (req, res) => {
       const finalScoreId = finalScore[finalScore.length-1].id;
       const essayScore = finalScore[finalScore.length - 1].essayScore
       const theoryPassed = finalValue >= event.passingGrade;
-      const calculatedStatusScore = finalValue < event.passingGrade ? 6 :
-                          finalValue >= event.passingGrade &&
-                          finalScore[0].statusId !== 6 ? 7 :
-                          finalValue >= event.passingGrade &&
-                          finalScore[0].statusId === 6 ? 5 : null;
-      const calculatedAppRatingStatus = finalScore.length === 1 && finalValue >= event.passingGrade ? 7 :
-                              finalScore.length === 1 && finalValue < event.passingGrade ? 5:
-                              finalScore.length > 1 && finalValue >= event.passingGrade ? 7:
-                              finalScore.length > 1 && finalValue < event.passingGrade ? 6 : null;
-      const statusScore = theoryPassed && requiresPractical
-        ? waitingPracticalStatus.id
-        : calculatedStatusScore;
-      const statusAppRating = theoryPassed && requiresPractical
-        ? waitingPracticalStatus.id
-        : calculatedAppRatingStatus;
+      const { finalScoreStatusId: statusScore, appRatingStatusId: statusAppRating } = deriveMode1TheoryOutcome({
+        passed: theoryPassed,
+        difficulty: event.difficulty,
+        attemptCount: finalScore.length,
+        waitingPracticalStatusId: theoryPassed && requiresPractical ? waitingPracticalStatus.id : null,
+      });
       await inputAppRating(appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore, finalScoreId)
       await ensureFinalScoreCwpSnapshot(prisma, finalScoreId)
       
@@ -1222,25 +1316,16 @@ const postMultipleChoiceAnswer = async (req, res) => {
       // }
       // const string = JSON.stringify(json, null, 2)
       // fs.writeFileSync('../exam.json', string, 'utf-8');
+      await markModeOneDraftSubmitted(Number(appRatingId), "MULTIPLE_CHOICE");
       res.status(200).json({falseAnswer, finalValue, essayCorrection, passingGrade, awaitingPractical: theoryPassed && requiresPractical});
     }else{
-      const previousStatusId = finalScore[0]?.statusId;
       const theoryPassed = mcValue >= event.passingGrade;
-      const calculatedStatusScore = mcValue < event.passingGrade ? 6 :
-                          mcValue >= event.passingGrade && 
-                          previousStatusId !== 6 ? 7 : 
-                          mcValue >= event.passingGrade &&
-                          previousStatusId === 6 ? 5 : null;
-      const calculatedAppRatingStatus = finalScore.length === 1 && mcValue >= event.passingGrade ? 7 :
-                              finalScore.length === 1 && mcValue < event.passingGrade ? 5:
-                              finalScore.length > 1 && mcValue >= event.passingGrade ? 7:
-                              finalScore.length > 1 && mcValue < event.passingGrade ? 6 : null;
-      const statusScore = theoryPassed && requiresPractical
-        ? waitingPracticalStatus.id
-        : calculatedStatusScore;
-      const statusAppRating = theoryPassed && requiresPractical
-        ? waitingPracticalStatus.id
-        : calculatedAppRatingStatus;
+      const { finalScoreStatusId: statusScore, appRatingStatusId: statusAppRating } = deriveMode1TheoryOutcome({
+        passed: theoryPassed,
+        difficulty: event.difficulty,
+        attemptCount: finalScore.length + 1,
+        waitingPracticalStatusId: theoryPassed && requiresPractical ? waitingPracticalStatus.id : null,
+      });
       const essayScore = 0
       const finalValue = mcValue
       const fnlScore = "create"
@@ -1254,10 +1339,13 @@ const postMultipleChoiceAnswer = async (req, res) => {
           await inputUserRating(updatedAppRating.ratingId, createdFinalScore.id, event.forExpiredDate);
         }
       }
+      await markModeOneDraftSubmitted(Number(appRatingId), "MULTIPLE_CHOICE");
       res.status(200).json({falseAnswer, finalValue, passingGrade: event.passingGrade, awaitingPractical: theoryPassed && requiresPractical});
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    await releaseModeOneDraftClaim(claimedDraftId);
+    res.status(error.status || 500).json({ message: error.message });
   }
 }
 export { getExamination, getEssayQuestion, postEssayAnswer, getMultipleChoiceQuestion, postMultipleChoiceAnswer };
+export { getRandomEssayByGroup, getRandomMultipleChoiceByGroup, getRandomMatsQuestions };

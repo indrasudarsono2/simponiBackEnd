@@ -5,9 +5,257 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { ROLES } from "../middleware/authorize.js";
+import sanitizeHtml from "sanitize-html";
+import { readFile, realpath, stat } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { createEvidenceZip } from "../services/evidenceZip.js";
+import { createTheoryEvidencePdf } from "../services/theoryEvidencePdf.js";
+import { revokeCertificatesForFinalScore } from "../services/certificate.js";
 
 const normalizeRole = (role) => String(role || "").trim().toUpperCase();
 const hasRole = (req, role) => (req.user?.roleNames || []).map(normalizeRole).includes(role);
+const safeTheoryHtml = (value) => sanitizeHtml(String(value || ""), {
+  allowedTags: ["p", "br", "strong", "b", "em", "i", "s", "ul", "ol", "li", "blockquote", "code", "pre", "h1", "h2"],
+  allowedAttributes: {},
+});
+const uploadsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../uploads");
+
+const readEvidenceFile = async (storedPath) => {
+  if (typeof storedPath !== "string" || !storedPath.startsWith("/uploads/")) return { reason: "No locally stored file is linked." };
+  const relative = storedPath.slice("/uploads/".length).replaceAll("\\", "/");
+  if (!relative || relative.split("/").some((segment) => !segment || segment === "." || segment === "..")) return { reason: "Invalid stored file path." };
+  const absolute = path.resolve(uploadsRoot, relative);
+  if (!absolute.startsWith(`${uploadsRoot}${path.sep}`)) return { reason: "Invalid stored file path." };
+  try {
+    const resolved = await realpath(absolute);
+    const root = await realpath(uploadsRoot);
+    if (!resolved.startsWith(`${root}${path.sep}`)) return { reason: "Invalid stored file path." };
+    const details = await stat(resolved);
+    if (!details.isFile() || details.size > 64 * 1024 * 1024) return { reason: "File is unavailable or exceeds 64 MB." };
+    return { data: await readFile(resolved), extension: path.extname(resolved).toLowerCase().replace(/[^.a-z0-9]/g, "").slice(0, 12) || ".bin" };
+  } catch {
+    return { reason: "Linked file is missing from server storage." };
+  }
+};
+
+const buildTheoryEvidenceData = (score, appRating, event, imageNameByPath) => {
+  const snapshot = score.theorySessionParticipant?.questionSnapshot;
+  const snapshotMc = new Map((snapshot?.multipleChoice || []).flatMap((group) => group.questions || []).map((item) => [item.id, item]));
+  const snapshotEssay = new Map((snapshot?.essay || []).flatMap((group) => group.questions || []).map((item) => [item.id, item]));
+  const scoreText = (value) => value == null ? "Not scored" : Number(value).toFixed(2);
+  const multipleChoice = score.multipleChoiceCorrections.map((correction) => {
+    const question = snapshotMc.get(correction.multipleChoiceId) || correction.multipleChoice;
+    const keys = ["A", "B", "C", "D"];
+    const order = question?.optionOrder;
+    const displayOrder = Array.isArray(order) && order.length === 4 && new Set(order).size === 4 && order.every((key) => keys.includes(key)) ? order : keys;
+    const selected = String(correction.answer || "").toUpperCase();
+    return { question: safeTheoryHtml(question?.question), imageName: question?.image ? imageNameByPath.get(question.image) : null,
+      options: displayOrder.map((key, slot) => ({ label: keys[slot], text: safeTheoryHtml(question?.[key.toLowerCase()]), selected: selected === key })),
+      answered: keys.includes(selected) };
+  });
+  const essay = score.essayCorrections.map((correction) => {
+    const question = snapshotEssay.get(correction.essayId) || correction.essay;
+    return { question: safeTheoryHtml(question?.question), imageName: question?.image ? imageNameByPath.get(question.image) : null,
+      answer: safeTheoryHtml(correction.answer), score: correction.score,
+      checkerName: correction.checker ? correction.checkerUser?.name || correction.checker : null };
+  });
+  return { metadata: {
+    Application: appRating.applicationDoc.number,
+    Candidate: appRating.applicationDoc.user?.name,
+    Event: event?.event || "Historical event not linked",
+    Rating: appRating.rating?.rating,
+    "Result ID": score.id,
+    "Final theory score": scoreText(score.finalScore),
+    "Multiple Choice score": scoreText(score.multipleChoiceScore),
+    "Essay score": scoreText(score.essayScore),
+  }, multipleChoice, essay };
+};
+
+const getTheoryExaminationReview = async (req, res) => {
+  try {
+    const appRatingId = Number(req.params.appRatingId);
+    if (!Number.isInteger(appRatingId) || appRatingId < 1) return res.status(400).json({ message: "Invalid rating ID." });
+    const finalScoreId = req.query?.finalScoreId == null ? null : Number(req.query.finalScoreId);
+    if (finalScoreId != null && (!Number.isInteger(finalScoreId) || finalScoreId < 1)) return res.status(400).json({ message: "Invalid theory result ID." });
+    const appRating = await prisma.appRating.findFirst({
+      where: { id: appRatingId, deletedAt: null, applicationDoc: { deletedAt: null } },
+      select: {
+        id: true,
+        rating: { select: { rating: true } },
+        applicationDoc: { select: {
+          number: true,
+          user: { select: { name: true } },
+          eventUser: { select: { event: { select: { id: true, event: true, sector: { select: { branchUnitId: true } } } } } },
+        } },
+        finalScores: {
+          where: { deletedAt: null, isInvalidated: false, ...(finalScoreId && { id: finalScoreId }) },
+          orderBy: { id: "desc" }, take: 1,
+          select: {
+            id: true, eventId: true, createdAt: true,
+            finalScore: true, multipleChoiceScore: true, essayScore: true,
+            theorySessionParticipant: { select: { questionSnapshot: true } },
+            multipleChoiceCorrections: { where: { deletedAt: null }, orderBy: { id: "asc" }, select: {
+              multipleChoiceId: true, answer: true,
+              multipleChoice: { select: { question: true, image: true, a: true, b: true, c: true, d: true } },
+            } },
+            essayCorrections: { where: { deletedAt: null }, orderBy: { id: "asc" }, select: {
+              essayId: true, answer: true, score: true, checker: true,
+              checkerUser: { select: { name: true } },
+              essay: { select: { question: true, image: true } },
+            } },
+          },
+        },
+      },
+    });
+    const event = appRating?.applicationDoc?.eventUser?.event;
+    if (!appRating || (!event && !hasRole(req, ROLES.GENERAL_ADMIN)) || (hasRole(req, ROLES.CHECKER_ADMIN) && !hasRole(req, ROLES.GENERAL_ADMIN) && Number(event?.sector?.branchUnitId) !== Number(req.user.branchUnitId))) {
+      return res.status(404).json({ message: "Theory examination was not found in your scope." });
+    }
+    const result = appRating.finalScores[0];
+    if (!result || (event && result.eventId != null && result.eventId !== event.id)) return res.status(404).json({ message: "No theory examination result is available for this rating." });
+    const snapshot = result.theorySessionParticipant?.questionSnapshot;
+    const snapshotMc = new Map((snapshot?.multipleChoice || []).flatMap((group) => group.questions || []).map((item) => [item.id, item]));
+    const snapshotEssay = new Map((snapshot?.essay || []).flatMap((group) => group.questions || []).map((item) => [item.id, item]));
+    res.json({
+      finalScoreId: result.id,
+      finalScore: result.finalScore,
+      multipleChoiceScore: result.multipleChoiceScore,
+      essayScore: result.essayScore,
+      applicationNumber: appRating.applicationDoc?.number || null,
+      name: appRating.applicationDoc?.user?.name || null,
+      event: event?.event || null,
+      rating: appRating.rating?.rating || null,
+      multipleChoice: result.multipleChoiceCorrections.map((correction) => {
+        const question = snapshotMc.get(correction.multipleChoiceId) || correction.multipleChoice;
+        const sourceKeys = ["A", "B", "C", "D"];
+        const savedOrder = question?.optionOrder;
+        const optionOrderRecorded = Array.isArray(savedOrder) && savedOrder.length === 4 && new Set(savedOrder).size === 4 && savedOrder.every((key) => sourceKeys.includes(key));
+        const displayOrder = optionOrderRecorded ? savedOrder : sourceKeys;
+        const selectedKey = String(correction.answer || "").toUpperCase();
+        const options = displayOrder.map((key, index) => ({
+          label: sourceKeys[index], text: safeTheoryHtml(question?.[key.toLowerCase()]), selected: key === selectedKey,
+        }));
+        return {
+          id: correction.multipleChoiceId,
+          question: safeTheoryHtml(question?.question),
+          image: question?.image || null,
+          options,
+          answered: sourceKeys.includes(selectedKey),
+          optionOrderRecorded,
+        };
+      }),
+      essay: result.essayCorrections.map((correction) => {
+        const question = snapshotEssay.get(correction.essayId) || correction.essay;
+        return {
+          id: correction.essayId,
+          question: safeTheoryHtml(question?.question),
+          image: question?.image || null,
+          answer: safeTheoryHtml(correction.answer),
+          score: correction.score,
+          checkerName: correction.checker ? correction.checkerUser?.name || correction.checker : null,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error("Checker theory review failed", error);
+    res.status(500).json({ message: "Unable to load theory examination review." });
+  }
+};
+
+const downloadRatingEvidence = async (req, res) => {
+  try {
+    const appRatingId = Number(req.params.appRatingId);
+    if (!Number.isInteger(appRatingId) || appRatingId < 1) return res.status(400).json({ message: "Invalid rating ID." });
+    const finalScoreId = req.query?.finalScoreId == null ? null : Number(req.query.finalScoreId);
+    if (finalScoreId != null && (!Number.isInteger(finalScoreId) || finalScoreId < 1)) return res.status(400).json({ message: "Invalid theory result ID." });
+    const appRating = await prisma.appRating.findFirst({
+      where: { id: appRatingId, deletedAt: null, applicationDoc: { deletedAt: null } },
+      select: {
+        id: true, rating: { select: { rating: true } },
+        applicationDoc: { select: {
+          id: true, number: true,
+          user: { select: { nik: true, name: true } },
+          eventUser: { select: { event: { select: { id: true, event: true, sector: { select: { branchUnitId: true } } } } } },
+          ielp: { select: { id: true, file: true } },
+          medex: { select: { id: true, file: true } },
+          license: { select: { id: true, file: true } },
+          logbook: { select: { id: true, file: true } },
+        } },
+        finalScores: {
+          where: { deletedAt: null, isInvalidated: false, ...(finalScoreId && { id: finalScoreId }) }, orderBy: { id: "desc" }, take: 1,
+          select: {
+            id: true, eventId: true, finalScore: true, multipleChoiceScore: true, essayScore: true,
+            theorySessionParticipant: { select: { questionSnapshot: true } },
+            multipleChoiceCorrections: { where: { deletedAt: null }, orderBy: { id: "asc" }, select: {
+              multipleChoiceId: true, answer: true,
+              multipleChoice: { select: { question: true, image: true, a: true, b: true, c: true, d: true } },
+            } },
+            essayCorrections: { where: { deletedAt: null }, orderBy: { id: "asc" }, select: {
+              essayId: true, answer: true, score: true, checker: true,
+              checkerUser: { select: { name: true } },
+              essay: { select: { question: true, image: true } },
+            } },
+          },
+        },
+      },
+    });
+    const event = appRating?.applicationDoc?.eventUser?.event;
+    if (!appRating || (!event && !hasRole(req, ROLES.GENERAL_ADMIN)) || (hasRole(req, ROLES.CHECKER_ADMIN) && !hasRole(req, ROLES.GENERAL_ADMIN) && Number(event?.sector?.branchUnitId) !== Number(req.user.branchUnitId))) {
+      return res.status(404).json({ message: "Evidence is not available in your scope." });
+    }
+    const score = appRating.finalScores[0];
+    if (!score || (event && score.eventId != null && score.eventId !== event.id)) return res.status(409).json({ message: "This rating has no theory examination result." });
+
+    const safeFolderPart = (value) => String(value || "").trim().replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/\.+$/, "").slice(0, 80) || "Unknown";
+    const folder = `${safeFolderPart(appRating.applicationDoc.user?.name || appRating.applicationDoc.user?.nik)}-${safeFolderPart(appRating.rating?.rating)}`;
+    const entries = [];
+    const linked = [
+      ["ielp", appRating.applicationDoc.ielp],
+      ["medex", appRating.applicationDoc.medex],
+      ["logbook", appRating.applicationDoc.logbook],
+      ["license", appRating.applicationDoc.license],
+    ];
+    for (const [label, record] of linked) {
+      const file = await readEvidenceFile(record?.file);
+      if (!file.data) return res.status(409).json({ message: `${label.toUpperCase()} PDF cannot be included: ${file.reason}` });
+      if (file.data.subarray(0, 5).toString("ascii") !== "%PDF-") {
+        return res.status(409).json({ message: `${label.toUpperCase()} source file is not a PDF. Upload or link a PDF before downloading an all-PDF evidence bundle.` });
+      }
+      entries.push({ name: `${folder}/${label}.pdf`, data: file.data });
+    }
+    const snapshot = score.theorySessionParticipant?.questionSnapshot;
+    const allQuestions = [
+      ...(snapshot?.multipleChoice || []).flatMap((group) => group.questions || []),
+      ...(snapshot?.essay || []).flatMap((group) => group.questions || []),
+      ...score.multipleChoiceCorrections.map((item) => item.multipleChoice),
+      ...score.essayCorrections.map((item) => item.essay),
+    ];
+    const imageNameByPath = new Map();
+    const images = new Map();
+    for (const question of allQuestions) {
+      if (!question?.image || imageNameByPath.has(question.image)) continue;
+      const file = await readEvidenceFile(question.image);
+      if (!file.data) return res.status(409).json({ message: `A theory question image cannot be included: ${file.reason}` });
+      const name = `Im${imageNameByPath.size + 1}`;
+      imageNameByPath.set(question.image, name);
+      images.set(name, file.data);
+    }
+    const report = createTheoryEvidencePdf({ ...buildTheoryEvidenceData(score, appRating, event, imageNameByPath), images });
+    entries.push({ name: `${folder}/theory examination.pdf`, data: report });
+    const archive = createEvidenceZip(entries);
+    res.set({
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${folder.replace(/[^\x20-\x7e]/g, "_")}.zip"; filename*=UTF-8''${encodeURIComponent(`${folder}.zip`)}`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    });
+    return res.send(archive);
+  } catch (error) {
+    console.error("Evidence archive failed", error);
+    if (/Unsupported (JPEG|PNG)/.test(error.message || "")) return res.status(409).json({ message: "A theory question image format cannot be embedded in PDF. Convert that image to JPEG or PNG before downloading." });
+    return res.status(error.message?.includes("128 MB") ? 413 : 500).json({ message: "Unable to create the all-PDF evidence archive. Check linked files and question images, then try again." });
+  }
+};
 
 const getUserCheckerScore = async (req, res) => {
   const branchUnitId = req.user.branchUnitId
@@ -36,7 +284,9 @@ const getUserCheckerScore = async (req, res) => {
           },
           select: {
             id: true,
-            event: true
+            event: true,
+            theoryMode: true,
+            difficulty: true
           }
         }
       }
@@ -59,6 +309,7 @@ const postUserCheckerScore = async (req, res) => {
       },
       select: {
         id: true,
+        event: { select: { event: true, theoryMode: true, difficulty: true } },
         user: {
           select: {
             name: true
@@ -237,6 +488,11 @@ const getReExaminationHistory = async (req, res) => {
             createdAt: true,
           },
         },
+        examinationAttemptResets: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { id: true, attemptNumber: true, checkerNik: true, reason: true,
+            previousStatusId: true, voidedFinalScoreId: true, createdAt: true },
+        },
       },
     });
 
@@ -258,6 +514,7 @@ const getReExaminationHistory = async (req, res) => {
     const actorNiks = [
       ...appRating.examinationInvalidations.map((item) => item.invalidatedBy),
       ...appRating.finalScores.map((item) => item.invalidatedBy),
+      ...appRating.examinationAttemptResets.map((item) => item.checkerNik),
     ].filter(Boolean);
     const actors = actorNiks.length
       ? await prisma.user.findMany({
@@ -334,6 +591,9 @@ const getReExaminationHistory = async (req, res) => {
       rating: appRating.rating?.rating || null,
       currentStatus: appRating.status?.status || null,
       attempts,
+      checkerResets: appRating.examinationAttemptResets.map((item) => ({
+        ...item, checkerName: actorNameByNik.get(item.checkerNik) || item.checkerNik,
+      })),
       pendingReExamination:
         Boolean(latestInvalidation) && !hasAttemptAfterLatestInvalidation,
     });
@@ -442,6 +702,7 @@ const invalidateExaminationAttempt = async (req, res) => {
         where: { finalScoreId: currentScore.id, deletedAt: null },
         data: { deletedAt: now }
       });
+      await revokeCertificatesForFinalScore(tx, currentScore.id, "Examination attempt invalidated");
       await tx.essayCorrection.updateMany({
         where: { finalScoreId: currentScore.id, deletedAt: null },
         data: { deletedAt: now }
@@ -450,6 +711,9 @@ const invalidateExaminationAttempt = async (req, res) => {
         where: { finalScoreId: currentScore.id, deletedAt: null },
         data: { deletedAt: now }
       });
+      // The invalidated attempt must not carry its old question snapshot,
+      // autosaved answers, or deadline into the newly authorized attempt.
+      await tx.modeOneExamDraft.deleteMany({ where: { appRatingId, eventId: event.id } });
       await tx.monitorTime.deleteMany({ where: { appRatingId } });
       await tx.matsQuestionSelection.deleteMany({ where: { appRatingId, eventId: event.id } });
       await tx.appRating.update({ where: { id: appRatingId }, data: { statusId: retryStatusId } });
@@ -642,7 +906,7 @@ const grantPracticalRecheck = async (req, res) => {
                 event: {
                   select: {
                     id: true,
-                    passingGrade: true,
+                    practicalPassingGrade: true,
                     sector: { select: { branchUnitId: true } }
                   }
                 }
@@ -667,7 +931,7 @@ const grantPracticalRecheck = async (req, res) => {
       return res.status(409).json({ message: "A practical recheck has already been granted for this rating." });
     }
     const event = appRating.applicationDoc?.eventUser?.event;
-    if (!event || event.passingGrade == null) {
+    if (!event || event.practicalPassingGrade == null) {
       return res.status(409).json({ message: "The related event or passing grade is unavailable." });
     }
     if (Number(event.sector?.branchUnitId) !== Number(req.user.branchUnitId)) {
@@ -691,7 +955,7 @@ const grantPracticalRecheck = async (req, res) => {
           appRatingId,
           grantedBy: req.user.nik,
           reason,
-          passingGrade: event.passingGrade,
+          passingGrade: event.practicalPassingGrade,
           attempts: {
             create: appRating.practicalTests.map((test) => ({
               practicalTestId: test.id,
@@ -707,6 +971,7 @@ const grantPracticalRecheck = async (req, res) => {
         where: { finalScoreId: finalScore.id, deletedAt: null },
         data: { deletedAt: new Date() }
       });
+      await revokeCertificatesForFinalScore(tx, finalScore.id, "Practical re-examination required");
       return created;
     });
 
@@ -715,4 +980,4 @@ const grantPracticalRecheck = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-export { getUserCheckerScore, postUserCheckerScore, postUserCheckerScoreEvidance, getReExaminationHistory, invalidateExaminationAttempt, getUserCheckerPractical, postUserCheckerPractical, grantPracticalRecheck };
+export { getUserCheckerScore, postUserCheckerScore, postUserCheckerScoreEvidance, getTheoryExaminationReview, downloadRatingEvidence, getReExaminationHistory, invalidateExaminationAttempt, getUserCheckerPractical, postUserCheckerPractical, grantPracticalRecheck };

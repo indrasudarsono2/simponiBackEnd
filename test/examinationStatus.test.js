@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   EXAMINATION_STATUSES,
   deriveOverallExaminationStatus,
+  deriveMode1TheoryOutcome,
   deriveRatingExaminationStatus,
 } from "../services/examinationStatus.js";
 
@@ -16,6 +17,26 @@ const openRoom = {
   startDate: "2026-09-21T00:00:00.000Z",
   finishDate: "2026-09-21T08:00:00.000Z",
 };
+
+test("Mode 1 failure opens the first re-check and Easy repeats, while Hard stops after two attempts", () => {
+  assert.deepEqual(deriveMode1TheoryOutcome({ passed: false, difficulty: "HARD", attemptCount: 1 }), {
+    finalScoreStatusId: 6,
+    appRatingStatusId: 5,
+  });
+  assert.equal(deriveMode1TheoryOutcome({ passed: false, difficulty: "HARD", attemptCount: 2 }).appRatingStatusId, 6);
+  assert.equal(deriveMode1TheoryOutcome({ passed: false, difficulty: "EASY", attemptCount: 3 }).appRatingStatusId, 5);
+});
+
+test("passing a re-check closes theory instead of leaving its score in RECHECK", () => {
+  assert.deepEqual(deriveMode1TheoryOutcome({ passed: true, difficulty: "EASY", attemptCount: 2 }), {
+    finalScoreStatusId: 7,
+    appRatingStatusId: 7,
+  });
+  assert.deepEqual(deriveMode1TheoryOutcome({ passed: true, difficulty: "HARD", attemptCount: 2, waitingPracticalStatusId: 8 }), {
+    finalScoreStatusId: 8,
+    appRatingStatusId: 8,
+  });
+});
 
 test("completed examination is derived from the active final score", () => {
   const result = deriveRatingExaminationStatus({
@@ -51,6 +72,21 @@ test("failed theory attempt is still a completed attempt", () => {
   });
 
   assert.equal(result.status, EXAMINATION_STATUSES.COMPLETED);
+});
+
+test("re-check status takes precedence over the previous failed score", () => {
+  const result = deriveRatingExaminationStatus({
+    now,
+    event,
+    room: openRoom,
+    appRating: {
+      status: { status: "RECHECK" },
+      finalScores: [{ status: { status: "FAILED" }, finalScore: 61.1111 }],
+    },
+  });
+
+  assert.equal(result.status, EXAMINATION_STATUSES.IN_PROGRESS);
+  assert.equal(result.canStart, true);
 });
 
 test("checked essay is an in-progress examination ready for multiple choice", () => {

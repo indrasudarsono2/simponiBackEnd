@@ -1,6 +1,8 @@
 import prisma from "../lib/prisma.js";
 import config from "../utils/config.js";
 
+const MAX_GROUPS_PER_QUESTION = 5;
+
 const buildGroupedMultipleChoice = (questionGroup, multipleChoiceQuestionGroup) => {
   // Count selected questions per sector + questionGroup.
   const selectedCount = new Map();
@@ -201,9 +203,30 @@ const addMultipleChoiceGroups = async (req, res) => {
   try {
     const now = new Date();
     const { multipleChoiceId, questionGroupId, sectorId } = req.body;
+    const parsedMultipleChoiceId = Number(multipleChoiceId);
+    const parsedQuestionGroupIds = Array.isArray(questionGroupId)
+      ? questionGroupId.map(Number)
+      : [];
+    const parsedSectorIds = Array.isArray(sectorId) ? sectorId.map(Number) : [];
+
+    if (
+      !Number.isInteger(parsedMultipleChoiceId) ||
+      parsedMultipleChoiceId <= 0 ||
+      parsedQuestionGroupIds.length === 0 ||
+      parsedQuestionGroupIds.length > MAX_GROUPS_PER_QUESTION ||
+      parsedQuestionGroupIds.length !== parsedSectorIds.length ||
+      parsedQuestionGroupIds.some((id) => !Number.isInteger(id) || id <= 0) ||
+      parsedSectorIds.some((id) => !Number.isInteger(id) || id <= 0) ||
+      new Set(parsedQuestionGroupIds).size !== parsedQuestionGroupIds.length
+    ) {
+      return res.status(400).json({
+        message: "Select one to five distinct question groups.",
+      });
+    }
+
     const multipleChoice = await prisma.multipleChoice.findFirst({
       where: {
-        id: multipleChoiceId,
+        id: parsedMultipleChoiceId,
         branchUnitId: req.user.branchUnitId,
         deletedAt: null,
         isActive: true,
@@ -217,35 +240,57 @@ const addMultipleChoiceGroups = async (req, res) => {
       return res.status(400).json({ message: "Only active multiple choice questions can be assigned to groups." });
     }
 
-    const checkMultipleChoice = await prisma.mcQuestionGroup.findMany({
+    const validGroups = await prisma.questionGroup.findMany({
       where: {
-        multipleChoiceId: multipleChoiceId,
+        id: { in: parsedQuestionGroupIds },
+        kindOfQuestionId: 2,
         deletedAt: null,
-      }
+        subBranchUnitRating: {
+          sector: {
+            branchUnitId: req.user.branchUnitId,
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        id: true,
+        subBranchUnitRating: { select: { sectorId: true } },
+      },
     });
 
-    if(checkMultipleChoice){
-      await prisma.mcQuestionGroup.updateMany({
-        where: {
-          id: {
-            in: checkMultipleChoice.map((item) => item.id)
-          }
-        },
-        data: {
-          deletedAt: now
-        }
+    const validGroupMap = new Map(validGroups.map((group) => [
+      group.id,
+      group.subBranchUnitRating?.sectorId,
+    ]));
+    const selectionsAreValid = parsedQuestionGroupIds.every(
+      (id, index) => validGroupMap.get(id) === parsedSectorIds[index],
+    );
+
+    if (!selectionsAreValid || validGroups.length !== parsedQuestionGroupIds.length) {
+      return res.status(403).json({
+        message: "A selected group is outside your branch unit or does not match its sector.",
       });
     }
 
-    for (let i = 0; i < questionGroupId.length; i++) {
-      await prisma.mcQuestionGroup.create({
+    await prisma.$transaction(async (tx) => {
+      await tx.mcQuestionGroup.updateMany({
+        where: {
+          multipleChoiceId: parsedMultipleChoiceId,
+          deletedAt: null,
+        },
         data: {
-          multipleChoiceId: multipleChoiceId,
-          questionGroupId: questionGroupId[i],
-          sectorId: sectorId[i],
-        }
+          deletedAt: now,
+        },
       });
-    }
+
+      await tx.mcQuestionGroup.createMany({
+        data: parsedQuestionGroupIds.map((groupId, index) => ({
+          multipleChoiceId: parsedMultipleChoiceId,
+          questionGroupId: groupId,
+          sectorId: parsedSectorIds[index],
+        })),
+      });
+    });
 
     res.status(200).json({ success: true });
   } catch (error) {

@@ -5,6 +5,8 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { createSignedFileUrl } from "../middleware/privateFiles.js";
+import sanitizeHtml from "sanitize-html";
+import { issueCertificate, revokeCertificatesForFinalScore } from "../services/certificate.js";
 
 dayjs.extend(utc);
 
@@ -58,6 +60,7 @@ const getLatestPracticalExamSyncSelect = {
   errorMessage: true,
   echainRequestId: true,
   createdAt: true,
+  requestPayload: true,
 };
 
 const getPracticalExamForEchain = async (practicalTestId) => prisma.practicalTest.findFirst({
@@ -70,6 +73,8 @@ const getPracticalExamForEchain = async (practicalTestId) => prisma.practicalTes
     score: true,
     file: true,
     updatedAt: true,
+    recheckAttempts: { orderBy: { updatedAt: 'desc' }, take: 1,
+      select: { updatedAt: true, authorization: { select: { status: true } } } },
     kindOfPractical: { select: { kind: true } },
     checkerGroup: {
       select: {
@@ -82,9 +87,11 @@ const getPracticalExamForEchain = async (practicalTestId) => prisma.practicalTes
         },
       },
     },
+    groupMember: { select: { member: true, group: { select: { pic: true } } } },
     appRating: {
       select: {
         id: true,
+        practicalLicense: { select: { id: true, file: true, expiredDate: true } },
         ratingId: true,
         status: {
           select: {
@@ -127,7 +134,7 @@ const getPracticalExamForEchain = async (practicalTestId) => prisma.practicalTes
                     startDate: true,
                     finishDate: true,
                     forExpiredDate: true,
-                    passingGrade: true,
+                    practicalPassingGrade: true,
                   },
                 },
               },
@@ -188,6 +195,7 @@ const getPracticalRecheckForEchain = async (recheckAttemptId) => prisma.practica
     practicalTest: {
       select: {
         id: true,
+        groupMember: { select: { member: true, group: { select: { pic: true } } } },
         kindOfPractical: { select: { kind: true } },
       },
     },
@@ -198,6 +206,7 @@ const getPracticalRecheckForEchain = async (recheckAttemptId) => prisma.practica
         appRating: {
           select: {
             id: true,
+            practicalLicense: { select: { id: true, file: true, expiredDate: true } },
             ratingId: true,
             rating: {
               select: {
@@ -269,16 +278,20 @@ const buildPracticalExamEchainPayload = (practicalTest, origin) => {
   const event = applicationDoc?.eventUser?.event;
   const finalScore = appRating?.finalScores?.[0];
   const userRatingExpiredAt = finalScore?.userRatings?.[0]?.expireddate;
-  const ratingExpiredAt = userRatingExpiredAt || event?.forExpiredDate || null;
-  const signedFileUrl = practicalTest.file ? createSignedFileUrl(practicalTest.file) : null;
+  const ratingExpiredAt = appRating?.practicalLicense?.expiredDate || userRatingExpiredAt || event?.forExpiredDate || null;
+  const licenseFile = appRating?.practicalLicense?.file;
+  const signedFileUrl = licenseFile ? createSignedFileUrl(licenseFile) : null;
 
   return {
     profession: applicationDoc?.user?.professionInBranch?.profession?.profession || null,
-    practicalCheckedAt: toIsoStringOrNull(practicalTest.updatedAt || event?.startDate),
+    practicalCheckedAt: toIsoStringOrNull(
+      practicalTest.recheckAttempts?.[0]?.authorization?.status === 'SUCCESS'
+        ? practicalTest.recheckAttempts[0].updatedAt : practicalTest.updatedAt || event?.startDate,
+    ),
     rating: appRating?.rating?.rating || null,
     validUntil: toIsoStringOrNull(ratingExpiredAt),
-    file: practicalTest.file ? {
-      fileName: getFileName(practicalTest.file),
+    file: licenseFile ? {
+      fileName: getFileName(licenseFile),
       fileUrl: signedFileUrl ? `${origin}${signedFileUrl}` : null,
       fileMimeType: "application/pdf",
     } : null,
@@ -292,16 +305,17 @@ const buildPracticalRecheckEchainPayload = (attempt, origin) => {
   const event = applicationDoc?.eventUser?.event;
   const finalScore = appRating?.finalScores?.[0];
   const userRatingExpiredAt = finalScore?.userRatings?.[0]?.expireddate;
-  const ratingExpiredAt = userRatingExpiredAt || event?.forExpiredDate || null;
-  const signedFileUrl = attempt.file ? createSignedFileUrl(attempt.file) : null;
+  const ratingExpiredAt = appRating?.practicalLicense?.expiredDate || userRatingExpiredAt || event?.forExpiredDate || null;
+  const licenseFile = appRating?.practicalLicense?.file;
+  const signedFileUrl = licenseFile ? createSignedFileUrl(licenseFile) : null;
 
   return {
     profession: applicationDoc?.user?.professionInBranch?.profession?.profession || null,
     practicalCheckedAt: toIsoStringOrNull(attempt.updatedAt || attempt.authorization?.completedAt || event?.startDate),
     rating: appRating?.rating?.rating || null,
     validUntil: toIsoStringOrNull(ratingExpiredAt),
-    file: attempt.file ? {
-      fileName: getFileName(attempt.file),
+    file: licenseFile ? {
+      fileName: getFileName(licenseFile),
       fileUrl: signedFileUrl ? `${origin}${signedFileUrl}` : null,
       fileMimeType: "application/pdf",
     } : null,
@@ -314,8 +328,9 @@ const loadPracticalExamForEchainAction = async (practicalTestId, checkerNik, ori
   if (!practicalTest?.appRating) {
     return { status: 404, message: "Practical exam data was not found." };
   }
-  if (practicalTest.checkerGroup?.checker !== checkerNik) {
-    return { status: 403, message: "This practical exam is not assigned to you." };
+  if (practicalTest.groupMember?.group?.pic !== checkerNik ||
+      practicalTest.groupMember.member !== practicalTest.appRating.applicationDoc?.userNik) {
+    return { status: 403, message: "Only this member's assigned PIC can send the license." };
   }
   if (practicalTest.score == null) {
     return { status: 409, message: "Input the practical exam score before sending to e-chain." };
@@ -323,11 +338,11 @@ const loadPracticalExamForEchainAction = async (practicalTestId, checkerNik, ori
   if (practicalTest.appRating?.status?.status !== "SUCCESS") {
     return { status: 409, message: "Only SUCCESS practical exam data can be sent to e-chain." };
   }
-  if (!practicalTest.file) {
-    return { status: 409, message: "Upload the practical exam PDF file before sending to e-chain." };
+  if (!practicalTest.appRating.practicalLicense?.file) {
+    return { status: 409, message: "Upload the rating license PDF before sending to e-chain." };
   }
-  if (!isPdfFile(practicalTest.file)) {
-    return { status: 409, message: "Only PDF practical exam files can be sent to e-chain." };
+  if (!isPdfFile(practicalTest.appRating.practicalLicense.file)) {
+    return { status: 409, message: "Only a PDF license can be sent to e-chain." };
   }
 
   return {
@@ -342,8 +357,9 @@ const loadPracticalRecheckForEchainAction = async (recheckAttemptId, checkerNik,
   if (!attempt?.authorization?.appRating) {
     return { status: 404, message: "Practical recheck data was not found." };
   }
-  if (attempt.checkerGroup?.checker !== checkerNik) {
-    return { status: 403, message: "This practical recheck is not assigned to you." };
+  if (attempt.practicalTest?.groupMember?.group?.pic !== checkerNik ||
+      attempt.practicalTest.groupMember.member !== attempt.authorization.appRating.applicationDoc?.userNik) {
+    return { status: 403, message: "Only this member's assigned PIC can send the license." };
   }
   if (attempt.score == null) {
     return { status: 409, message: "Input the practical recheck score before sending to e-chain." };
@@ -351,11 +367,11 @@ const loadPracticalRecheckForEchainAction = async (recheckAttemptId, checkerNik,
   if (attempt.authorization.status !== "SUCCESS") {
     return { status: 409, message: "Only SUCCESS practical recheck data can be sent to e-chain." };
   }
-  if (!attempt.file) {
-    return { status: 409, message: "Upload the practical recheck PDF file before sending to e-chain." };
+  if (!attempt.authorization.appRating.practicalLicense?.file) {
+    return { status: 409, message: "Upload the rating license PDF before sending to e-chain." };
   }
-  if (!isPdfFile(attempt.file)) {
-    return { status: 409, message: "Only PDF practical recheck files can be sent to e-chain." };
+  if (!isPdfFile(attempt.authorization.appRating.practicalLicense.file)) {
+    return { status: 409, message: "Only a PDF license can be sent to e-chain." };
   }
 
   return {
@@ -363,6 +379,14 @@ const loadPracticalRecheckForEchainAction = async (recheckAttemptId, checkerNik,
     attempt,
     payload: buildPracticalRecheckEchainPayload(attempt, origin),
   };
+};
+
+const licenseAlreadySent = async (appRatingId, licenseFileName) => {
+  const sent = await prisma.practicalExamEchainSync.findMany({
+    where: { practicalTest: { appRatingId }, status: 'SUCCESS' },
+    select: { requestPayload: true },
+  });
+  return sent.some((item) => item.requestPayload?.file?.fileName === licenseFileName);
 };
 
 const getPractical = async(req, res) => {
@@ -389,11 +413,7 @@ const getPractical = async(req, res) => {
                 },
                 groupMember: {
                   group: {
-                    checkerGroups: {
-                      some: {
-                        checker: userN
-                      }
-                    }
+                    pic: userN
                   }
                 }
               }
@@ -412,7 +432,7 @@ const getPractical = async(req, res) => {
         eventUser: {
           select: {
             event: {
-              select: { passingGrade: true }
+              select: { event: true, forExpiredDate: true, passingGrade: true, practicalPassingGrade: true }
             }
           }
         },
@@ -426,12 +446,14 @@ const getPractical = async(req, res) => {
                 isInvalidated: false,
                 statusId: {
                   in: eligibleStatusIds
-                }
+                },
+                groupMember: { group: { pic: userN } }
               }
             }
           },
           select: {
             id: true,
+            practicalLicense: { select: { id: true, file: true, expiredDate: true } },
             rating: {
               where: {
                 deletedAt: null
@@ -455,6 +477,7 @@ const getPractical = async(req, res) => {
               take: 1,
               select: {
                 statusId: true,
+                finalScore: true,
                 status: {
                   select: { status: true }
                 }
@@ -463,10 +486,9 @@ const getPractical = async(req, res) => {
             practicalTests: {
               where: {
                 deletedAt: null,
-                checkerGroup: {
-                  checker: userN
-                }
+                groupMember: { group: { pic: userN } }
               },
+              orderBy: { id: 'asc' },
               select: {
                 id: true,
                 score: true,
@@ -497,7 +519,7 @@ const getPractical = async(req, res) => {
     const rechecks = await prisma.practicalRecheckAttempt.findMany({
       where: {
         authorization: { status: { in: ["ACTIVE", "SUCCESS", "FAILED"] } },
-        checkerGroup: { is: { checker: userN, deletedAt: null } }
+        practicalTest: { groupMember: { group: { pic: userN } } }
       },
       select: {
         id: true,
@@ -526,12 +548,13 @@ const getPractical = async(req, res) => {
             appRating: {
               select: {
                 id: true,
+                practicalLicense: { select: { id: true, file: true, expiredDate: true } },
                 rating: { select: { rating: true } },
                 applicationDoc: {
                   select: {
                     number: true,
                     user: { select: { name: true } },
-                    eventUser: { select: { event: { select: { event: true } } } }
+                    eventUser: { select: { event: { select: { event: true, forExpiredDate: true } } } }
                   }
                 }
               }
@@ -552,8 +575,9 @@ const putPractical = async (req, res) => {
   try {
     const {id} = req.params
     const {score} = req.body
-    const files = req.files
-    const file = files && files.length > 0 ? files[0] : null
+    const files = Array.isArray(req.files) ? req.files : [];
+    const file = files.find((item) => item.fieldname === 'evaluationFile') || null;
+    const licenseFile = files.find((item) => item.fieldname === 'licenseFile') || null;
     const practicalTestId = Number(id);
     const numericScore = Number(score);
 
@@ -563,8 +587,11 @@ const putPractical = async (req, res) => {
     if (!Number.isInteger(numericScore) || numericScore < 1 || numericScore > 100) {
       return res.status(400).json({ message: "Score must be an integer between 1 and 100." });
     }
-    if (file && !isPdfUpload(file)) {
-      return res.status(400).json({ message: "Practical exam evidence file must be PDF." });
+    if (files.length > 2 || files.some((item) => !['evaluationFile', 'licenseFile'].includes(item.fieldname)) ||
+        files.filter((item) => item.fieldname === 'evaluationFile').length > 1 ||
+        files.filter((item) => item.fieldname === 'licenseFile').length > 1 ||
+        files.some((item) => !isPdfUpload(item))) {
+      return res.status(400).json({ message: "Provide at most one PDF evaluation sheet and one PDF license." });
     }
 
     const existingPractialTest = await prisma.practicalTest.findFirst({
@@ -576,11 +603,13 @@ const putPractical = async (req, res) => {
         score: true,
         file: true,
         appRatingId: true,
+        groupMember: { select: { member: true, group: { select: { pic: true } } } },
         checkerGroup: { select: { checker: true } },
         appRating: {
           select: {
             statusId: true,
             ratingId: true,
+            practicalLicenseId: true,
             finalScores: {
               where: {
                 deletedAt: null,
@@ -588,10 +617,7 @@ const putPractical = async (req, res) => {
               },
               orderBy: { id: "desc" },
               take: 1,
-              select: {
-                id: true,
-                statusId: true
-              }
+              select: { id: true, statusId: true }
             },
             applicationDoc: {
               select: {
@@ -601,7 +627,8 @@ const putPractical = async (req, res) => {
                     event: {
                       select: {
                         id: true,
-                        passingGrade: true,
+                        event: true,
+                        practicalPassingGrade: true,
                         forExpiredDate: true,
                         isPractical: true,
                         isSimulator: true
@@ -619,22 +646,35 @@ const putPractical = async (req, res) => {
     if (!existingPractialTest?.appRatingId || !existingPractialTest.appRating) {
       return res.status(404).json({ message: "Practical test was not found." });
     }
-    if (existingPractialTest.checkerGroup?.checker !== req.user.nik) {
-      return res.status(403).json({ message: "This practical test is not assigned to you." });
+    if (existingPractialTest.groupMember?.group?.pic !== req.user.nik ||
+        existingPractialTest.groupMember.member !== existingPractialTest.appRating.applicationDoc?.userNik) {
+      return res.status(403).json({ message: "Only this member's assigned PIC may update the practical exam." });
     }
 
     const event = existingPractialTest.appRating.applicationDoc?.eventUser?.event;
     if (!event || (!event.isPractical && !event.isSimulator)) {
       return res.status(409).json({ message: "This event does not require a practical examination." });
     }
-    if (event.passingGrade == null || !Number.isFinite(Number(event.passingGrade))) {
+    if (!event.forExpiredDate) {
+      return res.status(409).json({ message: "Set the event expiration date before creating the examinee's license." });
+    }
+    if (!event.event || !existingPractialTest.appRating.applicationDoc?.userNik) {
+      return res.status(409).json({ message: "The event name and examinee are required for the license record." });
+    }
+    if (!file && !existingPractialTest.file) {
+      return res.status(400).json({ message: "An evaluation sheet PDF is required for this practical exam." });
+    }
+    if (!licenseFile && !existingPractialTest.appRating.practicalLicenseId) {
+      return res.status(400).json({ message: "A license PDF is required for this rating." });
+    }
+    if (event.practicalPassingGrade == null || !Number.isFinite(Number(event.practicalPassingGrade))) {
       return res.status(409).json({ message: "The event passing grade is not configured." });
     }
     const confirmsFailingScore = req.body?.confirmBelowPassingGrade === true
       || req.body?.confirmBelowPassingGrade === "true";
-    if (numericScore < Number(event.passingGrade) && !confirmsFailingScore) {
+    if (numericScore < Number(event.practicalPassingGrade) && !confirmsFailingScore) {
       return res.status(400).json({
-        message: `Score ${numericScore} is below the passing grade of ${event.passingGrade}. Explicit confirmation is required.`
+        message: `Score ${numericScore} is below the practical passing grade of ${event.practicalPassingGrade}. Explicit confirmation is required.`
       });
     }
 
@@ -666,6 +706,16 @@ const putPractical = async (req, res) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      if (licenseFile) {
+        const license = await tx.license.create({ data: {
+          userNik: existingPractialTest.appRating.applicationDoc?.userNik,
+          note: event.event,
+          expiredDate: event.forExpiredDate,
+          file: `/uploads/license/${licenseFile.filename}`,
+        } });
+        await tx.appRating.update({ where: { id: existingPractialTest.appRatingId },
+          data: { practicalLicenseId: license.id } });
+      }
       await tx.practicalTest.update({
         where: { id: practicalTestId },
         data: putPrac
@@ -694,10 +744,14 @@ const putPractical = async (req, res) => {
         throw new Error("A valid theory result is required before practical completion.");
       }
 
+      if (existingPractialTest.score != null && Number(existingPractialTest.score) !== numericScore) {
+        await revokeCertificatesForFinalScore(tx, finalScore.id, "Practical score was changed");
+      }
+
       const allCompleted = appRating.practicalTests.length > 0
         && appRating.practicalTests.every((test) => test.score != null);
       const allPassed = allCompleted
-        && appRating.practicalTests.every((test) => Number(test.score) >= Number(event.passingGrade));
+        && appRating.practicalTests.every((test) => Number(test.score) >= Number(event.practicalPassingGrade));
       const overallStatusId = !allCompleted
         ? waitingPracticalStatus.id
         : allPassed ? 7 : 6;
@@ -726,7 +780,9 @@ const putPractical = async (req, res) => {
             }
           });
         }
+        await issueCertificate(tx, finalScore.id);
       } else {
+        await revokeCertificatesForFinalScore(tx, finalScore.id, "Practical result no longer passes");
         await tx.userRating.updateMany({
           where: { finalScoreId: finalScore.id, deletedAt: null },
           data: { deletedAt: new Date() }
@@ -754,27 +810,96 @@ const putPractical = async (req, res) => {
   }
 }
 
+const safeReviewHtml = (value) => sanitizeHtml(String(value || ""), {
+  allowedTags: ["p", "br", "strong", "b", "em", "i", "s", "ul", "ol", "li", "blockquote", "code", "pre", "h1", "h2"],
+  allowedAttributes: {},
+});
+
+const getTheoryReview = async (req, res) => {
+  try {
+    const appRatingId = Number(req.params.appRatingId);
+    if (!Number.isInteger(appRatingId) || appRatingId < 1) return res.status(400).json({ message: "Invalid rating ID." });
+    const score = await prisma.finalScore.findFirst({
+      where: { appRatingId, deletedAt: null, isInvalidated: false },
+      orderBy: { id: "desc" },
+      select: {
+        id: true, finalScore: true,
+        status: { select: { status: true } },
+        event: { select: { event: true, passingGrade: true, isPractical: true, isSimulator: true, sector: { select: { branchUnitId: true } } } },
+        groupMember: { select: { group: { select: { pic: true, checkerGroups: { where: { checker: req.user.nik, deletedAt: null }, select: { id: true } } } } } },
+        appRating: { select: { rating: { select: { rating: true } }, applicationDoc: { select: { number: true, user: { select: { name: true } } } } } },
+        theorySessionParticipant: { select: { questionSnapshot: true } },
+        essayCorrections: { where: { deletedAt: null }, orderBy: { id: "asc" }, select: { essayId: true, answer: true, essay: { select: { question: true, image: true } } } },
+        multipleChoiceCorrections: { where: { deletedAt: null, isTrue: false }, orderBy: { id: "asc" }, select: { multipleChoiceId: true, answer: true, multipleChoice: { select: { question: true, image: true, a: true, b: true, c: true, d: true } } } },
+      },
+    });
+    if (!score || (score.groupMember?.group?.pic !== req.user.nik && !score.groupMember?.group?.checkerGroups?.length) ||
+        (req.user.branchUnitId && score.event?.sector?.branchUnitId !== req.user.branchUnitId)) {
+      return res.status(404).json({ message: "Theory result not found for this checker." });
+    }
+    if (!score.event || (!score.event.isPractical && !score.event.isSimulator) ||
+        score.status?.status === "CHECKING ESSAY" || Number(score.finalScore) < Number(score.event.passingGrade)) {
+      return res.status(409).json({ message: "This rating has not passed theory examination for practical review." });
+    }
+    const snapshot = score.theorySessionParticipant?.questionSnapshot;
+    const snapshotEssays = new Map((snapshot?.essay || []).flatMap((group) => group.questions || []).map((question) => [question.id, question]));
+    const snapshotMultipleChoice = new Map((snapshot?.multipleChoice || []).flatMap((group) => group.questions || []).map((question) => [question.id, question]));
+    res.json({
+      finalScoreId: score.id,
+      event: score.event.event || null,
+      reviewedBy: { name: req.user.name || req.user.nik, nik: req.user.nik },
+      applicationNumber: score.appRating?.applicationDoc?.number || null,
+      name: score.appRating?.applicationDoc?.user?.name || null,
+      rating: score.appRating?.rating?.rating || null,
+      incorrectMultipleChoice: score.multipleChoiceCorrections.map((item) => {
+        const question = snapshotMultipleChoice.get(item.multipleChoiceId) || item.multipleChoice;
+        const answerKey = String(item.answer || "").toLowerCase();
+        return {
+          id: item.multipleChoiceId,
+          question: safeReviewHtml(question?.question),
+          image: question?.image || null,
+          selectedAnswer: ["a", "b", "c", "d"].includes(answerKey) ? safeReviewHtml(question?.[answerKey]) : null,
+        };
+      }),
+      essay: score.essayCorrections.map((item) => {
+        const question = snapshotEssays.get(item.essayId) || item.essay;
+        return { id: item.essayId, question: safeReviewHtml(question?.question), image: question?.image || null, answer: safeReviewHtml(item.answer) };
+      }),
+    });
+  } catch (error) {
+    console.error("Theory review failed", error);
+    res.status(500).json({ message: "Unable to load theory review." });
+  }
+};
+
 const putPracticalRecheck = async (req, res) => {
   try {
     const id = Number(req.params.id);
     const score = Number(req.body?.score);
-    const file = req.files?.[0] || null;
+    const files = Array.isArray(req.files) ? req.files : [];
+    const file = files.find((item) => item.fieldname === 'evaluationFile') || null;
+    const licenseFile = files.find((item) => item.fieldname === 'licenseFile') || null;
     if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(score) || score < 1 || score > 100) {
       return res.status(400).json({ message: "A valid recheck and score from 1 to 100 are required." });
     }
-    if (!file) return res.status(400).json({ message: "Recheck evidence file is required." });
-    if (!isPdfUpload(file)) return res.status(400).json({ message: "Recheck evidence file must be PDF." });
+    if (files.length > 2 || files.some((item) => !['evaluationFile', 'licenseFile'].includes(item.fieldname)) ||
+        files.filter((item) => item.fieldname === 'evaluationFile').length > 1 ||
+        files.filter((item) => item.fieldname === 'licenseFile').length > 1 ||
+        files.some((item) => !isPdfUpload(item))) {
+      return res.status(400).json({ message: "Provide at most one PDF evaluation sheet and one PDF license." });
+    }
 
     const attempt = await prisma.practicalRecheckAttempt.findFirst({
       where: {
         id,
         authorization: { status: { in: ["ACTIVE", "SUCCESS", "FAILED"] } },
-        checkerGroup: { is: { checker: req.user.nik, deletedAt: null } }
+        practicalTest: { groupMember: { group: { pic: req.user.nik } } }
       },
       select: {
         id: true,
         score: true,
         file: true,
+        practicalTest: { select: { groupMember: { select: { member: true } } } },
         authorizationId: true,
         authorization: {
           select: {
@@ -784,10 +909,11 @@ const putPracticalRecheck = async (req, res) => {
             appRating: {
               select: {
                 ratingId: true,
+                practicalLicenseId: true,
                 applicationDoc: {
                   select: {
                     userNik: true,
-                    eventUser: { select: { event: { select: { id: true, forExpiredDate: true } } } }
+                    eventUser: { select: { event: { select: { id: true, event: true, forExpiredDate: true } } } }
                   }
                 },
                 finalScores: {
@@ -802,22 +928,45 @@ const putPracticalRecheck = async (req, res) => {
         }
       }
     });
-    if (!attempt) return res.status(404).json({ message: "Practical recheck was not found or is not assigned to you." });
+    if (!attempt || attempt.practicalTest?.groupMember?.member !== attempt.authorization.appRating.applicationDoc?.userNik) {
+      return res.status(404).json({ message: "Practical recheck was not found or is not assigned to your PIC group." });
+    }
+
+    const event = attempt.authorization.appRating.applicationDoc?.eventUser?.event;
+    if (!event?.forExpiredDate) return res.status(409).json({ message: "Set the event expiration date before creating the examinee's license." });
+    if (!event.event || !attempt.authorization.appRating.applicationDoc?.userNik) {
+      return res.status(409).json({ message: "The event name and examinee are required for the license record." });
+    }
+    if (!file && !attempt.file) return res.status(400).json({ message: "An evaluation sheet PDF is required for this recheck." });
+    if (!licenseFile && !attempt.authorization.appRating.practicalLicenseId) {
+      return res.status(400).json({ message: "A license PDF is required for this rating." });
+    }
+
+    const saveRatingLicense = async (tx) => {
+      if (!licenseFile) return;
+      const license = await tx.license.create({ data: {
+        userNik: attempt.authorization.appRating.applicationDoc?.userNik,
+        note: event.event,
+        expiredDate: event.forExpiredDate,
+        file: `/uploads/license/${licenseFile.filename}`,
+      } });
+      await tx.appRating.update({ where: { id: attempt.authorization.appRatingId }, data: { practicalLicenseId: license.id } });
+    };
 
     const passingGrade = Number(attempt.authorization.passingGrade);
-    const storedFile = `/uploads/practicalTest/${file.filename}`;
+    const storedFile = file ? `/uploads/practicalTest/${file.filename}` : attempt.file;
 
     if (attempt.authorization.status !== "ACTIVE") {
       if (Number(attempt.score) !== score) {
         return res.status(409).json({ message: "Completed practical recheck score cannot be changed. Only the PDF file can be updated." });
       }
 
-      await prisma.practicalRecheckAttempt.update({
-        where: { id },
-        data: { file: storedFile }
+      await prisma.$transaction(async (tx) => {
+        await saveRatingLicense(tx);
+        await tx.practicalRecheckAttempt.update({ where: { id }, data: { file: storedFile } });
       });
 
-      if (attempt.file) {
+      if (file && attempt.file) {
         const oldFile = path.join(process.cwd(), attempt.file);
         if (fs.existsSync(oldFile)) {
           await fs.promises.unlink(oldFile);
@@ -838,10 +987,10 @@ const putPracticalRecheck = async (req, res) => {
     }
 
     const finalScore = attempt.authorization.appRating.finalScores[0];
-    const event = attempt.authorization.appRating.applicationDoc?.eventUser?.event;
     if (!finalScore || !event) return res.status(409).json({ message: "The related examination result is unavailable." });
 
     const result = await prisma.$transaction(async (tx) => {
+      await saveRatingLicense(tx);
       await tx.practicalRecheckAttempt.update({ where: { id }, data: { score, file: storedFile } });
       const authorization = await tx.practicalRecheckAuthorization.findUnique({
         where: { id: attempt.authorizationId },
@@ -871,11 +1020,12 @@ const putPracticalRecheck = async (req, res) => {
             }
           });
         }
+        await issueCertificate(tx, finalScore.id);
       }
       return { allCompleted: true, allPassed, overallStatus: allPassed ? "SUCCESS" : "FAILED" };
     });
 
-    if (attempt.file) {
+    if (file && attempt.file) {
       const oldFile = path.join(process.cwd(), attempt.file);
       if (fs.existsSync(oldFile)) {
         await fs.promises.unlink(oldFile);
@@ -956,6 +1106,9 @@ const sendPracticalExamToEchain = async (req, res) => {
     const practicalResult = await loadPracticalExamForEchainAction(practicalTestId, req.user.nik, getRequestOrigin(req));
     if (practicalResult.status !== 200) {
       return res.status(practicalResult.status).json({ success: false, message: practicalResult.message });
+    }
+    if (await licenseAlreadySent(practicalResult.practicalTest.appRating.id, practicalResult.payload.file.fileName)) {
+      return res.status(409).json({ success: false, message: 'This rating license has already been sent to e-chain.' });
     }
 
     const baseUrl = process.env.ECHAIN_BASE_URL;
@@ -1093,6 +1246,9 @@ const sendPracticalRecheckToEchain = async (req, res) => {
     if (recheckResult.status !== 200) {
       return res.status(recheckResult.status).json({ success: false, message: recheckResult.message });
     }
+    if (await licenseAlreadySent(recheckResult.attempt.authorization.appRating.id, recheckResult.payload.file.fileName)) {
+      return res.status(409).json({ success: false, message: 'This rating license has already been sent to e-chain.' });
+    }
 
     const practicalTestId = recheckResult.attempt.practicalTestId;
     const payload = recheckResult.payload;
@@ -1222,4 +1378,4 @@ const sendPracticalRecheckToEchain = async (req, res) => {
   }
 };
 
-export {getPractical, putPractical, putPracticalRecheck, getPracticalExamEchainPayload, getPracticalRecheckEchainPayload, sendPracticalExamToEchain, sendPracticalRecheckToEchain};
+export {getPractical, getTheoryReview, putPractical, putPracticalRecheck, getPracticalExamEchainPayload, getPracticalRecheckEchainPayload, sendPracticalExamToEchain, sendPracticalRecheckToEchain, buildPracticalExamEchainPayload, buildPracticalRecheckEchainPayload};

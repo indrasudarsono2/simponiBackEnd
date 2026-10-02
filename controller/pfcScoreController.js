@@ -180,6 +180,8 @@ const getScoreRecap = async (req, res) => {
         event: {
           select: {
             event: true,
+            theoryMode: true,
+            difficulty: true,
             startDate: true,
             finishDate: true,
             passingGrade: true,
@@ -209,7 +211,21 @@ const getScoreRecap = async (req, res) => {
                 medex: true,
                 logbook: true,
                 license: true,
-                appRatings: { include: { rating: true } },
+                appRatings: {
+                  where: { deletedAt: null },
+                  include: {
+                    rating: true,
+                    proposalLetter: {
+                      select: {
+                        id: true,
+                        status: true,
+                        content: true,
+                        validatedAt: true,
+                        supervisor: { select: { name: true } }
+                      }
+                    }
+                  }
+                },
                 eventUser: {
                   include: {
                     event: { include: { remarkDoc: true } }

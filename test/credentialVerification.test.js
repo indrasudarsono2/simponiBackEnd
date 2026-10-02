@@ -48,6 +48,19 @@ test("manual credential workflow prohibits self-assignment and self-verification
   assert.doesNotMatch(verificationController, /new Set\(\["CHECKER",\s*"GENERAL CHECKER"/);
 });
 
+test("IELP and MEDEX checker selection is limited to the applicant's assigned branch unit", () => {
+  const verification = fs.readFileSync(new URL("../controller/credentialVerificationController.js", import.meta.url), "utf8");
+  const ielp = fs.readFileSync(new URL("../controller/ielpUserController.js", import.meta.url), "utf8");
+  const medex = fs.readFileSync(new URL("../controller/medexUserController.js", import.meta.url), "utf8");
+
+  for (const controller of [verification, ielp, medex]) {
+    assert.match(controller, /req\.user\.branchUnitId\s*==\s*null/);
+    assert.match(controller, /branchUnitId:\s*req\.user\.branchUnitId/);
+  }
+  assert.doesNotMatch(verification, /role:\s*"GENERAL CHECKER"/);
+  assert.doesNotMatch(verification, /checkerRatings:\s*\{\s*some:/);
+});
+
 test("IELP validity is derived from level and released date", () => {
   assert.equal(normalizeIelpValidity({ level: "4", released: "2026-09-08" }).expired.toISOString(), "2029-09-08T23:59:59.999Z");
   assert.equal(normalizeIelpValidity({ level: "5", released: "2026-09-08" }).expired.toISOString(), "2032-09-08T23:59:59.999Z");

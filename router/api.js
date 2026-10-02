@@ -1,5 +1,14 @@
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 const router = express.Router();
+const clockLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 1200,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user.nik,
+  message: { success: false, message: 'Clock updates are temporarily limited. Please try again shortly.' },
+});
 
 import { authenticateToken } from '../middleware/auth.js';
 import { enforceCsrf } from '../middleware/csrf.js';
@@ -10,6 +19,7 @@ import { sanitizeRichText, sanitizeRichTextResponses } from '../middleware/sanit
 import { signFileUrlsInJson } from '../middleware/privateFiles.js';
 
 import * as monitorTime from '../controller/monitorTimeController.js'
+import { saveModeOneDraft } from '../services/modeOneDraft.js'
 import * as profileController from '../controller/profileController.js'
 import * as regionalController from '../controller/regionalController.js';
 import * as branchController from '../controller/branchController.js';
@@ -29,6 +39,7 @@ import * as essayGroupController from '../controller/essayGroupController.js';
 import * as multipleChoiceGroupController from '../controller/multipleChoiceGroupController.js';
 import * as sessionController from '../controller/sessionController.js'
 import * as eventController from '../controller/eventController.js'
+import * as passingGradeStandardController from '../controller/passingGradeStandardController.js'
 import * as authController from '../controller/authController.js'
 import * as groupController from '../controller/groupController.js'
 import * as eventQuestionController from '../controller/eventQuestionController.js'
@@ -49,15 +60,20 @@ import * as checkerRatingController from '../controller/checkerRatingController.
 import * as professionInBranchController from '../controller/professionInBranchController.js'
 import * as userBranchUnitController from '../controller/userBranchUnitController.js'
 import * as applicationDocumentController from '../controller/applicationDocumentController.js'
+import * as ojtiRecommendationController from '../controller/ojtiRecommendationController.js'
+import * as proposalLetterController from '../controller/proposalLetterController.js'
 import * as verificationController from '../controller/verificationController.js'
 import * as dashboardController from '../controller/dashboardController.js'
+import * as operationalGuideController from '../controller/operationalGuideController.js'
 import * as tokenController from '../controller/tokenController.js'
 import * as examinationController from '../controller/examintaionController.js'
 import * as roomController from '../controller/roomController.js'
 import * as performanceCheckController from '../controller/performanceCheckController.js'
+import * as checkerExamResetController from '../controller/checkerExamResetController.js'
 import * as practicalExamController from '../controller/practicalExamController.js'
 import * as previewController from '../controller/previewController.js'
 import * as scoreUserController from '../controller/scoreUserController.js'
+import * as certificateController from '../controller/certificateController.js'
 import * as scoreCheckerController from '../controller/scoreCheckerController.js'
 import * as dataCheckerController from '../controller/dataCheckerController.js'
 import * as checkerHistoryController from '../controller/checkerHistoryController.js'
@@ -84,8 +100,11 @@ import * as lhdReportController from '../controller/lhdReportController.js'
 import * as otherReportController from '../controller/otherReportController.js'
 import * as pfcScoreController from '../controller/pfcScoreController.js'
 import * as pfcIndividualController from '../controller/pfcIndividualController.js'
+import * as pfcBranchUnitController from '../controller/pfcBranchUnitController.js'
 import * as credentialVerificationController from '../controller/credentialVerificationController.js'
 import * as credentialHistoryController from '../controller/credentialHistoryController.js'
+import * as questionReviewController from '../controller/questionReviewController.js'
+import * as theorySessionController from '../controller/theorySessionController.js'
 
 import upload, { uploadBriefing, uploadCompetence, uploadCsv, uploadEssay, uploadEvent, uploadIelp, uploadLicense, uploadlogbookUser, uploadMedex, uploadMultipleChoice, uploadPracticalTest, uploadPreview, uploadRoom } from '../lib/multer.js'
 
@@ -97,6 +116,7 @@ router.get('/auth/airnav/start', authController.startAirnavLogin)
 router.get('/auth/airnav/callback', authController.completeAirnavLogin)
 router.post('/integrations/e-chain/ielp-user/verified', ielpUserController.receiveIelpUserVerifiedFromEchain)
 router.post('/integrations/e-chain/medex-user/verified', medexUserController.receiveMedexUserVerifiedFromEchain)
+router.get('/certificates/verify/:publicId', rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false }), certificateController.verifyCertificate)
 
 // Apply authentication middleware to all routes below this line
 router.use(authenticateToken)
@@ -119,6 +139,7 @@ router.put('/profile/:id', profileController.editProfile)
 router.post('/profile/change-password', profileController.changePassword)
 
 router.get('/dashboardOperational', dashboardController.getDashboardOperational)
+router.get('/operationalGuide', requireRole(ROLES.OPERATIONAL), operationalGuideController.getOperationalGuide)
 router.get('/dashboardGeneralAdmin', dashboardController.getDashboardGeneralAdmin)
 router.get('/dashboardBranchAdmin', dashboardController.getDashboardBranchAdmin)
 router.get('/dashboardBranchUnitAdmin', dashboardController.getDashboardBranchUnitAdmin)
@@ -216,6 +237,8 @@ router.put('/sessions/:id', sessionController.getSesionById)
 router.delete('/sessions/:id', sessionController.deleteSessionById)
 
 router.get('/events', eventController.getEvents)
+router.get('/passingGradeStandard', passingGradeStandardController.getPassingGradeStandard)
+router.put('/passingGradeStandard', passingGradeStandardController.updatePassingGradeStandard)
 // Accept any single file with any field name
 router.post('/events', uploadEvent.any(), eventController.addEvents)
 router.put('/events/:id', uploadEvent.any(), eventController.getEventById)
@@ -234,6 +257,18 @@ router.get('/eventQuestions', eventQuestionController.getEventQuestions);
 router.post('/eventQuestions', eventQuestionController.addEventQuestions)
 router.put('/eventQuestions/:id', eventQuestionController.getEventQuestionById)
 router.delete('/eventQuestions/:id', eventQuestionController.deleteEventQuestionId)
+
+router.get('/theorySessions/lead/events', requireRole(ROLES.CHECKER_EXAMINATION_LEAD), theorySessionController.listLeadEvents)
+router.get('/theorySessions/lead/clocks', requireRole(ROLES.CHECKER_EXAMINATION_LEAD), clockLimiter, theorySessionController.listLeadClocks)
+router.get('/theorySessions/lead', requireRole(ROLES.CHECKER_EXAMINATION_LEAD), theorySessionController.listLeadSessions)
+router.post('/theorySessions', requireRole(ROLES.CHECKER_EXAMINATION_LEAD), theorySessionController.createSession)
+router.post('/theorySessions/:id/control/:action', requireRole(ROLES.CHECKER_EXAMINATION_LEAD), theorySessionController.controlSession)
+router.get('/theorySessions/mine', requireRole(ROLES.OPERATIONAL), theorySessionController.listMySessions)
+router.get('/theorySessions/:id/clock', clockLimiter, theorySessionController.getSessionClock)
+router.post('/theorySessions/:id/choose-rating', requireRole(ROLES.OPERATIONAL), theorySessionController.chooseRating)
+router.get('/theorySessions/:id/attempt', requireRole(ROLES.OPERATIONAL), theorySessionController.getAttempt)
+router.patch('/theorySessions/:id/draft', requireRole(ROLES.OPERATIONAL), theorySessionController.saveDraft)
+router.post('/theorySessions/:id/submit', requireRole(ROLES.OPERATIONAL), theorySessionController.submitPart)
 
 router.get('/licenseUser', licenseUserController.getLicenseUser)
 router.post('/licenseUser/sync-echain', requireEchainAccount, licenseUserController.syncLicenseFromEchain)
@@ -310,6 +345,15 @@ router.put('/professionInBranch/:id', professionInBranchController.getProfession
 router.delete('/professionInBranch/:id', professionInBranchController.deleteProfessionById)
 
 router.get('/applicationDocument', applicationDocumentController.getApplicationDoc)
+router.get('/ojtiRecommendations/eligible', requireRole(ROLES.OPERATIONAL), ojtiRecommendationController.listEligibleOjti)
+router.get('/ojtiRecommendations/inbox', requireRole(ROLES.OPERATIONAL), ojtiRecommendationController.listInbox)
+router.get('/proposalLetters/supervisors', requireRole(ROLES.OPERATIONAL), proposalLetterController.listSupervisors)
+router.get('/proposalLetters/application/:applicationDocId', requireRole(ROLES.OPERATIONAL), proposalLetterController.listApplicationLetters)
+router.post('/proposalLetters/application/:applicationDocId/assign', requireRole(ROLES.OPERATIONAL), proposalLetterController.assignSupervisor)
+router.get('/proposalLetters/inbox', requireRole(ROLES.SUPERVISOR), proposalLetterController.listInbox)
+router.get('/proposalLetters/:id', requireRole(ROLES.OPERATIONAL, ROLES.SUPERVISOR), proposalLetterController.getLetter)
+router.patch('/proposalLetters/:id/revise', requireRole(ROLES.OPERATIONAL), proposalLetterController.reviseLetter)
+router.post('/proposalLetters/:id/decision', requireRole(ROLES.SUPERVISOR, ROLES.OPERATIONAL), proposalLetterController.decideLetter)
 router.post('/applicationDocument', applicationDocumentController.addApplicationDoc)
 router.put('/applicationDocument/:id', applicationDocumentController.getApplicationDocById)
 router.delete('/applicationDocument/:id', applicationDocumentController.deleteApplicationDoc)
@@ -332,13 +376,17 @@ router.delete('/room/:id', roomController.deleteRoom)
 router.get('/examination', examinationController.getExamination)
 router.post('/examinationEssay', examinationController.getEssayQuestion)
 router.post('/examinationAnswer', examinationController.postEssayAnswer)
+router.post('/examinationDraft', saveModeOneDraft)
 router.post('/examinationMultipleChoice', examinationController.getMultipleChoiceQuestion)
 router.post('/examinationMultipleChoiceAnswer', examinationController.postMultipleChoiceAnswer)
 
 router.get('/performanceCheck', performanceCheckController.getEvent)
 router.post('/performanceCheck', performanceCheckController.postEssayAnswer)
+router.get('/performanceCheck/reset-options/:groupMemberId', requireRole(ROLES.CHECKER), checkerExamResetController.getResetOptions)
+router.post('/performanceCheck/reset-attempt', requireRole(ROLES.CHECKER), checkerExamResetController.postResetAttempt)
 
 router.get('/practicalExam', practicalExamController.getPractical)
+router.get('/practicalExam/theory-review/:appRatingId', practicalExamController.getTheoryReview)
 router.get('/practicalExam/:id/echain-payload', practicalExamController.getPracticalExamEchainPayload)
 router.post('/practicalExam/:id/send-echain', practicalExamController.sendPracticalExamToEchain)
 router.get('/practicalExam/recheck/:id/echain-payload', practicalExamController.getPracticalRecheckEchainPayload)
@@ -349,16 +397,21 @@ router.put('/practicalExam/recheck/:id', uploadPracticalTest.any(), practicalExa
 router.post('/preview', uploadPreview.any(), previewController.postPreview)
 
 router.get('/scoreUser', scoreUserController.getUserScore)
+router.get('/scoreUser/certificate/:finalScoreId', scoreUserController.getUserCertificate)
 router.get('/scoreUserPractical', scoreUserController.getUserScorePractical)
 
 router.get('/pfcScore/scoreRecap', pfcScoreController.getScoreRecap)
 router.get('/pfcScore/checker', pfcScoreController.getCheckers)
 router.get('/pfcScore/individual', pfcIndividualController.getOptions)
 router.post('/pfcScore/individual', pfcIndividualController.getIndividualStatistic)
+router.get('/pfcScore/branchUnit', requireRole(ROLES.GENERAL_ADMIN), pfcBranchUnitController.getOptions)
+router.post('/pfcScore/branchUnit', requireRole(ROLES.GENERAL_ADMIN), pfcBranchUnitController.getPerformance)
 
 router.get('/scoreChecker', scoreCheckerController.getUserCheckerScore)
 router.post('/scoreChecker', scoreCheckerController.postUserCheckerScore)
 router.post('/scoreCheckerEvidance', scoreCheckerController.postUserCheckerScoreEvidance)
+router.get('/scoreChecker/theory-review/:appRatingId', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_CHECKER, ROLES.GENERAL_ADMIN), scoreCheckerController.getTheoryExaminationReview)
+router.get('/scoreChecker/evidence-download/:appRatingId', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_CHECKER, ROLES.GENERAL_ADMIN), scoreCheckerController.downloadRatingEvidence)
 router.get('/scoreChecker/reexamination-history/:appRatingId', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_CHECKER), scoreCheckerController.getReExaminationHistory)
 router.post('/scoreChecker/invalidate-attempt', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_CHECKER), scoreCheckerController.invalidateExaminationAttempt)
 router.get('/scoreCheckerPractical', scoreCheckerController.getUserCheckerPractical)
@@ -374,10 +427,12 @@ router.post('/checkerHistory', checkerHistoryController.postData)
 
 router.get('/checkerStatistic', checkerStatisticController.getMember)
 router.post('/checkerStatistic', checkerStatisticController.postMember)
+router.get('/checkerStatistic/me', checkerStatisticController.getMyStatistic)
 router.get('/checkerStatisticQuestion', checkerStatisticController.getQuestion)
 router.put('/checkerStatisticQuestion/:id', checkerStatisticController.getQuestionDetail)
 
 router.get('/ratingSummary', ratingSummaryController.getRatingSummary);
+router.get('/questionReview', questionReviewController.getQuestionReview);
 
 router.get('/medicalCheck/my', medicalCheckController.getMyMedicalChecks)
 router.post('/medicalCheck', medicalCheckController.createMedicalCheck)

@@ -18,6 +18,49 @@ const { enforceCsrf } = await import("../middleware/csrf.js");
 const { parseCookies } = await import("../middleware/cookies.js");
 const { canEnableTestLoginBypass } = await import("../config/security.js");
 const { calculateCooldownMs, calculateFailureState } = await import("../security/loginProtection.js");
+const { skipGeneralApiLimit } = await import("../middleware/rateLimitPolicy.js");
+
+test("clock reads and separately limited authentication routes bypass only the general API limit", () => {
+  for (const [method, path] of [
+    ["GET", "/theorySessions/7/clock"],
+    ["GET", "/theorySessions/lead/clocks"],
+    ["POST", "/auth/login"],
+    ["POST", "/auth/forgot-password"],
+    ["POST", "/auth/reset-password"],
+  ]) assert.equal(skipGeneralApiLimit({ method, path }), true, `${method} ${path}`);
+  for (const [method, path] of [
+    ["GET", "/theorySessions/lead"],
+    ["GET", "/theorySessions/lead/events"],
+    ["PATCH", "/theorySessions/7/draft"],
+    ["POST", "/theorySessions/7/submit"],
+    ["GET", "/auth/login"],
+  ]) assert.equal(skipGeneralApiLimit({ method, path }), false, `${method} ${path}`);
+});
+
+test("lead clock batch remains role and menu protected", () => {
+  for (const [role, menu, allowed] of [
+    [ROLES.CHECKER_EXAMINATION_LEAD, "theorySession", true],
+    [ROLES.OPERATIONAL, "examination", false],
+  ]) {
+    const res = response();
+    let nextCalled = false;
+    enforceRoutePolicy({ path: "/theorySessions/lead/clocks", user: { roleNames: [role], menuNames: [menu] } }, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, allowed);
+  }
+});
+
+test("Operational guide is read-only and limited to the Operational dashboard role", () => {
+  for (const [role, menu, allowed] of [
+    [ROLES.OPERATIONAL, "dashboardOperational", true],
+    [ROLES.CHECKER, "dashboardOperational", false],
+    [ROLES.OPERATIONAL, "dashboardChecker", false],
+  ]) {
+    const res = response();
+    let nextCalled = false;
+    enforceRoutePolicy({ method: "GET", path: "/operationalGuide", user: { roleNames: [role], menuNames: [menu] } }, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, allowed);
+  }
+});
 
 const response = () => {
   const state = { status: 200, body: null };
@@ -34,6 +77,90 @@ test("role middleware denies a user without an allowed role", () => {
   requireRole(ROLES.GENERAL_ADMIN)({ user: { roleNames: ["OPERATIONAL"] } }, res, () => { nextCalled = true; });
   assert.equal(nextCalled, false);
   assert.equal(res.state.status, 403);
+});
+
+test("proposal letters allow supervisor or assigned OJTI decisions while keeping assignment applicant-only", () => {
+  const cases = [
+    { path: "/proposalLetters/application/12/assign", role: ROLES.OPERATIONAL, menu: "applicationDoc", allowed: true },
+    { path: "/proposalLetters/application/12/assign", role: ROLES.SUPERVISOR, menu: "proposalLetters", allowed: false },
+    { path: "/proposalLetters/7/decision", role: ROLES.SUPERVISOR, menu: "proposalLetters", allowed: true },
+    { path: "/proposalLetters/7/decision", role: ROLES.OPERATIONAL, menu: "applicationDoc", allowed: true },
+    { path: "/proposalLetters/7/decision", role: ROLES.OPERATIONAL, menu: "ojtiRequests", allowed: true },
+    { path: "/proposalLetters/7", role: ROLES.OPERATIONAL, menu: "ojtiRequests", allowed: true },
+    { path: "/ojtiRecommendations/inbox", role: ROLES.OPERATIONAL, menu: "ojtiRequests", allowed: true },
+    { path: "/ojtiRecommendations/inbox", role: ROLES.OPERATIONAL, menu: "applicationDoc", allowed: false },
+    { path: "/ojtiRecommendations/eligible", role: ROLES.OPERATIONAL, menu: "applicationDoc", allowed: true },
+    { path: "/proposalLetters/7/revise", role: ROLES.OPERATIONAL, menu: "applicationDoc", allowed: true },
+    { path: "/proposalLetters/7/revise", role: ROLES.SUPERVISOR, menu: "proposalLetters", allowed: false },
+  ];
+  for (const { path, role, menu, allowed } of cases) {
+    const res = response();
+    let nextCalled = false;
+    enforceRoutePolicy({ path, user: { roleNames: [role], menuNames: [menu] } }, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, allowed, `${role} ${path}`);
+    if (!allowed) assert.equal(res.state.status, 403);
+  }
+});
+
+test("theory lead controls are isolated from participant examination routes", () => {
+  let leadAllowed = false;
+  enforceRoutePolicy({ path: "/theorySessions/lead", user: { roleNames: [ROLES.CHECKER_EXAMINATION_LEAD], menuNames: ["theorySession"] } }, response(), () => { leadAllowed = true; });
+  assert.equal(leadAllowed, true);
+
+  const participantDenied = response();
+  enforceRoutePolicy({ path: "/theorySessions/lead", user: { roleNames: [ROLES.OPERATIONAL], menuNames: ["examination"] } }, participantDenied, () => assert.fail("participant must not control sessions"));
+  assert.equal(participantDenied.state.status, 403);
+
+  let participantAllowed = false;
+  enforceRoutePolicy({ path: "/theorySessions/42/attempt", user: { roleNames: [ROLES.OPERATIONAL], menuNames: ["examination"] } }, response(), () => { participantAllowed = true; });
+  assert.equal(participantAllowed, true);
+
+  const leadDenied = response();
+  enforceRoutePolicy({ path: "/theorySessions/42/attempt", user: { roleNames: [ROLES.CHECKER_EXAMINATION_LEAD], menuNames: ["theorySession"] } }, leadDenied, () => assert.fail("lead must not open participant questions"));
+  assert.equal(leadDenied.state.status, 403);
+});
+
+test("practical theory review requires the Checker role and Practical Exam menu", () => {
+  for (const [role, menu, allowed] of [
+    [ROLES.CHECKER, "practicalExam", true],
+    [ROLES.OPERATIONAL, "examination", false],
+    [ROLES.CHECKER, "history", false],
+  ]) {
+    const res = response();
+    let nextCalled = false;
+    enforceRoutePolicy({ method: "GET", path: "/practicalExam/theory-review/42", user: { roleNames: [role], menuNames: [menu] } }, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, allowed);
+    if (!allowed) assert.equal(res.state.status, 403);
+  }
+});
+
+test("practical updates and e-chain sends require the Practical Exam menu", () => {
+  for (const [method, route] of [["PUT", "/practicalExam/12"], ["PUT", "/practicalExam/recheck/12"], ["POST", "/practicalExam/12/send-echain"]]) {
+    const denied = response();
+    enforceRoutePolicy({ method, path: route, user: { roleNames: [ROLES.CHECKER], menuNames: [] } }, denied, () => assert.fail("must not continue"));
+    assert.equal(denied.state.status, 403);
+    let allowed = false;
+    enforceRoutePolicy({ method, path: route, user: { roleNames: [ROLES.CHECKER], menuNames: ["practicalExam"] } }, response(), () => { allowed = true; });
+    assert.equal(allowed, true);
+  }
+});
+
+test("score evidence downloads and theory reviews are available to General Admin without opening checker mutations", () => {
+  for (const path of ["/scoreChecker/theory-review/7", "/scoreChecker/evidence-download/7"]) {
+    for (const [role, menu, allowed] of [
+      [ROLES.GENERAL_ADMIN, "pfcScore", true],
+      [ROLES.CHECKER_ADMIN, "score", true],
+      [ROLES.GENERAL_CHECKER, "score", true],
+      [ROLES.GENERAL_ADMIN, "history", false],
+      [ROLES.OPERATIONAL, "pfcScore", false],
+    ]) {
+      const res = response();
+      let nextCalled = false;
+      enforceRoutePolicy({ method: "GET", path, user: { roleNames: [role], menuNames: [menu] } }, res, () => { nextCalled = true; });
+      assert.equal(nextCalled, allowed, `${role} ${menu} ${path}`);
+      if (!allowed) assert.equal(res.state.status, 403);
+    }
+  }
 });
 
 test("attempt invalidation role policy allows only Checker Admin or General Checker", () => {
@@ -56,6 +183,20 @@ test("attempt invalidation role policy allows only Checker Admin or General Chec
   assert.equal(denied.state.status, 403);
 });
 
+test("interrupted attempt reset endpoints require the Checker role and Performance Check menu", () => {
+  for (const route of ["/performanceCheck/reset-options/7", "/performanceCheck/reset-attempt"]) {
+    for (const [role, menu, allowed] of [
+      [ROLES.CHECKER, "performanceCheck", true],
+      [ROLES.CHECKER_ADMIN, "performanceCheck", false],
+      [ROLES.CHECKER, "dashboardChecker", false],
+    ]) {
+      let nextCalled = false;
+      enforceRoutePolicy({ path: route, user: { roleNames: [role], menuNames: [menu] } }, response(), () => { nextCalled = true; });
+      assert.equal(nextCalled, allowed, `${role} ${menu} ${route}`);
+    }
+  }
+});
+
 test("MATS management is restricted to General Admin", () => {
   const denied = response();
   enforceRoutePolicy({ path: "/mats/questions", user: { roleNames: [ROLES.CHECKER_ADMIN], menuNames: ["mandatoryQuestion"] } }, denied, () => assert.fail("must not continue"));
@@ -64,6 +205,32 @@ test("MATS management is restricted to General Admin", () => {
   let nextCalled = false;
   enforceRoutePolicy({ path: "/mats/questions", user: { roleNames: [ROLES.GENERAL_ADMIN], menuNames: ["mandatoryQuestion"] } }, response(), () => { nextCalled = true; });
   assert.equal(nextCalled, true);
+});
+
+test("only General Admin can change the global passing grades", () => {
+  const denied = response();
+  enforceRoutePolicy(
+    { method: "PUT", path: "/passingGradeStandard", user: { roleNames: [ROLES.CHECKER_ADMIN], menuNames: ["eventPreparation"] } },
+    denied,
+    () => assert.fail("must not continue"),
+  );
+  assert.equal(denied.state.status, 403);
+
+  let readAllowed = false;
+  enforceRoutePolicy(
+    { method: "GET", path: "/passingGradeStandard", user: { roleNames: [ROLES.CHECKER_ADMIN], menuNames: ["eventPreparation"] } },
+    response(),
+    () => { readAllowed = true; },
+  );
+  assert.equal(readAllowed, true);
+
+  let updateAllowed = false;
+  enforceRoutePolicy(
+    { method: "PUT", path: "/passingGradeStandard", user: { roleNames: [ROLES.GENERAL_ADMIN], menuNames: ["mandatoryQuestion"] } },
+    response(),
+    () => { updateAllowed = true; },
+  );
+  assert.equal(updateAllowed, true);
 });
 
 test("user login security management is restricted to General Admin", () => {
@@ -96,6 +263,37 @@ test("Checker Admin can manage branch-unit question banks but not MATS", () => {
   const matsDenied = response();
   enforceRoutePolicy({ path: "/mats", user: { roleNames: [ROLES.CHECKER_ADMIN], menuNames: ["mandatoryQuestion"] } }, matsDenied, () => assert.fail("must not continue"));
   assert.equal(matsDenied.state.status, 403);
+});
+
+test("Checker Examination can only access the sanitized question review endpoint", () => {
+  let reviewAllowed = false;
+  enforceRoutePolicy(
+    {
+      method: "GET",
+      path: "/questionReview",
+      user: { roleNames: [ROLES.CHECKER_EXAMINATION], menuNames: ["questionReview"] },
+    },
+    response(),
+    () => { reviewAllowed = true; },
+  );
+  assert.equal(reviewAllowed, true);
+
+  for (const method of ["GET", "POST", "PUT", "DELETE"]) {
+    const denied = response();
+    enforceRoutePolicy(
+      {
+        method,
+        path: "/multipleChoices",
+        user: {
+          roleNames: [ROLES.CHECKER_EXAMINATION],
+          menuNames: ["questionReview", "multipleChoiceQuestion"],
+        },
+      },
+      denied,
+      () => assert.fail("must not continue"),
+    );
+    assert.equal(denied.state.status, 403);
+  }
 });
 
 test("Checker Admin can access branch-unit events", () => {
@@ -311,9 +509,46 @@ test("tenant middleware rejects a forged branch unit", () => {
   assert.equal(res.state.status, 403);
 });
 
-test("rich text sanitizer removes executable markup", () => {
-  const req = { body: { question: '<p onclick="alert(1)">Safe<script>alert(1)</script></p><a href="javascript:alert(1)">x</a>' } };
+test("Checker Admin may manage another sector inside the same branch unit", () => {
+  let allowed = false;
+  enforceTenantBody(
+    {
+      user: {
+        roleNames: [ROLES.CHECKER_ADMIN],
+        branchId: 1,
+        branchUnitId: 5,
+        sectorId: 8,
+      },
+      body: { sectorId: 9 },
+    },
+    response(),
+    () => { allowed = true; },
+  );
+  assert.equal(allowed, true);
+});
+
+test("Checker Admin cannot manage another branch unit", () => {
+  const res = response();
+  enforceTenantBody(
+    {
+      user: {
+        roleNames: [ROLES.CHECKER_ADMIN],
+        branchId: 1,
+        branchUnitId: 5,
+        sectorId: 8,
+      },
+      body: { branchUnitId: 6, sectorId: 9 },
+    },
+    res,
+    () => assert.fail("must not continue"),
+  );
+  assert.equal(res.state.status, 403);
+});
+
+test("rich text sanitizer keeps editor formatting but removes executable markup", () => {
+  const req = { body: { question: '<h1>Heading</h1><p onclick="alert(1)">Safe<script>alert(1)</script></p><a href="javascript:alert(1)">x</a>' } };
   sanitizeRichText(req, {}, () => {});
+  assert.equal(req.body.question.includes("<h1>Heading</h1>"), true);
   assert.equal(req.body.question.includes("script"), false);
   assert.equal(req.body.question.includes("onclick"), false);
   assert.equal(req.body.question.includes("javascript:"), false);

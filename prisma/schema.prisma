@@ -147,6 +147,14 @@ model MatsConfiguration {
   updatedAt DateTime @updatedAt
 }
 
+model PassingGradeStandard {
+  id             Int      @id @default(1)
+  theoryGrade    Float    @default(75) @db.Float
+  practicalGrade Float    @default(75) @db.Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model MatsCategoryAllocation {
   id              Int       @id @default(autoincrement())
   mandatoryItemId Int       @unique @db.Int
@@ -394,6 +402,8 @@ model Session {
 
 model Event {
   id                 Int       @id @default(autoincrement())
+  theoryMode         String    @default("MODE_1") @db.VarChar(20)
+  difficulty         String    @default("HARD") @db.VarChar(20)
   sessionId          Int?      @db.Int
   sectorId           Int?      @db.Int
   remarkDocId        Int?      @db.Int
@@ -405,6 +415,7 @@ model Event {
   briefingFile       String?   @db.Text
   recommendationFile String?   @db.Text
   passingGrade       Float?    @db.Float()
+  practicalPassingGrade Float? @db.Float
   isPractical        Boolean   @default(false)
   isSimulator        Boolean   @default(false)
   createdAt          DateTime  @default(now())
@@ -420,6 +431,8 @@ model Event {
   finalScores    FinalScore[]
   previews       Preview[]
   matsSelections MatsQuestionSelection[]
+  theorySessions TheorySession[]
+  theorySessionEvents TheorySessionEvent[]
 
   @@index([deletedAt, createdAt])
   @@index([sectorId, deletedAt])
@@ -466,9 +479,33 @@ model EventUser {
   user            User?            @relation(fields: [userNik], references: [nik])
   applicationDocs ApplicationDoc[]
   attendaces      Attendance?
+  theorySessionParticipants TheorySessionParticipant[]
 
   @@index([eventId, deletedAt])
   @@index([userNik, deletedAt])
+}
+
+model ModeOneExamDraft {
+  id Int @id @default(autoincrement())
+  appRatingId Int
+  eventId Int
+  eventUserId Int
+  groupMemberId Int
+  ownerNik String @db.VarChar(150)
+  kind String @db.VarChar(20)
+  questionSnapshot Json
+  answers Json
+  deadlineAt DateTime?
+  submittedAt DateTime?
+  processingAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appRating AppRating @relation(fields: [appRatingId], references: [id], onDelete: Cascade)
+
+  @@unique([appRatingId, kind])
+  @@index([submittedAt, deadlineAt, processingAt])
+  @@index([ownerNik, eventId])
 }
 
 model Group {
@@ -652,6 +689,7 @@ model License {
 
   user            User?            @relation(fields: [userNik], references: [nik])
   applicationDocs ApplicationDoc[]
+  practicalRatings AppRating[] @relation("PracticalRatingLicense")
 }
 
 model LogBookUser {
@@ -686,6 +724,9 @@ model ApplicationDoc {
   ojtLicenseId   String?   @map("ojtNik") @db.VarChar(150)
   letterNumber   String?   @db.VarChar(150)
   letterDate     DateTime?
+  ojtRecommendationStatus String? @db.VarChar(20)
+  ojtAcceptedAt DateTime?
+  ojtAcceptedByNik String? @db.VarChar(150)
   controlHour    String?   @db.VarChar(150)
   atsName        String?   @db.VarChar(150)
   address        String?   @db.Text
@@ -707,9 +748,20 @@ model ApplicationDoc {
   logbook       LogBookUser?  @relation(fields: [logbookUserId], references: [id])
   appRatings    AppRating[]
   verifications Verification?
+  proposalLetters ProposalLetter[]
 
   @@index([userNik, deletedAt])
   @@index([eventUserId, deletedAt])
+  @@index([ojtLicenseId, ojtRecommendationStatus])
+}
+
+model OjtLetterSequence {
+  id Int @id @default(autoincrement())
+  branchId Int
+  year Int
+  lastNumber Int @default(0)
+
+  @@unique([branchId, year])
 }
 
 model Verification {
@@ -730,6 +782,7 @@ model AppRating {
   id               Int       @id @default(autoincrement())
   applicationDocId Int?      @db.Int
   ratingId         Int?      @db.Int
+  practicalLicenseId Int?    @db.Int
   controlHour      String?   @db.VarChar(150)
   statusId         Int?      @db.Int
   createdAt        DateTime  @default(now())
@@ -738,6 +791,7 @@ model AppRating {
 
   applicationDoc                ApplicationDoc?                @relation(fields: [applicationDocId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   rating                        Rating?                        @relation(fields: [ratingId], references: [id])
+  practicalLicense              License?                       @relation("PracticalRatingLicense", fields: [practicalLicenseId], references: [id])
   status                        status?                        @relation(fields: [statusId], references: [id])
   multipleChoiceCorections      MultipleChoiceCorrection[]
   essayCorrections              EssayCorrection[]
@@ -748,6 +802,10 @@ model AppRating {
   matsSelections                MatsQuestionSelection[]
   examinationInvalidations      ExaminationInvalidation[]
   practicalRecheckAuthorization PracticalRecheckAuthorization?
+  theorySessionParticipants TheorySessionParticipant[]
+  modeOneExamDrafts ModeOneExamDraft[]
+  examinationAttemptResets ExaminationAttemptReset[]
+  proposalLetter ProposalLetter?
 
   @@index([applicationDocId, deletedAt])
   @@index([statusId, deletedAt])
@@ -844,6 +902,43 @@ model User {
   verifiedMedexReviews  Medex[]               @relation("MedexVerifiedBy")
   requestedIelpReviews  Ielp[]                @relation("IelpRequestedChecker")
   verifiedIelpReviews   Ielp[]                @relation("IelpVerifiedBy")
+  supervisedProposalLetters ProposalLetter[] @relation("ProposalLetterSupervisor")
+}
+
+model ProposalLetter {
+  id               Int       @id @default(autoincrement())
+  applicationDocId Int
+  appRatingId      Int       @unique
+  supervisorNik    String    @db.VarChar(150)
+  status           String    @default("PENDING") @db.VarChar(20)
+  revision         Int       @default(1)
+  content          Json
+  validatedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  applicationDoc ApplicationDoc @relation(fields: [applicationDocId], references: [id], onDelete: Restrict)
+  appRating      AppRating      @relation(fields: [appRatingId], references: [id], onDelete: Restrict)
+  supervisor     User           @relation("ProposalLetterSupervisor", fields: [supervisorNik], references: [nik], onDelete: Restrict)
+  actions        ProposalLetterAction[]
+
+  @@index([supervisorNik, status, createdAt])
+  @@index([applicationDocId, status])
+}
+
+model ProposalLetterAction {
+  id          Int      @id @default(autoincrement())
+  letterId    Int
+  actorNik    String   @db.VarChar(150)
+  action      String   @db.VarChar(30)
+  revision    Int
+  reason      String?  @db.Text
+  content     Json
+  createdAt   DateTime @default(now())
+
+  letter ProposalLetter @relation(fields: [letterId], references: [id], onDelete: Restrict)
+
+  @@index([letterId, createdAt])
 }
 
 enum AuthenticationType {
@@ -1027,8 +1122,15 @@ model FinalScore {
   groupMemberId       Int?      @db.Int
   statusId            Int?      @db.Int
   essayScore          Float?    @db.Float
+  essayResultEmailQueuedAt DateTime?
+  essayResultEmailClaimedAt DateTime?
+  essayResultEmailSentAt DateTime?
   finalScore          Float?    @db.Float
   multipleChoiceScore Float?    @db.Float
+  essayStartedAt      DateTime?
+  essaySubmittedAt    DateTime?
+  multipleChoiceStartedAt   DateTime?
+  multipleChoiceSubmittedAt DateTime?
   isInvalidated       Boolean   @default(false)
   invalidatedAt       DateTime?
   invalidatedBy       String?   @db.VarChar(150)
@@ -1042,12 +1144,15 @@ model FinalScore {
   status                    status?                    @relation(fields: [statusId], references: [id])
   groupMember               GroupMember?               @relation(fields: [groupMemberId], references: [id])
   userRatings               userRating[]
+  certificates              Certificate[]
   essayCorrections          EssayCorrection[]
   multipleChoiceCorrections MultipleChoiceCorrection[]
   examinationInvalidations  ExaminationInvalidation[]
   cwpSnapshots              FinalScoreCwp[]
+  theorySessionParticipant  TheorySessionParticipant?
 
   @@index([appRatingId, isInvalidated, deletedAt])
+  @@index([essayResultEmailQueuedAt, essayResultEmailSentAt, essayResultEmailClaimedAt], map: "FinalScore_essay_email_queue_idx")
 }
 
 model FinalScoreCwp {
@@ -1097,6 +1202,24 @@ model ExaminationInvalidation {
   @@index([finalScoreId])
 }
 
+model ExaminationAttemptReset {
+  id Int @id @default(autoincrement())
+  appRatingId Int
+  eventId Int
+  groupMemberId Int
+  checkerNik String @db.VarChar(150)
+  reason String @db.Text
+  attemptNumber Int
+  previousStatusId Int?
+  voidedFinalScoreId Int?
+  createdAt DateTime @default(now())
+
+  appRating AppRating @relation(fields: [appRatingId], references: [id])
+
+  @@index([appRatingId, createdAt])
+  @@index([checkerNik, createdAt])
+}
+
 model userRating {
   id           Int       @id @default(autoincrement())
   ratingId     Int?      @db.Int
@@ -1110,6 +1233,28 @@ model userRating {
   rating     Rating?     @relation(fields: [ratingId], references: [id])
   user       User?       @relation(fields: [userId], references: [nik])
   finalScore FinalScore? @relation(fields: [finalScoreId], references: [id])
+  certificates Certificate[]
+}
+
+model Certificate {
+  id             Int       @id @default(autoincrement())
+  finalScoreId   Int       @db.Int
+  userRatingId   Int       @db.Int
+  version        Int       @default(1)
+  publicId       String    @unique @db.VarChar(36)
+  number         String    @unique @db.VarChar(80)
+  status         String    @default("VALID") @db.VarChar(20)
+  snapshot       Json
+  issuedAt       DateTime
+  snapshottedAt  DateTime  @default(now())
+  revokedAt      DateTime?
+  revokeReason   String?   @db.VarChar(250)
+
+  finalScore FinalScore @relation(fields: [finalScoreId], references: [id], onDelete: Restrict)
+  userRating userRating @relation(fields: [userRatingId], references: [id], onDelete: Restrict)
+
+  @@unique([finalScoreId, version])
+  @@index([finalScoreId, status])
 }
 
 model Competence {
@@ -1153,6 +1298,81 @@ model Room {
 
   checkerRoom User?        @relation("Room", fields: [checker], references: [nik])
   attendances Attendance[]
+}
+
+model TheorySession {
+  id               Int       @id @default(autoincrement())
+  eventId          Int
+  leadNik          String    @db.VarChar(150)
+  name             String    @db.VarChar(150)
+  status           String    @default("WAITING") @db.VarChar(20)
+  durationSeconds  Int
+  remainingSeconds Int
+  startedAt        DateTime?
+  resumedAt        DateTime?
+  endedAt          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  event        Event                      @relation(fields: [eventId], references: [id])
+  selectedEvents TheorySessionEvent[]
+  participants TheorySessionParticipant[]
+  actions      TheorySessionAction[]
+
+  @@index([eventId, status])
+  @@index([leadNik, status])
+}
+
+model TheorySessionEvent {
+  sessionId Int
+  eventId   Int
+
+  session TheorySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  event   Event         @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@id([sessionId, eventId])
+  @@index([eventId])
+}
+
+model TheorySessionParticipant {
+  id                 Int       @id @default(autoincrement())
+  sessionId          Int
+  eventUserId        Int
+  appRatingId        Int?
+  finalScoreId       Int?      @unique
+  questionSnapshot   Json?
+  essayAnswers       Json?
+  multipleChoiceAnswers Json?
+  essaySubmittedAt   DateTime?
+  multipleChoiceSubmittedAt DateTime?
+  joinedAt           DateTime?
+  finalizedAt        DateTime?
+  resultEmailClaimedAt DateTime?
+  resultEmailSentAt  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  session    TheorySession @relation(fields: [sessionId], references: [id])
+  eventUser  EventUser     @relation(fields: [eventUserId], references: [id])
+  appRating  AppRating?    @relation(fields: [appRatingId], references: [id])
+  finalScore FinalScore?   @relation(fields: [finalScoreId], references: [id])
+
+  @@unique([sessionId, eventUserId])
+  @@index([appRatingId, finalScoreId])
+}
+
+model TheorySessionAction {
+  id        Int      @id @default(autoincrement())
+  sessionId Int
+  actorNik  String   @db.VarChar(150)
+  action    String   @db.VarChar(30)
+  seconds   Int?
+  reason    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  session TheorySession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, createdAt])
 }
 
 model Attendance {

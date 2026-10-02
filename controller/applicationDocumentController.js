@@ -64,6 +64,24 @@ const getApprovedCredential = async (model, id, userNik, label) => {
   return record ? { record } : { error: `Selected ${label} is not approved, has expired, or does not belong to this user.` };
 };
 
+const validatePenerbitanRequirements = async (applicantNik, ojtLicenseId, sectorId, branchUnitId) => {
+  if (!ojtLicenseId) return "Select an OJTI to receive this PENERBITAN recommendation request.";
+  if (!branchUnitId) return "Your branch unit is required to assign an OJTI.";
+  const sectorRatings = await prisma.subBranchUnitRating.findMany({
+    where: { sectorId, deletedAt: null }, select: { ratingId: true },
+  });
+  const ratingIds = sectorRatings.map((item) => item.ratingId);
+  const [ojti, competences] = await Promise.all([
+    prisma.user.findFirst({ where: { licenseUserId: ojtLicenseId, branchUnitId, nik: { not: applicantNik }, deletedAt: null, userRoles: { some: { deletedAt: null, roles: { role: "OPERATIONAL", deletedAt: null } } } }, select: { nik: true } }),
+    prisma.competence.findMany({ where: { userId: applicantNik, deletedAt: null, ratingId: { in: ratingIds } }, select: { id: true, file: true } }),
+  ]);
+  if (!ojti) return "Select another active OPERATIONAL user in your branch unit as OJTI.";
+  if (!competences.length || competences.some((item) => !item.file?.trim())) {
+    return "Upload a file for each competency certification held before creating a PENERBITAN application.";
+  }
+  return null;
+};
+
 const getApplicationDoc = async (req, res) => {
   // const sect = 8
   const sect = req.user.sectorId
@@ -99,6 +117,7 @@ const getApplicationDoc = async (req, res) => {
         startDate: true,
         finishDate: true,
         passingGrade: true,
+        practicalPassingGrade: true,
         isPractical: true,
         isSimulator: true,
         eventUsers: {
@@ -231,6 +250,7 @@ const getApplicationDoc = async (req, res) => {
         },
         medex: true,
         ielp: true,
+        ojtUser: { select: { nik: true, name: true, licenseUserId: true } },
         status: true,
         appRatings: {
           where: {
@@ -238,6 +258,7 @@ const getApplicationDoc = async (req, res) => {
           },
           include: {
             rating: true,
+            proposalLetter: { select: { id: true, status: true } },
             practicalTests: {
               select: {
                 id: true,
@@ -340,6 +361,9 @@ const getApplicationDoc = async (req, res) => {
             ratingId: {
               in: ratingId
             }
+          },
+          include: {
+            rating: { select: { id: true, rating: true } }
           }
         },
       }
@@ -422,6 +446,7 @@ const addApplicationDoc = async (req, res) => {
                 remark: true
               }
             },
+            sector: { select: { branchUnitId: true } },
             isPractical: true,
             isSimulator: true,
             groups: {
@@ -512,6 +537,12 @@ const addApplicationDoc = async (req, res) => {
     })
 
     const baseNumber = `${eventUser.user.professionInBranch.profession.profession}/${eventUser.event.remarkDoc.remark}/${eventUser.user.licenseUserId}-${eventUser.event.id}`
+    const isPenerbitan = eventUser.event.remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN";
+    if (isPenerbitan) {
+      if (eventUser.event.sector?.branchUnitId !== req.user.branchUnitId) return res.status(403).json({ message: "The PENERBITAN event is outside your branch unit." });
+      const requirementError = await validatePenerbitanRequirements(req.user.nik, parsedOjtLicenseId, req.user.sectorId, req.user.branchUnitId);
+      if (requirementError) return res.status(422).json({ message: requirementError });
+    }
     const number = getNextApplicationNumber(
       baseNumber,
       eventUser.applicationDocs.map((applicationDoc) => applicationDoc.number),
@@ -534,9 +565,10 @@ const addApplicationDoc = async (req, res) => {
         rating: JSON.stringify(ratings),
         location: location !== '' ? location : null,
         dateForExpired: dayjs.utc(dateForExpired).endOf('day').toDate(),
-        confirmOjt: confirmOjt,
-        letterNumber: letterNumber !== '' ? letterNumber : null,
-        letterDate: letterDate !== '' ? dayjs.utc(letterDate).startOf('day').toDate() : null,
+        confirmOjt: isPenerbitan ? false : confirmOjt,
+        letterNumber: isPenerbitan ? null : (letterNumber !== '' ? letterNumber : null),
+        letterDate: isPenerbitan ? null : (letterDate !== '' ? dayjs.utc(letterDate).startOf('day').toDate() : null),
+        ojtRecommendationStatus: isPenerbitan ? "PENDING" : null,
         controlHour: controlHour !== '' ? controlHour : null,
         ojtLicenseId: parsedOjtLicenseId,
         isDrugs: isDrugs,
@@ -598,14 +630,68 @@ const addApplicationDoc = async (req, res) => {
 const getApplicationDocById = async (req, res) => {
   try {
     const {id} = req.params
+    const ownedDocument = await prisma.applicationDoc.findFirst({ where: { id: Number(id), userNik: req.user.nik, deletedAt: null }, select: { id: true, eventUserId: true, ojtLicenseId: true, ojtRecommendationStatus: true, eventUser: { select: { event: { select: { remarkDoc: { select: { remark: true } }, sector: { select: { branchUnitId: true } } } } } }, verifications: { select: { id: true, isValid: true } }, appRatings: { where: { deletedAt: null }, select: { id: true, ratingId: true, proposalLetter: { select: { id: true, status: true } } } } } });
+    if (!ownedDocument) return res.status(404).json({ message: "Application document not found." });
+    if (ownedDocument.verifications?.isValid) return res.status(409).json({ message: "This application has already been verified by the checker." });
+    const hasProposalLetters = ownedDocument.appRatings.some((rating) => rating.proposalLetter);
     const {eventId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtLicenseId, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
     const parsedOjtLicenseId = (ojtLicenseId ?? ojtNik) !== '' ? (ojtLicenseId ?? ojtNik) : null
+    const existingIsPenerbitan = ownedDocument.eventUser?.event?.remarkDoc?.remark?.trim().toUpperCase() === "PENERBITAN";
+    if (existingIsPenerbitan && (ownedDocument.ojtRecommendationStatus === "ACCEPTED" || ownedDocument.appRatings.some((rating) => rating.proposalLetter?.status === "VALIDATED")) && parsedOjtLicenseId !== ownedDocument.ojtLicenseId) {
+      return res.status(409).json({ message: "An accepted OJTI recommendation cannot be reassigned." });
+    }
     const [medexValidation, ielpValidation] = await Promise.all([
       getApprovedCredential(prisma.medex, medexId, req.user.nik, "MEDEX"),
       getApprovedCredential(prisma.ielp, ielpId, req.user.nik, "IELP"),
     ]);
     const credentialError = medexValidation.error || ielpValidation.error;
     if (credentialError) return res.status(422).json({ success: false, message: credentialError });
+
+    if (hasProposalLetters) {
+      if (Number(eventUserId) !== ownedDocument.eventUserId) return res.status(409).json({ message: "An application with proposal letters cannot move to another event." });
+      const submittedRatings = Array.isArray(appRating) ? appRating : [];
+      const existingIds = ownedDocument.appRatings.map((rating) => rating.ratingId).sort((a, b) => a - b);
+      const submittedIds = submittedRatings.map((rating) => Number(rating?.rating?.id)).sort((a, b) => a - b);
+      if (!submittedIds.length || new Set(submittedIds).size !== submittedIds.length || submittedIds.some((ratingId, index) => !Number.isInteger(ratingId) || ratingId !== existingIds[index])) {
+        return res.status(409).json({ message: "The proposed ratings are locked to their letters. Update the details or hours, but do not add or remove ratings." });
+      }
+      const [license, logbook] = await Promise.all([
+        prisma.license.findFirst({ where: { id: Number(licenseId), userNik: req.user.nik, deletedAt: null, file: { not: null } }, select: { id: true } }),
+        prisma.logBookUser.findFirst({ where: { id: Number(logbookUserId), userNik: req.user.nik, deletedAt: null, file: { not: null } }, select: { id: true } }),
+      ]);
+      if (!license || !logbook) return res.status(422).json({ message: "Select your own license and logbook with uploaded files." });
+      if (existingIsPenerbitan) {
+        if (ownedDocument.eventUser?.event?.sector?.branchUnitId !== req.user.branchUnitId) return res.status(403).json({ message: "The PENERBITAN event is outside your branch unit." });
+        const requirementError = await validatePenerbitanRequirements(req.user.nik, parsedOjtLicenseId, req.user.sectorId, req.user.branchUnitId);
+        if (requirementError) return res.status(422).json({ message: requirementError });
+      }
+      const ratingById = new Map(ownedDocument.appRatings.map((rating) => [rating.ratingId, rating]));
+      await prisma.$transaction(async (tx) => {
+        await tx.applicationDoc.update({ where: { id: Number(id) }, data: {
+          medexId: medexValidation.record.id,
+          ielpId: ielpValidation.record.id,
+          licenseId: license.id,
+          logbookUserId: logbook.id,
+          atsName: atsName || null,
+          address: address || null,
+          confirmRating,
+          reason: reason || null,
+          location: location || null,
+          dateForExpired: dateForExpired ? dayjs.utc(dateForExpired).endOf('day').toDate() : null,
+          ...(!existingIsPenerbitan && { confirmOjt, letterNumber: letterNumber || null, letterDate: letterDate ? dayjs.utc(letterDate).startOf('day').toDate() : null }),
+          controlHour: controlHour || null,
+          ojtLicenseId: parsedOjtLicenseId,
+          isDrugs,
+          isFailed,
+          rating: Array.isArray(ratings) && ratings.length ? JSON.stringify(ratings) : null,
+        } });
+        for (const submitted of submittedRatings) {
+          const existing = ratingById.get(Number(submitted.rating.id));
+          await tx.appRating.update({ where: { id: existing.id }, data: { controlHour: String(submitted.controlHour ?? '') } });
+        }
+      });
+      return res.status(200).json({ success: true, message: "Application updated. Validated letters remain unchanged as audit snapshots." });
+    }
 
     const eventUser = await prisma.eventUser.findFirst({
       where: {
@@ -632,6 +718,7 @@ const getApplicationDocById = async (req, res) => {
                 remark: true
               }
             },
+            sector: { select: { branchUnitId: true } },
             isPractical: true,
             isSimulator: true,
             groups: {
@@ -682,6 +769,12 @@ const getApplicationDocById = async (req, res) => {
     })
 
     const groupMember = eventUser.event.groups[0].groupMembers
+    const isPenerbitan = eventUser.event.remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN";
+    if (isPenerbitan) {
+      if (eventUser.event.sector?.branchUnitId !== req.user.branchUnitId) return res.status(403).json({ message: "The PENERBITAN event is outside your branch unit." });
+      const requirementError = await validatePenerbitanRequirements(req.user.nik, parsedOjtLicenseId, req.user.sectorId, req.user.branchUnitId);
+      if (requirementError) return res.status(422).json({ message: requirementError });
+    }
     const checkerGroup = eventUser.event.groups[0].checkerGroups 
     
     const data = {
@@ -695,9 +788,9 @@ const getApplicationDocById = async (req, res) => {
       reason: reason !== '' ? reason : null,
       location: location !== '' ? location : null,
       dateForExpired: dayjs.utc(dateForExpired).endOf('day').toDate(),
-      confirmOjt: confirmOjt,
-      letterNumber: letterNumber !== '' ? letterNumber : null,
-      letterDate: letterDate !== '' ? dayjs.utc(letterDate).startOf('day').toDate() : null,
+      ...(isPenerbitan
+        ? { confirmOjt: ownedDocument.ojtRecommendationStatus === "ACCEPTED", ojtRecommendationStatus: ownedDocument.ojtRecommendationStatus === "ACCEPTED" ? "ACCEPTED" : "PENDING" }
+        : { confirmOjt, letterNumber: letterNumber !== '' ? letterNumber : null, letterDate: letterDate !== '' ? dayjs.utc(letterDate).startOf('day').toDate() : null }),
       controlHour: controlHour !== '' ? controlHour : null,
       ojtLicenseId: parsedOjtLicenseId,
       isDrugs: isDrugs,
@@ -767,6 +860,10 @@ const deleteApplicationDoc = async (req, res) => {
   try {
     const now = dayjs.utc().toDate();
     const { id } = req.params;
+    const ownedDocument = await prisma.applicationDoc.findFirst({ where: { id: Number(id), userNik: req.user.nik, deletedAt: null }, select: { id: true } });
+    if (!ownedDocument) return res.status(404).json({ message: "Application document not found." });
+    const existingLetter = await prisma.proposalLetter.findFirst({ where: { applicationDocId: Number(id) }, select: { id: true } });
+    if (existingLetter) return res.status(409).json({ message: "This application has proposal-letter audit history and cannot be deleted." });
   
     await prisma.applicationDoc.update({
       where: { id: parseInt(id) },

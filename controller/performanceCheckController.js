@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import { scoreTheorySessionEssay } from "../services/scoreTheorySessionEssay.js";
 
 const getEvent = async (req, res) => {
 
@@ -14,20 +15,25 @@ const getEvent = async (req, res) => {
   // const userN = "10077770"
 
   try {
+    const eventId = req.query.eventId === undefined ? null : Number(req.query.eventId);
+    if (eventId !== null && (!Number.isSafeInteger(eventId) || eventId <= 0)) {
+      return res.status(400).json({ message: "Invalid event ID." });
+    }
+    const eventWhere = {
+      sectorId,
+      ...(eventId !== null ? { id: eventId } : {}),
+      groups: { some: { checkerGroups: { some: { deletedAt: null, checker: userN } } } },
+    };
+    if (req.query.mode === "options") {
+      const event = await prisma.event.findMany({
+        where: eventWhere,
+        select: { id: true, event: true, createdAt: true },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      });
+      return res.json({ event });
+    }
     const event = await prisma.event.findMany({
-      where: {
-        sectorId,
-        groups: {
-          some: {
-            checkerGroups: {
-              some: {
-                deletedAt: null,
-                checker: userN
-              }
-            }
-          }
-        }
-      },
+      where: eventWhere,
       select: {
         id: true,
         event: true,
@@ -95,6 +101,12 @@ const getEvent = async (req, res) => {
                   select: {
                     id: true,
                     essayScore: true,
+                    appRating: {
+                      select: {
+                        id: true,
+                        rating: { select: { rating: true } },
+                      },
+                    },
                     essayCorrections: {
                       where: {
                         deletedAt: null,
@@ -152,9 +164,7 @@ const getEvent = async (req, res) => {
           }
         }
       },
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
     })
 
     res.json({event});
@@ -166,14 +176,47 @@ const getEvent = async (req, res) => {
 const postEssayAnswer = async (req, res) => {
   try {
     const {finalScoreId, persentage, essayCorrection} = req.body
+    const mode2Score = await prisma.finalScore.findUnique({ where: { id: Number(finalScoreId) }, select: {
+      id: true, statusId: true, isInvalidated: true, deletedAt: true, multipleChoiceScore: true,
+      theorySessionParticipant: { select: { id: true } },
+      groupMember: { select: { groupId: true, group: { select: {
+        checkerGroups: { where: { deletedAt: null }, select: { checker: true } },
+        event: { select: { sector: { select: { branchUnitId: true } } } },
+      } } } },
+      essayCorrections: { where: { deletedAt: null, checker: null, score: null },
+        select: { id: true, essay: { select: { value: true } } } },
+    } });
+    if (mode2Score?.theorySessionParticipant) return scoreTheorySessionEssay(req, res, mode2Score);
+    if (!mode2Score || mode2Score.deletedAt || mode2Score.isInvalidated || mode2Score.statusId !== 3 ||
+        !mode2Score.groupMember?.group?.checkerGroups?.some((item) => item.checker === req.user.nik) ||
+        Number(mode2Score.groupMember.group.event?.sector?.branchUnitId) !== Number(req.user.branchUnitId)) {
+      return res.status(403).json({ message: 'This pending Essay score is not assigned to you.' });
+    }
+    const submitted = Array.isArray(essayCorrection) ? essayCorrection : [];
+    const expected = mode2Score.essayCorrections;
+    const submittedIds = submitted.map((item) => Number(item.essayCorrectionId));
+    if (!expected.length || submittedIds.length !== expected.length ||
+        new Set(submittedIds).size !== expected.length ||
+        expected.some((item) => !submittedIds.includes(item.id)) ||
+        submitted.some((item) => {
+          const stored = expected.find((entry) => entry.id === Number(item.essayCorrectionId));
+          const value = Number(stored?.essay?.value);
+          const given = Number(item.score);
+          return !stored || !Number.isFinite(given) || given < 0 || given > value;
+        })) {
+      return res.status(400).json({ message: 'Essay scores must belong to one rating and include every pending answer.' });
+    }
     
-    const score = essayCorrection.map(i => i.score)
+    const score = submitted.map(i => Number(i.score))
     const sumScore = score.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
-    
-    const value = essayCorrection.map(j => j.value)
-    const sumValue = value.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
 
-    const essayScore = sumScore/sumValue*100*persentage
+    const value = expected.map((item) => Number(item.essay?.value || 0))
+    const sumValue = value.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
+    if (sumValue <= 0 || !Number.isFinite(Number(persentage)) || Number(persentage) < 0 || Number(persentage) > 100) {
+      return res.status(400).json({ message: 'The Essay scoring weight is invalid.' });
+    }
+
+    const essayScore = sumScore/sumValue*100*Number(persentage)
     await prisma.$transaction(
       essayCorrection.map((item) =>
         prisma.essayCorrection.update({
@@ -190,7 +233,8 @@ const postEssayAnswer = async (req, res) => {
       data: {
         statusId: 4,
         essayScore: essayScore,
-        finalScore: essayScore
+        finalScore: essayScore,
+        essayResultEmailQueuedAt: new Date(),
       }
     })
 
@@ -203,7 +247,7 @@ const postEssayAnswer = async (req, res) => {
       }
     })
 
-    res.status(200).json({ success: true });
+    res.status(200).json({ success: true, emailPending: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

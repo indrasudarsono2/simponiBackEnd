@@ -37,6 +37,7 @@ const getUserRoleBranch = async (req, res) => {
     const role = await prisma.roles.findMany({
       where: {
         deletedAt: null,
+        role: { not: "GENERAL ADMIN" },
       },
     });
 
@@ -91,7 +92,7 @@ const getUpdateData = async (req, res) => {
       where: {
         id: { in: parsedRoleIds },
         deletedAt: null,
-        role: { in: ["BRANCH UNIT ADMIN", "CHECKER ADMIN", "CHECKER", "OPERATIONAL", "SUPERVISOR", "DOCTOR"] },
+        role: { not: "GENERAL ADMIN" },
       },
       select: { id: true },
     });
@@ -99,11 +100,15 @@ const getUpdateData = async (req, res) => {
       return res.status(403).json({ message: "One or more roles are outside your authority." });
     }
 
+    const protectedRoles = await prisma.roles.findMany({
+      where: { role: "GENERAL ADMIN" },
+      select: { id: true },
+    });
     await prisma.user.update({
       where: { nik: id },
       data: {
         userRoles: {
-          deleteMany: {},
+          deleteMany: { roleId: { notIn: protectedRoles.map((role) => role.id) } },
           createMany: {
             data: parsedRoleIds.map((roleId) => ({ roleId })),
           },

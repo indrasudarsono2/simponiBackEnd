@@ -203,7 +203,17 @@ const getVerification = async (req, res) => {
                     license: true,
                     appRatings: {
                       include: {
-                        rating: true
+                        rating: true,
+                        proposalLetter: {
+                          select: {
+                            id: true,
+                            status: true,
+                            supervisorNik: true,
+                            content: true,
+                            validatedAt: true,
+                            supervisor: { select: { name: true } }
+                          }
+                        }
                       }
                     },
                     eventUser: {
@@ -222,6 +232,7 @@ const getVerification = async (req, res) => {
                     },
                     ojtUser: {
                       select: {
+                        nik: true,
                         licenseUserId:true,
                         name: true
                       }
@@ -273,7 +284,10 @@ const postVerification = async(req, res) => {
         where: { id: parsedApplicationDocId, deletedAt: null },
         select: {
           id: true,
-          eventUser: { select: { eventId: true } }
+          ojtRecommendationStatus: true,
+          ojtUser: { select: { nik: true } },
+          eventUser: { select: { eventId: true, event: { select: { remarkDoc: { select: { remark: true } } } } } },
+          appRatings: { where: { deletedAt: null }, select: { proposalLetter: { select: { status: true, supervisorNik: true } } } }
         }
       }),
       prisma.groupMember.findFirst({
@@ -296,6 +310,11 @@ const postVerification = async(req, res) => {
     }
     if (groupMember.group.pic !== req.user.nik) {
       return res.status(403).json({ message: "You are not authorized to verify this group member." });
+    }
+    const isPenerbitan = applicationDoc.eventUser?.event?.remarkDoc?.remark?.trim().toUpperCase() === "PENERBITAN";
+    if (!applicationDoc.appRatings.length || applicationDoc.appRatings.some((rating) => rating.proposalLetter?.status !== "VALIDATED" || (isPenerbitan && rating.proposalLetter?.supervisorNik !== applicationDoc.ojtUser?.nik)) || (isPenerbitan && applicationDoc.ojtRecommendationStatus !== "ACCEPTED")) {
+      const reviewer = isPenerbitan ? "OJTI approval" : "Supervisor validation";
+      return res.status(409).json({ message: `${reviewer} is required for every proposed rating letter before the checker can verify this application document.` });
     }
 
     await prisma.$transaction([

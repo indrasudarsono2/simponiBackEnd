@@ -18,6 +18,44 @@ const removeStoredFile = (storedPath) => {
   if (fs.existsSync(absolutePath)) fs.unlinkSync(absolutePath);
 };
 
+const positiveId = (value) => {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+};
+
+const eventScope = (req) => {
+  const roles = new Set((req.user?.roleNames || []).map((role) => String(role).trim().toUpperCase()));
+  if (roles.has("GENERAL ADMIN")) return {};
+  if (roles.has("BRANCH ADMIN")) return req.user?.branchId
+    ? { sector: { branchUnit: { branchId: req.user.branchId } } }
+    : { id: -1 };
+  return req.user?.branchUnitId
+    ? { sector: { branchUnitId: req.user.branchUnitId } }
+    : { id: -1 };
+};
+
+const findScopedEvent = (req, id) => prisma.event.findFirst({
+  where: { id, deletedAt: null, ...eventScope(req) },
+  select: { id: true, sectorId: true },
+});
+
+const placementIsAllowed = async (req, sessionId, sectorId) => {
+  const session = await prisma.session.findFirst({
+    where: { id: sessionId, deletedAt: null },
+    select: { branchUnitId: true, branchUnit: { select: { branchId: true } } },
+  });
+  const sector = await prisma.sector.findFirst({
+    where: { id: sectorId, deletedAt: null },
+    select: { branchUnitId: true, branchUnit: { select: { branchId: true } } },
+  });
+  if (!session?.branchUnitId || !sector?.branchUnitId || session.branchUnitId !== sector.branchUnitId) return false;
+  const roles = new Set((req.user?.roleNames || []).map((role) => String(role).trim().toUpperCase()));
+  if (roles.has("GENERAL ADMIN")) return true;
+  if (roles.has("BRANCH ADMIN")) return Boolean(req.user?.branchId) &&
+    session.branchUnit?.branchId === req.user.branchId && sector.branchUnit?.branchId === req.user.branchId;
+  return Boolean(req.user?.branchUnitId) && session.branchUnitId === req.user.branchUnitId;
+};
+
 const getEvents = async (req, res) => {
   try {
     const session = await prisma.session.findMany({
@@ -31,6 +69,7 @@ const getEvents = async (req, res) => {
         session: true,
         branchUnit: {
           select: {
+            id: true,
             unit:true,
             branch: {
               select: {
@@ -54,6 +93,8 @@ const getEvents = async (req, res) => {
           select: {
             id: true,
             event: true,
+            sectorId: true,
+            createdAt: true,
             sector: {
               select: {
                 sector: true
@@ -65,8 +106,11 @@ const getEvents = async (req, res) => {
             forExpiredDate: true,
             remarkDoc: true,
             passingGrade: true,
+            practicalPassingGrade: true,
             briefingFile: true,
             recommendationFile: true,
+            theoryMode: true,
+            difficulty: true,
             isPractical: true,
             isSimulator: true
           },
@@ -95,7 +139,17 @@ const addEvents = async (req, res) => {
     const recommendationFile = files.find((file) => file.fieldname === "recommendationFile") || null;
     
     // Access other form fields from req.body
-    const { sessionId, sectorId, remarkDocId, eventName, startDate, finishDate, forExpDate, formFillingDate, passingGrade, isPractical, isSimulator} = req.body;
+    const { sessionId, sectorId, remarkDocId, eventName, startDate, finishDate, forExpDate, formFillingDate, isPractical, isSimulator, theoryMode = "MODE_1", difficulty = "HARD"} = req.body;
+    const requestedSessionId = positiveId(sessionId);
+    const requestedSectorId = positiveId(sectorId);
+    if (!requestedSessionId || !requestedSectorId || !await placementIsAllowed(req, requestedSessionId, requestedSectorId)) {
+      return res.status(403).json({ message: "Session and sector must belong to your permitted branch unit." });
+    }
+    if (!["MODE_1", "MODE_2"].includes(theoryMode) || !["EASY", "HARD"].includes(difficulty)) {
+      return res.status(400).json({ message: "Invalid theory mode or difficulty." });
+    }
+    const standard = await prisma.passingGradeStandard.findUnique({ where: { id: 1 } });
+    if (!standard) return res.status(503).json({ message: "Passing grade standard is not configured." });
     const cleanIsPractical = isPractical === 'true' || isPractical === true;
     const cleanIsSimulator = isSimulator === 'true' || isSimulator === true;
     const remarkDoc = await prisma.remarkDoc.findFirst({
@@ -105,11 +159,6 @@ const addEvents = async (req, res) => {
     if (!remarkDoc) {
       return res.status(400).json({ message: "Invalid remark." });
     }
-    if (remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN" && !recommendationFile) {
-      return res.status(400).json({
-        message: "Recommendation letter is required for PENERBITAN."
-      });
-    }
     // Example: Create event with file URL
     const event = await prisma.event.create({
       data: {
@@ -117,13 +166,16 @@ const addEvents = async (req, res) => {
         sectorId: parseInt(sectorId),
         remarkDocId: parseInt(remarkDocId),
         event: eventName,
-        startDate: dayjs.utc(startDate).startOf('day').toDate(),
-        finishDate: dayjs.utc(finishDate).startOf('day').toDate(),
+        startDate: dayjs.utc(startDate).toDate(),
+        finishDate: dayjs.utc(finishDate).toDate(),
         forExpiredDate: dayjs.utc(forExpDate).startOf('day').toDate(),
         formFillingDate: dayjs.utc(formFillingDate).startOf('day').toDate(),
-        passingGrade: parseInt(passingGrade),
+        passingGrade: standard.theoryGrade,
+        practicalPassingGrade: standard.practicalGrade,
         isPractical: Boolean(cleanIsPractical),
         isSimulator: Boolean(cleanIsSimulator),
+        theoryMode,
+        difficulty,
         // Store file URL if file was uploaded
         briefingFile: eventFileUrl(briefingFile),
         recommendationFile: eventFileUrl(recommendationFile),
@@ -156,14 +208,33 @@ const getEventById = async (req, res) => {
     const recommendationFile = files.find((file) => file.fieldname === "recommendationFile") || null;
     
     // Access other form fields from req.body
-    const { sessionId, sectorId, remarkDocId, eventName, startDate, finishDate, forExpDate, formFillingDate, passingGrade, isPractical, isSimulator} = req.body;
+    const { sessionId, sectorId, remarkDocId, eventName, startDate, finishDate, forExpDate, formFillingDate, isPractical, isSimulator, theoryMode = "MODE_1", difficulty = "HARD"} = req.body;
+    const requestedSessionId = positiveId(sessionId);
+    const requestedSectorId = positiveId(sectorId);
+    if (!requestedSessionId || !requestedSectorId || !await findScopedEvent(req, positiveId(id)) ||
+        !await placementIsAllowed(req, requestedSessionId, requestedSectorId)) {
+      return res.status(403).json({ message: "Event, session, or sector is outside your permitted branch unit." });
+    }
+    if (!["MODE_1", "MODE_2"].includes(theoryMode) || !["EASY", "HARD"].includes(difficulty)) {
+      return res.status(400).json({ message: "Invalid theory mode or difficulty." });
+    }
     const cleanIsPractical = isPractical === 'true' || isPractical === true;
     const cleanIsSimulator = isSimulator === 'true' || isSimulator === true;
     // Get existing event to find old briefingFile path
     const existingEvent = await prisma.event.findUnique({
       where: { id: parseInt(id) },
-      select: { briefingFile: true, recommendationFile: true }
+      select: { briefingFile: true, recommendationFile: true, startDate: true, theoryMode: true, difficulty: true, theorySessions: { select: { id: true }, take: 1 } }
     });
+    if (!existingEvent) return res.status(404).json({ message: "Event not found." });
+    const standard = await prisma.passingGradeStandard.findUnique({ where: { id: 1 } });
+    if (!standard) return res.status(503).json({ message: "Passing grade standard is not configured." });
+    const hasStarted = existingEvent.startDate && existingEvent.startDate <= new Date();
+    if (hasStarted && (existingEvent.theoryMode !== theoryMode || existingEvent.difficulty !== difficulty)) {
+      return res.status(409).json({ message: "Examination mode and difficulty cannot change after the event starts." });
+    }
+    if (existingEvent.theorySessions.length && (existingEvent.theoryMode !== theoryMode || existingEvent.difficulty !== difficulty)) {
+      return res.status(409).json({ message: "Examination mode and difficulty cannot change after a Mode 2 session has been created." });
+    }
 
     const remarkDoc = await prisma.remarkDoc.findFirst({
       where: { id: parseInt(remarkDocId), deletedAt: null },
@@ -171,12 +242,6 @@ const getEventById = async (req, res) => {
     });
     if (!remarkDoc) {
       return res.status(400).json({ message: "Invalid remark." });
-    }
-    const isPenerbitan = remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN";
-    if (isPenerbitan && !recommendationFile && !existingEvent?.recommendationFile) {
-      return res.status(400).json({
-        message: "Recommendation letter is required for PENERBITAN."
-      });
     }
 
     await prisma.event.update({
@@ -188,26 +253,29 @@ const getEventById = async (req, res) => {
         sectorId: parseInt(sectorId),
         remarkDocId: parseInt(remarkDocId),
         event: eventName,
-        startDate: dayjs.utc(startDate).startOf('day').toDate(),
-        finishDate: dayjs.utc(finishDate).startOf('day').toDate(),
+        startDate: dayjs.utc(startDate).toDate(),
+        finishDate: dayjs.utc(finishDate).toDate(),
         forExpiredDate: dayjs.utc(forExpDate).startOf('day').toDate(),
         formFillingDate: dayjs.utc(formFillingDate).startOf('day').toDate(),
-        passingGrade: parseInt(passingGrade),
+        ...(!hasStarted && {
+          passingGrade: standard.theoryGrade,
+          practicalPassingGrade: standard.practicalGrade,
+        }),
         isPractical: Boolean(cleanIsPractical),
         isSimulator: Boolean(cleanIsSimulator),
+        theoryMode,
+        difficulty,
         // Store file URL if file was uploaded, otherwise keep existing
         briefingFile: briefingFile
           ? eventFileUrl(briefingFile)
           : existingEvent?.briefingFile,
-        recommendationFile: isPenerbitan
-          ? (recommendationFile
-              ? eventFileUrl(recommendationFile)
-              : existingEvent?.recommendationFile)
-          : null,
+        recommendationFile: recommendationFile
+          ? eventFileUrl(recommendationFile)
+          : existingEvent?.recommendationFile,
       }
     })
     if (briefingFile) removeStoredFile(existingEvent?.briefingFile);
-    if (recommendationFile || !isPenerbitan) {
+    if (recommendationFile) {
       removeStoredFile(existingEvent?.recommendationFile);
     }
     res.status(201).json({ success: true });
@@ -233,11 +301,15 @@ const deleteEventById = async (req, res) => {
 
 const getUser = async (req, res) => {
   try {
-    const {id} = req.params
+    const id = positiveId(req.params.id);
+    if (!id) return res.status(400).json({ message: "Valid event ID is required." });
+    if (!await findScopedEvent(req, id)) return res.status(404).json({ message: "Event not found in your scope." });
     const userAvailable = [];
     const event = await prisma.event.findFirst({
       where: {
-        id: parseInt(id)
+        id,
+        deletedAt: null,
+        ...eventScope(req),
       },
       select: {
         id: true,
@@ -264,7 +336,8 @@ const getUser = async (req, res) => {
 
     const eventUser = await prisma.eventUser.findMany({
       where: {
-        eventId: parseInt(id)
+        eventId: id,
+        deletedAt: null,
       },
       select: {
         userNik: true
@@ -283,9 +356,23 @@ const getUser = async (req, res) => {
 const postUser = async (req, res) => {
   try {
     const {eventId, userNiks} = req.body;
+    const id = positiveId(eventId);
+    if (!id || !Array.isArray(userNiks) || !userNiks.length ||
+        userNiks.some((nik) => typeof nik !== "string" || !nik.trim()) ||
+        new Set(userNiks).size !== userNiks.length) {
+      return res.status(400).json({ message: "Choose an event and valid, distinct users." });
+    }
+    const event = await findScopedEvent(req, id);
+    if (!event?.sectorId) return res.status(404).json({ message: "Event not found in your scope." });
+    const eligibleUsers = await prisma.user.count({
+      where: { nik: { in: userNiks }, sectorId: event.sectorId, deletedAt: null },
+    });
+    if (eligibleUsers !== userNiks.length) {
+      return res.status(403).json({ message: "One or more users are outside this event's sector." });
+    }
 
     await prisma.eventUser.createMany({
-      data: userNiks.map((id) => ({userNik:id, eventId}))
+      data: userNiks.map((nik) => ({ userNik: nik, eventId: id }))
     })
 
     res.status(201).json({ success: true });
@@ -296,12 +383,14 @@ const postUser = async (req, res) => {
 
 const getEventUser = async(req, res) => {
   try {
-    const {id} = req.params
+    const id = positiveId(req.params.id);
+    if (!id) return res.status(400).json({ message: "Valid event ID is required." });
+    if (!await findScopedEvent(req, id)) return res.status(404).json({ message: "Event not found in your scope." });
 
     const eventUser = await prisma.eventUser.findMany({
       where: {
         deletedAt: null,
-        eventId: parseInt(id)
+        eventId: id,
       },
       select: {
         id: true,
@@ -322,12 +411,25 @@ const getEventUser = async(req, res) => {
 
 const deleteEventUser = async(req, res) => {
   try {
-    const {ids} = req.body
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || !ids.length || ids.some((id) => !positiveId(id)) ||
+        new Set(ids.map(Number)).size !== ids.length) {
+      return res.status(400).json({ message: "Valid, distinct event-user IDs are required." });
+    }
+    const numericIds = ids.map(Number);
+    const scopedAssignments = await prisma.eventUser.count({
+      where: { id: { in: numericIds }, deletedAt: null, event: { deletedAt: null, ...eventScope(req) } },
+    });
+    if (scopedAssignments !== numericIds.length) {
+      return res.status(404).json({ message: "One or more event assignments were not found in your scope." });
+    }
     await prisma.eventUser.deleteMany({
       where: {
         id: {
-          in: ids
-        }
+          in: numericIds
+        },
+        deletedAt: null,
+        event: { deletedAt: null, ...eventScope(req) },
       }
     })
     

@@ -490,10 +490,12 @@ const addIelpUser = async (req, res) => {
       return res.status(400).json({ message: "You cannot select yourself to verify your own IELP record." });
     }
     if (!isEchain) {
+      if (req.user.branchUnitId == null) return res.status(400).json({ message: "Your branch unit is not assigned. Ask an administrator to assign it before selecting an IELP checker." });
       const checker = await prisma.user.findFirst({
         where: {
           nik: requestedCheckerNik,
           deletedAt: null,
+          branchUnitId: req.user.branchUnitId,
           userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } },
         },
         select: { nik: true },
@@ -570,8 +572,9 @@ const getIelpById = async (req, res) => {
     if (!revisionCheckerNik || revisionCheckerNik === req.user.nik) {
       return res.status(400).json({ message: "Please select another checker to verify this IELP revision." });
     }
+    if (req.user.branchUnitId == null) return res.status(400).json({ message: "Your branch unit is not assigned. Ask an administrator to assign it before selecting an IELP checker." });
     const checker = await prisma.user.findFirst({
-      where: { nik: revisionCheckerNik, deletedAt: null, userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } } },
+      where: { nik: revisionCheckerNik, deletedAt: null, branchUnitId: req.user.branchUnitId, userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } } },
       select: { nik: true },
     });
     if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });

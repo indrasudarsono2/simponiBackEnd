@@ -103,10 +103,14 @@ const sendApprovedCredentialToEchain = async (type, record, req) => {
 
 const getEligibleCheckers = async (req, res) => {
   try {
+    if (req.user.branchUnitId == null) {
+      return res.status(400).json({ message: "Your branch unit is not assigned. Ask an administrator to assign it before selecting an IELP/MEDEX checker." });
+    }
     const checkers = await prisma.user.findMany({
       where: {
         deletedAt: null,
         nik: { not: req.user.nik },
+        branchUnitId: req.user.branchUnitId,
         userRoles: {
           some: {
             deletedAt: null,
@@ -116,17 +120,6 @@ const getEligibleCheckers = async (req, res) => {
             },
           },
         },
-        OR: [
-          { branchUnitId: req.user.branchUnitId },
-          {
-            userRoles: {
-              some: {
-                deletedAt: null,
-                roles: { deletedAt: null, role: "GENERAL CHECKER" },
-              },
-            },
-          },
-        ],
       },
       select: {
         nik: true,

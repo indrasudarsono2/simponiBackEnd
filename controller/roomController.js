@@ -40,6 +40,7 @@ const findUnavailableEventUserIds = async ({
       event: {
         is: {
           deletedAt: null,
+          theoryMode: "MODE_1",
           sector: {
             is: {
               deletedAt: null,
@@ -84,6 +85,7 @@ const getRoom = async (req, res) => {
         events: {
           some: {
             deletedAt: null,
+            theoryMode: "MODE_1",
             eventUsers: {
               some: {
                 deletedAt: null,
@@ -104,6 +106,7 @@ const getRoom = async (req, res) => {
         events: {
           where: {
             deletedAt: null,
+            theoryMode: "MODE_1",
           },
           select: {
             id: true,
@@ -187,6 +190,11 @@ const getRoom = async (req, res) => {
               },
               select: {
                 id: true,
+                event: {
+                  select: {
+                    theoryMode: true,
+                  },
+                },
                 applicationDocs: {
                   where: {
                     deletedAt: null,

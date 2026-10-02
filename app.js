@@ -13,7 +13,10 @@ import securityConfig from './config/security.js';
 import prisma from './lib/prisma.js';
 import { serveSignedFile } from './middleware/privateFiles.js';
 import { startEscalationScheduler } from './workers/escalationScheduler.js';
+import { startTheorySessionScheduler } from './workers/theorySessionScheduler.js';
+import { startModeOneExamScheduler } from './workers/modeOneExamScheduler.js';
 import { requireHttps, shouldEnforceHttpsRedirect } from './middleware/requireHttps.js';
+import { skipGeneralApiLimit } from './middleware/rateLimitPolicy.js';
 
 // 2. Initializations
 const app = express();
@@ -109,12 +112,29 @@ const apiLimiter = rateLimit({
   limit: 300,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  skip: skipGeneralApiLimit,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 app.use('/api', apiLimiter);
 
-// Stricter rate limiter for login endpoint (brute-force / credential stuffing)
-app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
+// Room participants may share one IP. Count failed attempts, with both a
+// shared-IP ceiling and the original ten-attempt ceiling per e-NIK.
+app.use('/api/auth/login', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+}));
+app.use('/api/auth/login', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  keyGenerator: (req) => String(req.body?.nik || '').trim().toUpperCase(),
+  skip: (req) => !/^[A-Z0-9]{8}$/.test(String(req.body?.nik || '').trim().toUpperCase()),
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+}));
 app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }));
 app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
 
@@ -145,10 +165,18 @@ app.use((err, req, res, next) => {
 
 // 6. Start Server
 let escalationScheduler;
+let theorySessionScheduler;
+let modeOneExamScheduler;
 const server = app.listen(PORT, securityConfig.serverHost, () => {
   console.log(`🚀 Server is listening on ${securityConfig.serverHost}:${PORT}`);
   if (process.env.RUN_ESCALATION_SCHEDULER !== 'false') {
     escalationScheduler = startEscalationScheduler();
+  }
+  if (process.env.RUN_THEORY_SESSION_SCHEDULER !== 'false') {
+    theorySessionScheduler = startTheorySessionScheduler();
+  }
+  if (process.env.RUN_MODE_ONE_EXAM_SCHEDULER !== 'false') {
+    modeOneExamScheduler = startModeOneExamScheduler();
   }
 });
 
@@ -158,6 +186,8 @@ const shutdown = (signal) => {
   isShuttingDown = true;
   console.log(`${signal} received; shutting down gracefully.`);
   escalationScheduler?.stop();
+  theorySessionScheduler?.stop();
+  modeOneExamScheduler?.stop();
 
   const forceExitTimer = setTimeout(() => {
     console.error('Graceful shutdown timed out; forcing exit.');

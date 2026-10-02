@@ -85,6 +85,9 @@ const postData = async (req, res) => {
       },
       select: {
         id: true,
+        event: {
+          select: { passingGrade: true, practicalPassingGrade: true }
+        },
         user: {
           where: {
             deletedAt: null
@@ -160,11 +163,16 @@ const postData = async (req, res) => {
                     deletedAt: null,
                     isInvalidated: false
                   },
+                  orderBy: { id: "asc" },
                   select: {
                     id: true,
                     essayScore: true,
                     multipleChoiceScore: true,
                     finalScore: true,
+                    essayStartedAt: true,
+                    essaySubmittedAt: true,
+                    multipleChoiceStartedAt: true,
+                    multipleChoiceSubmittedAt: true,
                     cwpSnapshots: {
                       select: {
                         cwpId: true,
@@ -186,6 +194,7 @@ const postData = async (req, res) => {
                     },
                     event: {
                       select: {
+                        passingGrade: true,
                         sector: {
                           select: {
                             sector: true,

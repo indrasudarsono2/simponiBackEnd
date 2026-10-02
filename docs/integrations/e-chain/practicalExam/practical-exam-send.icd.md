@@ -8,7 +8,7 @@
 | Version | v1.1-draft |
 | Status | Draft |
 | Created | 2026-07-12 |
-| Updated | 2026-07-12 |
+| Updated | 2026-10-02 |
 
 ## Purpose
 
@@ -71,8 +71,8 @@ POST /api/practicalExam/recheck/{recheckAttemptId}/send-echain
   "rating": "TWR",
   "validUntil": "2027-07-12T16:59:59.000Z",
   "file": {
-    "fileName": "twr-steve-practical.pdf",
-    "fileUrl": "https://simponi.example.com/files/1752322200/signed-token/practicalTest/twr-steve-practical.pdf",
+    "fileName": "license-twr.pdf",
+    "fileUrl": "https://simponi.example.com/files/1752322200/signed-token/license/license-twr.pdf",
     "fileMimeType": "application/pdf"
   },
   "requestedFields": [
@@ -92,7 +92,7 @@ POST /api/practicalExam/recheck/{recheckAttemptId}/send-echain
 | `profession` | string/null | Yes | Examinee profession from SIMPONI `User.professionInBranch.profession.profession`. |
 | `practicalCheckedAt` | string/null | Yes | Practical check datetime. SIMPONI uses `PracticalTest.updatedAt` after score input, falling back to event start date. |
 | `rating` | string/null | Yes | Rating name, for example `TWR`. |
-| `validUntil` | string/null | Yes | Rating validity datetime. SIMPONI uses active `userRating.expireddate`, falling back to `Event.forExpiredDate`. |
+| `validUntil` | string/null | Yes | Uploaded rating license expiry, sourced from `Event.forExpiredDate`. |
 | `file.fileName` | string | Yes | PDF file name. |
 | `file.fileUrl` | string | Yes | Signed SIMPONI file URL for e-chain to download. |
 | `file.fileMimeType` | string | Yes | Must be `application/pdf`. |
@@ -112,25 +112,25 @@ POST /api/practicalExam/recheck/{recheckAttemptId}/send-echain
 
 ## SIMPONI Behavior
 
-1. Checker opens `/practicalExam/practical`.
-2. Checker inputs or updates a practical exam score and uploads a PDF evidence file.
+1. The assigned group PIC opens `/practicalExam/practical`.
+2. The PIC inputs or updates the practical score, uploads that Live/Simulator evaluation sheet, and uploads one shared license PDF per rating. The license is attached to the examinee and uses the event name as its note and `Event.forExpiredDate` as its expiry.
 3. SIMPONI shows the row-level e-chain button after the `File` column.
 4. SIMPONI may show `SUCCESS` and `FAILED` practical/recheck records for review/history.
 5. Only `SUCCESS` practical or practical recheck data can be sent to e-chain.
-6. Checker clicks `Send`.
+6. The PIC clicks `Send` once per rating.
 7. SIMPONI calls `GET /api/practicalExam/{practicalTestId}/echain-payload`.
-8. SIMPONI validates that the practical status is `SUCCESS` and the evidence file is PDF.
+8. SIMPONI validates that the practical status is `SUCCESS` and the rating license is PDF.
 9. SIMPONI shows a confirmation modal with the exact five fields that will be sent.
-10. Checker confirms `Send to e-chain`.
+10. The PIC confirms `Send to e-chain`.
 11. SIMPONI calls e-chain using `POST {ECHAIN_BASE_URL}{ECHAIN_PRACTICAL_EXAM_SEND_PATH}`.
 12. SIMPONI stores the request, response, status, and error message in `PracticalExamEchainSync`.
 13. Frontend refreshes the table and shows `Sent` or `Retry`.
 
 ## PDF File Rule
 
-The practical evidence file must be PDF before SIMPONI sends data to e-chain.
+Only the rating license PDF is sent to e-chain. Evaluation sheets stay in SIMPONI as practical evidence.
 
-If the stored practical evidence file is missing or not `.pdf`, SIMPONI returns an error and does not open the confirmation modal.
+If the stored rating license is missing or not `.pdf`, SIMPONI returns an error and does not open the confirmation modal.
 
 FAILED practical/recheck data is visible in SIMPONI for review, but SIMPONI does not send FAILED practical/recheck data to e-chain.
 

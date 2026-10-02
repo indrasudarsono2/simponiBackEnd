@@ -1,0 +1,21 @@
+CREATE TABLE `Certificate` (
+  `id` INTEGER NOT NULL AUTO_INCREMENT,
+  `finalScoreId` INTEGER NOT NULL,
+  `userRatingId` INTEGER NOT NULL,
+  `version` INTEGER NOT NULL DEFAULT 1,
+  `publicId` VARCHAR(36) NOT NULL,
+  `number` VARCHAR(80) NOT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'VALID',
+  `snapshot` JSON NOT NULL,
+  `issuedAt` DATETIME(3) NOT NULL,
+  `snapshottedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `revokedAt` DATETIME(3) NULL,
+  `revokeReason` VARCHAR(250) NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `Certificate_publicId_key` (`publicId`),
+  UNIQUE INDEX `Certificate_number_key` (`number`),
+  UNIQUE INDEX `Certificate_finalScoreId_version_key` (`finalScoreId`, `version`),
+  INDEX `Certificate_finalScoreId_status_idx` (`finalScoreId`, `status`),
+  CONSTRAINT `Certificate_finalScoreId_fkey` FOREIGN KEY (`finalScoreId`) REFERENCES `FinalScore`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `Certificate_userRatingId_fkey` FOREIGN KEY (`userRatingId`) REFERENCES `userRating`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

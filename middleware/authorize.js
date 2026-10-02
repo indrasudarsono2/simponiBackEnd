@@ -8,6 +8,8 @@ export const ROLES = Object.freeze({
   CHECKER_ADMIN: "CHECKER ADMIN",
   GENERAL_CHECKER: "GENERAL CHECKER",
   CHECKER: "CHECKER",
+  CHECKER_EXAMINATION: "CHECKER EXAMINATION",
+  CHECKER_EXAMINATION_LEAD: "CHECKER EXAMINATION LEAD",
   OPERATIONAL: "OPERATIONAL",
   SUPERVISOR: "SUPERVISOR",
   DOCTOR: "DOCTOR",
@@ -59,9 +61,15 @@ export const enforceTenantBody = (req, res, next) => {
   const roles = new Set((req.user?.roleNames || []).map(normalizeRole));
   if (roles.has(ROLES.GENERAL_ADMIN)) return next();
 
+  const branchUnitScoped = roles.has(ROLES.BRANCH_UNIT_ADMIN) || roles.has(ROLES.CHECKER_ADMIN);
   const checks = roles.has(ROLES.BRANCH_ADMIN)
     ? [["branchId", req.user.branchId]]
-    : [
+    : branchUnitScoped
+      ? [
+          ["branchId", req.user.branchId],
+          ["branchUnitId", req.user.branchUnitId],
+        ]
+      : [
         ["branchId", req.user.branchId],
         ["branchUnitId", req.user.branchUnitId],
         ["sectorId", req.user.sectorId],

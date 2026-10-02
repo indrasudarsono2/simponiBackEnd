@@ -14,7 +14,7 @@ const clean = (value, key = "") => {
   }
   if (typeof value !== "string" || !RICH_TEXT_KEYS.has(key)) return value;
   return sanitizeHtml(value, {
-    allowedTags: ["p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "blockquote", "code", "pre", "a"],
+    allowedTags: ["p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "blockquote", "code", "pre", "h1", "h2", "a"],
     allowedAttributes: { a: ["href", "title", "target", "rel"] },
     allowedSchemes: ["http", "https", "mailto"],
     transformTags: { a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer" }, true) },
