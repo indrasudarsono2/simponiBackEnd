@@ -36,9 +36,14 @@ const getGroups = async (req, res) => {
               where: {
                 deletedAt: null
               },
+              orderBy: [
+                { createdAt: 'desc' },
+                { id: 'desc' }
+              ],
               select: {
                 id: true,
                 event: true,
+                createdAt: true,
                 remarkDoc: {
                   where: {
                     deletedAt: null
