@@ -7,6 +7,7 @@ import path from "path";
 import { ensureFinalScoreCwpSnapshot } from "../services/finalScoreCwpSnapshot.js";
 import { theoryWeightError } from "../services/theoryWeightValidation.js";
 import { prepareModeOneDraft, markModeOneDraftSubmitted, claimModeOneDraft, releaseModeOneDraftClaim } from "../services/modeOneDraft.js";
+import { getExamConfiguration, ratingConfiguration } from '../services/eventConfiguration.js';
 import {
   deriveOverallExaminationStatus,
   deriveMode1TheoryOutcome,
@@ -198,8 +199,9 @@ const getRandomMatsQuestions = async ({
   eventId,
   questionGroups = [],
   mandatoryItemIds = [],
+  savedConfiguration = null,
 }) => {
-  const configuration = await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
+  const configuration = savedConfiguration || await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
   const mode = configuration?.mode === "CATEGORY_PORTION" ? "CATEGORY_PORTION" : "SEPARATE_POOL";
   const quantity = Number(configuration?.quantity) || 0;
   const eligibleMandatoryItemIds = [...new Set(mandatoryItemIds.filter(Boolean))];
@@ -283,7 +285,7 @@ const getRandomMatsQuestions = async ({
     selected = shuffle(candidates).slice(0, quantity);
   } else {
     const categoryIds = [...new Set(questionGroups.map((group) => group.mandatoryItemId).filter(Boolean))];
-    const allocations = await prisma.matsCategoryAllocation.findMany({
+    const allocations = savedConfiguration ? savedConfiguration.allocations.filter(a => categoryIds.includes(a.mandatoryItemId) && a.quantity > 0) : await prisma.matsCategoryAllocation.findMany({
       where: { mandatoryItemId: { in: categoryIds }, deletedAt: null, quantity: { gt: 0 } },
       select: { mandatoryItemId: true, quantity: true },
     });
@@ -500,7 +502,7 @@ const getExamination = async (req, res) => {
     const selected = examinationEvents.find((item) => item.event.id === selectedEvent.id);
     res.json({ ...selected, events: examinationEvents });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -619,9 +621,12 @@ const getEssayQuestion = async (req, res) => {
       }
     })
 
-    const takeIt =
-      event?.eventUsers?.[0]?.applicationDocs?.[0]?.appRatings?.[0]?.rating
-        ?.subBranchUnitRatings?.[0]?.questionGroups || [];
+    const selectedAppRating = event?.eventUsers?.[0]?.applicationDocs?.[0]?.appRatings?.[0];
+    if (!selectedAppRating?.rating?.id || !event?.groups?.[0]?.groupMembers?.[0]) return res.status(404).json({ message: 'Application document data not found for this event user.' });
+    const savedConfiguration = await getExamConfiguration(event.id, { actorNik: req.user.nik, trigger: 'MODE_1_ESSAY_OPEN' });
+    const savedRating = ratingConfiguration(savedConfiguration, selectedAppRating.rating.id);
+    event.eventQuestions = savedConfiguration.eventQuestions;
+    const takeIt = savedRating.questionGroups.filter(g => g.kindOfQuestionId === 1).map(g => ({ ...g }));
 
     if (
       !event?.eventUsers?.[0] ||
@@ -675,7 +680,7 @@ const getEssayQuestion = async (req, res) => {
 
     randomNumbers.sort((a, b) => a - b);
 
-    const draft = await prepareModeOneDraft({ kind: "ESSAY", appRatingId, eventId,
+    const draft = await prepareModeOneDraft({ kind: "ESSAY", appRatingId, eventId, configurationVersionId: savedConfiguration.configurationVersionId,
       eventUserId, groupMemberId, ownerNik: req.user.nik, eventQuestion, questions: essay, monitorTime });
     if (!draft) return res.status(409).json({ message: "This essay attempt is no longer available." });
     if (!draft.deadlineAt) {
@@ -688,7 +693,7 @@ const getEssayQuestion = async (req, res) => {
       eventUserId, groupMemberId, eventId, randomNumbers, draftAnswers: draft.answers, deadlineAt: draft.deadlineAt})
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 }
 
@@ -713,6 +718,7 @@ const postEssayAnswer = async (req, res) => {
     const essaySubmittedAt = new Date();
     claimedDraftId = await claimModeOneDraft({ appRatingId, kind: "ESSAY", ownerNik: req.user.nik,
       eventId, ids: essay.map((item) => item.essayId), alreadyClaimed: req.modeOneDraftClaimed });
+    const configurationVersionId = (await prisma.modeOneExamDraft.findUnique({ where: { appRatingId_kind: { appRatingId: Number(appRatingId), kind: 'ESSAY' } }, select: { configurationVersionId: true } }))?.configurationVersionId || null;
     const updatedAppRating = await prisma.appRating.update({
       where: {
         id: appRatingId
@@ -722,6 +728,7 @@ const postEssayAnswer = async (req, res) => {
         finalScores: {
           create: {
             eventId,
+            configurationVersionId,
             statusId: 3,
             groupMemberId,
             essayScore: 0,
@@ -881,17 +888,17 @@ const getMultipleChoiceQuestion = async (req, res) => {
       }
     })
 
-    const takeIt =
-      event?.eventUsers?.[0]?.applicationDocs?.[0]?.appRatings?.[0]?.rating
-        ?.subBranchUnitRatings?.[0]?.questionGroups || [];
+    const selectedAppRating = event?.eventUsers?.[0]?.applicationDocs?.[0]?.appRatings?.[0];
+    if (!selectedAppRating?.rating?.id || !event?.groups?.[0]?.groupMembers?.[0]) return res.status(404).json({ message: 'Application document data not found for this event user.' });
+    const savedConfiguration = await getExamConfiguration(event.id, { actorNik: req.user.nik, trigger: 'MODE_1_MULTIPLE_CHOICE_OPEN' });
+    const savedRating = ratingConfiguration(savedConfiguration, selectedAppRating.rating.id);
+    event.eventQuestions = savedConfiguration.eventQuestions;
+    const takeIt = savedRating.questionGroups.filter(g => g.kindOfQuestionId === 2).map(g => ({ ...g }));
 
-    const configuration = await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
+    const configuration = savedConfiguration.mats;
     const matsMode = configuration?.mode === "CATEGORY_PORTION" ? "CATEGORY_PORTION" : "SEPARATE_POOL";
     const allocations = matsMode === "CATEGORY_PORTION"
-      ? await prisma.matsCategoryAllocation.findMany({
-          where: { deletedAt: null },
-          select: { mandatoryItemId: true, quantity: true },
-        })
+      ? savedConfiguration.mats.allocations
       : [];
     const allocationByItem = new Map(
       allocations.map((item) => [item.mandatoryItemId, item.quantity]),
@@ -922,18 +929,10 @@ const getMultipleChoiceQuestion = async (req, res) => {
     }
 
     const mats = await getRandomMatsQuestions({
+      savedConfiguration: savedConfiguration.mats,
       appRatingId,
       eventId: event.id,
-      mandatoryItemIds: (
-        await prisma.mandatoryRating.findMany({
-          where: {
-            ratingId: event?.eventUsers?.[0]?.applicationDocs?.[0]?.appRatings?.[0]?.rating?.id,
-            mandatoryItemId: { not: null },
-            deletedAt: null,
-          },
-          select: { mandatoryItemId: true },
-        })
-      ).map(({ mandatoryItemId }) => mandatoryItemId),
+      mandatoryItemIds: savedRating.mandatoryItemIds,
       questionGroups: takeIt.map((group) => ({
         mandatoryItemId: group.mandatoryRating?.mandatoryItemId || null,
         quantity: Number(group.quantity || 0),
@@ -993,7 +992,7 @@ const getMultipleChoiceQuestion = async (req, res) => {
 
     randomNumbers.sort((a, b) => a - b);
 
-    const draft = await prepareModeOneDraft({ kind: "MULTIPLE_CHOICE", appRatingId, eventId,
+    const draft = await prepareModeOneDraft({ kind: "MULTIPLE_CHOICE", appRatingId, eventId, configurationVersionId: savedConfiguration.configurationVersionId,
       eventUserId, groupMemberId, ownerNik: req.user.nik, eventQuestion, questions: multipleChoice, monitorTime });
     if (!draft) return res.status(409).json({ message: "This multiple-choice attempt is no longer available." });
     if (!draft.deadlineAt) {
@@ -1006,7 +1005,7 @@ const getMultipleChoiceQuestion = async (req, res) => {
       eventUserId, groupMemberId, eventId, randomNumbers, draftAnswers: draft.answers, deadlineAt: draft.deadlineAt})
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 }
 
@@ -1042,6 +1041,8 @@ const postMultipleChoiceAnswer = async (req, res) => {
     if (!Array.isArray(multipleChoice) || multipleChoice.length === 0) {
       return res.status(400).json({ message: "Multiple-choice answers are required." });
     }
+    const scoringDraft = await prisma.modeOneExamDraft.findUnique({ where: { appRatingId_kind: { appRatingId: Number(appRatingId), kind: 'MULTIPLE_CHOICE' } }, select: { configurationVersion: { select: { snapshot: true } } } });
+    if (scoringDraft?.configurationVersion) event.eventQuestions = scoringDraft.configurationVersion.snapshot.eventQuestions;
     const mcId = multipleChoice.map(d => Number(d.multipleChoiceId));
     if (mcId.some((id) => !Number.isInteger(id) || id <= 0) || new Set(mcId).size !== mcId.length) {
       return res.status(400).json({ message: "Invalid or duplicate multiple-choice question IDs." });
@@ -1120,6 +1121,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
     }
 
     const inputAppRating = async (appRatingId, statusAppRating, eventId, statusScore, groupMemberId, essayScore, mcValue, finalValue, multipleChoice, fnlScore, finalScoreId) => {
+      const configurationVersionId = (await prisma.modeOneExamDraft.findUnique({ where: { appRatingId_kind: { appRatingId: Number(appRatingId), kind: 'MULTIPLE_CHOICE' } }, select: { configurationVersionId: true } }))?.configurationVersionId || null;
       const multipleChoiceEventQuestionIds = (await prisma.eventQuestion.findMany({
         where: { eventId: Number(eventId), kindOfQuestionId: 2 },
         select: { id: true },
@@ -1137,6 +1139,7 @@ const postMultipleChoiceAnswer = async (req, res) => {
       const createFinalScore = {
         create: {create: {
             eventId,
+            configurationVersionId,
             statusId: statusScore,
             groupMemberId,
             essayScore,

@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import config from "../utils/config.js";
+import { assertConfigurationEditable } from '../services/eventConfiguration.js';
 
 const isValidWeight = (value) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1;
 const closeToOne = (value) => Math.abs(value - 1) < 0.000001;
@@ -98,7 +99,7 @@ const getEventQuestions = async (req, res) => {
   
     res.json({allAtribute,evenQuestion, kindOfQuestion});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -113,6 +114,7 @@ const addEventQuestions = async (req, res) => {
     if (event.theoryMode === "MODE_1" && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1)) return res.status(400).json({ message: "Minutes are required for Mode 1." });
     const result = await prisma.$transaction(async (tx) => {
       await tx.event.update({ where: { id: Number(eventId) }, data: { updatedAt: new Date() } });
+      await assertConfigurationEditable(tx, Number(eventId));
       const existing = await tx.eventQuestion.findMany({ where: { eventId: Number(eventId), deletedAt: null, kindOfQuestionId: { in: [1, 2] } }, select: { kindOfQuestionId: true, persentage: true } });
       if (existing.some((item) => item.kindOfQuestionId === Number(kindOfQuestionId))) return { error: "This question type is already configured for the event." };
       const remaining = 1 - existing.reduce((sum, item) => sum + Number(item.persentage || 0), 0);
@@ -132,7 +134,7 @@ const addEventQuestions = async (req, res) => {
 
     res.status(201).json({ success: true});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 }
 const getEventQuestionById = async (req, res) => {
@@ -147,6 +149,7 @@ const getEventQuestionById = async (req, res) => {
     if (event.theoryMode === "MODE_1" && (!Number.isFinite(Number(minutes)) || Number(minutes) < 1)) return res.status(400).json({ message: "Minutes are required for Mode 1." });
     const result = await prisma.$transaction(async (tx) => {
       await tx.event.update({ where: { id: Number(eventId) }, data: { updatedAt: new Date() } });
+      await assertConfigurationEditable(tx, Number(eventId));
       const current = await tx.eventQuestion.findFirst({ where: { id: Number(id), eventId: Number(eventId), deletedAt: null }, select: { kindOfQuestionId: true } });
       if (!current) return { error: "Event question not found in this event." };
       if (current.kindOfQuestionId !== Number(kindOfQuestionId)) return { error: "Question type cannot be changed. Remove and recreate this configuration instead." };
@@ -167,7 +170,7 @@ const getEventQuestionById = async (req, res) => {
     
     res.status(201).json(result);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -176,13 +179,16 @@ const deleteEventQuestionId = async (req, res) => {
     const now = new Date();
     const { id } = req.params;
     
-    await prisma.eventQuestion.update({
-      where: { id: parseInt(id) },
-      data: { deletedAt: now }
+    const question = await prisma.eventQuestion.findFirst({ where: { id: Number(id), deletedAt: null, event: { sector: { branchUnitId: req.user.branchUnitId }, deletedAt: null } }, select: { eventId: true } });
+    if (!question) return res.status(404).json({ message: 'Event question not found in your scope.' });
+    await prisma.$transaction(async tx => {
+      await tx.event.update({ where: { id: question.eventId }, data: { updatedAt: new Date() } });
+      await assertConfigurationEditable(tx, question.eventId);
+      await tx.eventQuestion.update({ where: { id: Number(id) }, data: { deletedAt: now } });
     });
     res.status(201).json({ success: true});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 

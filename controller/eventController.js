@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import { readLiveConfiguration, captureConfiguration, assertConfigurationEditable } from '../services/eventConfiguration.js';
 
 dayjs.extend(utc);
 
@@ -226,6 +227,10 @@ const getEventById = async (req, res) => {
       select: { briefingFile: true, recommendationFile: true, startDate: true, theoryMode: true, difficulty: true, theorySessions: { select: { id: true }, take: 1 } }
     });
     if (!existingEvent) return res.status(404).json({ message: "Event not found." });
+    const savedConfig = await prisma.eventConfigurationVersion.findFirst({ where: { eventId: Number(id) }, orderBy: { version: 'desc' }, select: { snapshot: true } });
+    if (savedConfig && (savedConfig.snapshot.sector?.id !== requestedSectorId || existingEvent.theoryMode !== theoryMode || existingEvent.difficulty !== difficulty)) {
+      await assertConfigurationEditable(prisma, Number(id));
+    }
     const standard = await prisma.passingGradeStandard.findUnique({ where: { id: 1 } });
     if (!standard) return res.status(503).json({ message: "Passing grade standard is not configured." });
     const hasStarted = existingEvent.startDate && existingEvent.startDate <= new Date();
@@ -244,10 +249,12 @@ const getEventById = async (req, res) => {
       return res.status(400).json({ message: "Invalid remark." });
     }
 
-    await prisma.event.update({
-      where: {
-        id: parseInt(id)
-      },
+    await prisma.$transaction(async tx => {
+      await tx.event.update({ where: { id: Number(id) }, data: { updatedAt: new Date() } });
+      const latest = await tx.eventConfigurationVersion.findFirst({ where: { eventId: Number(id) }, orderBy: { version: 'desc' }, select: { snapshot: true } });
+      if (latest && (latest.snapshot.sector?.id !== requestedSectorId || latest.snapshot.theoryMode !== theoryMode || latest.snapshot.difficulty !== difficulty)) await assertConfigurationEditable(tx, Number(id));
+      await tx.event.update({
+      where: { id: Number(id) },
       data: {
         sessionId: parseInt(sessionId),
         sectorId: parseInt(sectorId),
@@ -273,14 +280,19 @@ const getEventById = async (req, res) => {
           ? eventFileUrl(recommendationFile)
           : existingEvent?.recommendationFile,
       }
-    })
+      });
+      await tx.room.updateMany({ where: { defaultEventId: Number(id) }, data: {
+        name: `Default — ${eventName || `Event ${id}`}`.slice(0, 150),
+        startDate: dayjs.utc(startDate).toDate(), finishDate: dayjs.utc(finishDate).toDate(),
+      } });
+    });
     if (briefingFile) removeStoredFile(existingEvent?.briefingFile);
     if (recommendationFile) {
       removeStoredFile(existingEvent?.recommendationFile);
     }
     res.status(201).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -439,4 +451,29 @@ const deleteEventUser = async(req, res) => {
   }
 }
 
-export { getEvents, addEvents, getEventById, deleteEventById, getUser, postUser, getEventUser, deleteEventUser };
+const getQuestionConfiguration = async (req, res) => {
+  try {
+    const id = positiveId(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid event ID." });
+    if (!await findScopedEvent(req, id)) return res.status(404).json({ message: "Event not found in your scope." });
+    const versions = await prisma.eventConfigurationVersion.findMany({ where: { eventId: id }, orderBy: { version: 'desc' } });
+    let editable = true;
+    try { await assertConfigurationEditable(prisma, id); } catch (error) { if (error.status !== 409) throw error; editable = false; }
+    res.json({ versions, editable, live: editable || !versions.length ? await readLiveConfiguration(prisma, id) : null });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const finalizeQuestionConfiguration = async (req, res) => {
+  try {
+    const id = positiveId(req.params.id);
+    if (!id) return res.status(400).json({ message: 'Invalid event ID.' });
+    if (!await findScopedEvent(req, id)) return res.status(404).json({ message: 'Event not found in your scope.' });
+    const actor = await prisma.user.findUnique({ where: { nik: req.user.nik }, select: { name: true } });
+    const version = await captureConfiguration({ eventId: id, actorNik: req.user.nik, actorName: actor?.name, reason: req.body?.reason });
+    res.status(201).json({ version: version.version });
+  } catch (error) { res.status(error.status || 500).json({ message: error.message }); }
+};
+
+export { finalizeQuestionConfiguration, getQuestionConfiguration, getEvents, addEvents, getEventById, deleteEventById, getUser, postUser, getEventUser, deleteEventUser };

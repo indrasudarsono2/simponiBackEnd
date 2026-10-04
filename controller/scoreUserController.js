@@ -21,7 +21,8 @@ const getUserScore = async (req, res) => {
             deletedAt: null
           },
           select: {
-            event: true
+            event: true,
+            briefingFile: true
           }
         },
         applicationDocs: {

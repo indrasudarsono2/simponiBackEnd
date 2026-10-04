@@ -184,6 +184,7 @@ const postEssayAnswer = async (req, res) => {
     const {finalScoreId, persentage, essayCorrection} = req.body
     const mode2Score = await prisma.finalScore.findUnique({ where: { id: Number(finalScoreId) }, select: {
       id: true, statusId: true, isInvalidated: true, deletedAt: true, multipleChoiceScore: true,
+      configurationVersion: { select: { snapshot: true } },
       theorySessionParticipant: { select: { id: true } },
       groupMember: { select: { groupId: true, group: { select: {
         checkerGroups: { where: { deletedAt: null }, select: { checker: true } },
@@ -218,11 +219,12 @@ const postEssayAnswer = async (req, res) => {
 
     const value = expected.map((item) => Number(item.essay?.value || 0))
     const sumValue = value.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
-    if (sumValue <= 0 || !Number.isFinite(Number(persentage)) || Number(persentage) < 0 || Number(persentage) > 100) {
+    const scoringWeight = mode2Score.configurationVersion?.snapshot?.eventQuestions?.find(q => q.kindOfQuestionId === 1)?.persentage ?? persentage;
+    if (sumValue <= 0 || !Number.isFinite(Number(scoringWeight)) || Number(scoringWeight) < 0 || Number(scoringWeight) > 1) {
       return res.status(400).json({ message: 'The Essay scoring weight is invalid.' });
     }
 
-    const essayScore = sumScore/sumValue*100*Number(persentage)
+    const essayScore = sumScore/sumValue*100*Number(scoringWeight)
     await prisma.$transaction(
       essayCorrection.map((item) =>
         prisma.essayCorrection.update({

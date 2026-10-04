@@ -226,11 +226,12 @@ export const chooseRating = async (req, res) => {
     if (activeAttempt) return res.status(409).json({ message: "This rating is already selected in another active session." });
     const groupMember = await prisma.groupMember.findFirst({ where: { member: req.user.nik, deletedAt: null, group: { eventId: participant.eventUser.eventId, deletedAt: null } }, select: { id: true } });
     if (!groupMember) return res.status(409).json({ message: "Your checker group assignment is not ready." });
-    const snapshot = await createTheoryQuestionSnapshot({ event: participant.eventUser.event, appRating });
+    const snapshot = await createTheoryQuestionSnapshot({ event: participant.eventUser.event, appRating, actorNik: req.user.nik });
     const result = await prisma.theorySessionParticipant.updateMany({ where: { id: participant.id, appRatingId: null }, data: { appRatingId, questionSnapshot: snapshot, essayAnswers: {}, multipleChoiceAnswers: {}, joinedAt: new Date() } });
     if (result.count !== 1) return res.status(409).json({ message: "Rating was selected in another tab. Refresh the page." });
     res.json({ success: true });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
     if (/question|rating|group|MATS/i.test(error.message || "")) return res.status(409).json({ message: error.message });
     errorResponse(res, error);
   }

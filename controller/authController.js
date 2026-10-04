@@ -220,7 +220,6 @@ const establishLocalSession = async (user, req, res, now = new Date()) => {
   const token = jwt.sign({
     nik: user.nik,
     name: user.name,
-    roles: user.userRoles,
     branchId: user.branchId,
     branchUnitId: user.branchUnitId,
     sectorId: user.sectorId,

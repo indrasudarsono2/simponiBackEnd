@@ -433,9 +433,30 @@ model Event {
   matsSelections MatsQuestionSelection[]
   theorySessions TheorySession[]
   theorySessionEvents TheorySessionEvent[]
+  configurationVersions EventConfigurationVersion[]
+  defaultRoom Room? @relation("EventDefaultRoom")
 
   @@index([deletedAt, createdAt])
   @@index([sectorId, deletedAt])
+}
+
+model EventConfigurationVersion {
+  id Int @id @default(autoincrement())
+  eventId Int
+  version Int
+  source String @db.VarChar(40)
+  actorNik String? @db.VarChar(150)
+  actorName String? @db.VarChar(150)
+  reason String @db.Text
+  snapshot Json
+  lockedAt DateTime?
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  drafts ModeOneExamDraft[]
+  finalScores FinalScore[]
+
+  @@unique([eventId, version])
 }
 
 model EventQuestion {
@@ -487,6 +508,8 @@ model EventUser {
 
 model ModeOneExamDraft {
   id Int @id @default(autoincrement())
+  configurationVersionId Int?
+  configurationVersion EventConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: Restrict)
   appRatingId Int
   eventId Int
   eventUserId Int
@@ -1117,6 +1140,8 @@ model status {
 
 model FinalScore {
   id                  Int       @id @default(autoincrement())
+  configurationVersionId Int?
+  configurationVersion EventConfigurationVersion? @relation(fields: [configurationVersionId], references: [id], onDelete: Restrict)
   eventId             Int?      @db.Int
   appRatingId         Int?      @db.Int
   groupMemberId       Int?      @db.Int
@@ -1287,11 +1312,13 @@ model token {
 
 model Room {
   id         Int       @id @default(autoincrement())
+  defaultEventId Int? @unique
+  defaultEvent Event? @relation("EventDefaultRoom", fields: [defaultEventId], references: [id], onDelete: Restrict)
   checker    String?   @db.VarChar(100)
   name       String?   @db.VarChar(150)
   startDate  DateTime?
   finishDate DateTime?
-  file       String    @db.Text()
+  file       String?   @db.Text()
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?

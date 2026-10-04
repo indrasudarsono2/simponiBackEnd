@@ -28,6 +28,7 @@ import * as ratingController from '../controller/ratingController.js';
 import * as branchUnitController from '../controller/branchUnitController.js';
 import * as sectorController from '../controller/sectorController.js';
 import * as ratingCheckerAdminController from '../controller/ratingCheckerAdminController.js';
+import * as checkerAdminDashboardController from '../controller/checkerAdminDashboardController.js';
 import * as mandatoryItemController from '../controller/mandatoryItemController.js'
 import * as mandatoryRatingController from '../controller/monitorRatingController.js'
 import * as matsController from '../controller/matsController.js'
@@ -99,6 +100,7 @@ import * as onGoingIssueController from '../controller/onGoingIssueController.js
 import * as lhdReportController from '../controller/lhdReportController.js'
 import * as otherReportController from '../controller/otherReportController.js'
 import * as pfcScoreController from '../controller/pfcScoreController.js'
+import * as branchQuestionMonitor from '../controller/branchQuestionMonitorController.js';
 import * as pfcIndividualController from '../controller/pfcIndividualController.js'
 import * as pfcBranchUnitController from '../controller/pfcBranchUnitController.js'
 import * as credentialVerificationController from '../controller/credentialVerificationController.js'
@@ -139,6 +141,7 @@ router.put('/profile/:id', profileController.editProfile)
 router.post('/profile/change-password', profileController.changePassword)
 
 router.get('/dashboardOperational', dashboardController.getDashboardOperational)
+router.get('/dashboardCheckerAdmin', requireRole(ROLES.CHECKER_ADMIN), checkerAdminDashboardController.getCheckerAdminDashboard)
 router.get('/operationalGuide', requireRole(ROLES.OPERATIONAL), operationalGuideController.getOperationalGuide)
 router.get('/dashboardGeneralAdmin', dashboardController.getDashboardGeneralAdmin)
 router.get('/dashboardBranchAdmin', dashboardController.getDashboardBranchAdmin)
@@ -237,6 +240,8 @@ router.put('/sessions/:id', sessionController.getSesionById)
 router.delete('/sessions/:id', sessionController.deleteSessionById)
 
 router.get('/events', eventController.getEvents)
+router.get('/events/:id/question-configuration', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_ADMIN, ROLES.BRANCH_ADMIN, ROLES.BRANCH_UNIT_ADMIN), eventController.getQuestionConfiguration)
+router.post('/events/:id/question-configuration/finalize', requireRole(ROLES.CHECKER_ADMIN, ROLES.GENERAL_ADMIN, ROLES.BRANCH_ADMIN, ROLES.BRANCH_UNIT_ADMIN), eventController.finalizeQuestionConfiguration)
 router.get('/passingGradeStandard', passingGradeStandardController.getPassingGradeStandard)
 router.put('/passingGradeStandard', passingGradeStandardController.updatePassingGradeStandard)
 // Accept any single file with any field name
@@ -369,6 +374,8 @@ router.post('/token', tokenController.postTokenData)
 router.put('/token/:id', tokenController.editTokenData)
 
 router.get('/room', roomController.getRoom)
+router.get('/room/missing-assignments', requireRole(ROLES.CHECKER_ADMIN, ROLES.CHECKER), roomController.missingAssignments)
+router.post('/room/default-assignments', requireRole(ROLES.CHECKER_ADMIN, ROLES.CHECKER), roomController.repairAssignments)
 router.post('/room', uploadRoom.any(), roomController.postRoom)
 router.put('/room/:id', uploadRoom.any(), roomController.editRoom)
 router.delete('/room/:id', roomController.deleteRoom)
@@ -401,6 +408,8 @@ router.get('/scoreUser/certificate/:finalScoreId', scoreUserController.getUserCe
 router.get('/scoreUserPractical', scoreUserController.getUserScorePractical)
 
 router.get('/pfcScore/scoreRecap', pfcScoreController.getScoreRecap)
+router.get('/branchQuestionMonitor/options', requireRole(ROLES.GENERAL_ADMIN), branchQuestionMonitor.options)
+router.post('/branchQuestionMonitor/load', requireRole(ROLES.GENERAL_ADMIN), branchQuestionMonitor.load)
 router.get('/pfcScore/checker', pfcScoreController.getCheckers)
 router.get('/pfcScore/individual', pfcIndividualController.getOptions)
 router.post('/pfcScore/individual', pfcIndividualController.getIndividualStatistic)

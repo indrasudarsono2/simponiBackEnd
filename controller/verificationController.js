@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { ensureDefaultRoom } from '../services/defaultModeOneRoom.js';
 import config from "../utils/config.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -286,7 +287,7 @@ const postVerification = async(req, res) => {
           id: true,
           ojtRecommendationStatus: true,
           ojtUser: { select: { nik: true } },
-          eventUser: { select: { eventId: true, event: { select: { remarkDoc: { select: { remark: true } } } } } },
+          eventUser: { select: { id: true, eventId: true, event: { select: { sector: { select: { branchUnitId: true } }, remarkDoc: { select: { remark: true } } } } } },
           appRatings: { where: { deletedAt: null }, select: { proposalLetter: { select: { status: true, supervisorNik: true } } } }
         }
       }),
@@ -311,18 +312,19 @@ const postVerification = async(req, res) => {
     if (groupMember.group.pic !== req.user.nik) {
       return res.status(403).json({ message: "You are not authorized to verify this group member." });
     }
+    if (Number(applicationDoc.eventUser?.event?.sector?.branchUnitId) !== Number(req.user.branchUnitId)) return res.status(403).json({ message: 'This application document is outside your branch unit.' });
     const isPenerbitan = applicationDoc.eventUser?.event?.remarkDoc?.remark?.trim().toUpperCase() === "PENERBITAN";
     if (!applicationDoc.appRatings.length || applicationDoc.appRatings.some((rating) => rating.proposalLetter?.status !== "VALIDATED" || (isPenerbitan && rating.proposalLetter?.supervisorNik !== applicationDoc.ojtUser?.nik)) || (isPenerbitan && applicationDoc.ojtRecommendationStatus !== "ACCEPTED")) {
       const reviewer = isPenerbitan ? "OJTI approval" : "Supervisor validation";
       return res.status(409).json({ message: `${reviewer} is required for every proposed rating letter before the checker can verify this application document.` });
     }
 
-    await prisma.$transaction([
-      prisma.applicationDoc.update({
+    const roomAssignment = await prisma.$transaction(async tx => {
+      await tx.applicationDoc.update({
         where: { id: parsedApplicationDocId },
         data: { statusId: 2 }
-      }),
-      prisma.verification.upsert({
+      });
+      await tx.verification.upsert({
         where: { applicationDocId: parsedApplicationDocId },
         update: {
           groupMemberId: parsedGroupMemberId,
@@ -336,10 +338,11 @@ const postVerification = async(req, res) => {
           verificationData: JSON.stringify(verificationItems),
           isValid: true
         }
-      })
-    ]);
+      });
+      return ensureDefaultRoom(tx, applicationDoc.eventUser.id, { branchUnitId: req.user.branchUnitId, checkerNik: req.user.nik });
+    });
 
-    res.json({ success: true });
+    res.json({ success: true, roomAssignment });
   } catch (error) {
     console.error("Failed to submit verification:", error);
     res.status(500).json({ message: error.message });

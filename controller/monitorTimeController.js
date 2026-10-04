@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import { getExamConfiguration } from '../services/eventConfiguration.js';
 
 const postTime = async (req, res) => {
   try {
@@ -36,6 +37,10 @@ const postTime = async (req, res) => {
     if (!appRating || !eventQuestion || appRating.applicationDoc?.eventUser?.eventId !== eventQuestion.eventId) {
       return res.status(404).json({ message: "Examination session was not found for this user." });
     }
+    const configuration = await getExamConfiguration(eventQuestion.eventId, { actorNik: req.user.nik, trigger: 'MODE_1_TIMER_START' });
+    const savedQuestion = configuration.eventQuestions.find(q => q.id === eventQuestion.id);
+    if (!savedQuestion) return res.status(409).json({ message: 'This question type is not in the saved configuration.' });
+    eventQuestion.minutes = savedQuestion.minutes;
 
     const monitor = await prisma.monitorTime.findFirst({
       where: {
@@ -80,7 +85,7 @@ const postTime = async (req, res) => {
     }
     res.status(200).json({ message: "success", deadlineAt });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 export { postTime };

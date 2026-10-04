@@ -8,14 +8,14 @@ export const questionIds = (kind, groups) => groups.flatMap((group) =>
 ).map((entry) => Number(kind === 'ESSAY' ? entry.essay?.id : entry.multipleChoice?.id))
   .filter((id) => Number.isInteger(id) && id > 0);
 
-export async function prepareModeOneDraft({ kind, appRatingId, eventId, eventUserId, groupMemberId, ownerNik, eventQuestion, questions, monitorTime }) {
+export async function prepareModeOneDraft({ kind, appRatingId, eventId, eventUserId, groupMemberId, ownerNik, eventQuestion, questions, monitorTime, configurationVersionId = null }) {
   if (!(kind in KINDS)) throw new Error('Invalid Mode 1 draft kind.');
   const durationMs = Math.max(0, Number(eventQuestion.minutes || 0)) * 60_000;
   const deadlineAt = monitorTime?.createdAt
     ? new Date(new Date(monitorTime.createdAt).getTime() + durationMs) : null;
   const draft = await prisma.modeOneExamDraft.upsert({
     where: { appRatingId_kind: { appRatingId, kind } },
-    create: { appRatingId, eventId, eventUserId, groupMemberId, ownerNik, kind,
+    create: { appRatingId, eventId, eventUserId, groupMemberId, ownerNik, kind, configurationVersionId,
       questionSnapshot: questions, answers: {}, deadlineAt },
     update: {},
   });
@@ -39,7 +39,7 @@ export async function prepareModeOneDraft({ kind, appRatingId, eventId, eventUse
     });
     if (!recheck && !earlierAdminReset) return null;
     return prisma.modeOneExamDraft.update({ where: { id: draft.id },
-      data: { questionSnapshot: questions, answers: {}, eventUserId, groupMemberId,
+      data: { questionSnapshot: questions, answers: {}, eventUserId, groupMemberId, configurationVersionId,
         deadlineAt, submittedAt: null, processingAt: null } });
   }
   if (!draft.deadlineAt && deadlineAt) {

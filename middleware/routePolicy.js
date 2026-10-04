@@ -1,6 +1,7 @@
 import { requireMenu, requireRole, ROLES } from "./authorize.js";
 
 const policies = [
+  { pattern: /^\/branchQuestionMonitor(\/|$)/, menus: ['pfcScore'], roles: [ROLES.GENERAL_ADMIN] },
   { pattern: /^\/operationalGuide$/, methods: ["GET"], menus: ["dashboardOperational"], roles: [ROLES.OPERATIONAL] },
   { pattern: /^\/mats(\/|$)/, menus: ["mandatoryQuestion"], roles: [ROLES.GENERAL_ADMIN] },
   { pattern: /^\/passingGradeStandard$/, methods: ["PUT"], menus: ["mandatoryQuestion"], roles: [ROLES.GENERAL_ADMIN] },
@@ -75,7 +76,10 @@ export const enforceRoutePolicy = (req, res, next) => {
     (req.user?.roleNames || []).map((role) => String(role || "").trim().toUpperCase()),
   );
   const questionManagementPath = /^\/(questionGroupsEssay|essays|essayGroups|questionGroupsMultipleChoice|multipleChoices|multipleChoiceGroups)(\/|$)/;
-  if (roleNames.has(ROLES.CHECKER_EXAMINATION) && questionManagementPath.test(req.path)) {
+  if (roleNames.has(ROLES.CHECKER_EXAMINATION) &&
+      !roleNames.has(ROLES.CHECKER_ADMIN) &&
+      !roleNames.has(ROLES.GENERAL_ADMIN) &&
+      questionManagementPath.test(req.path)) {
     return res.status(403).json({
       success: false,
       message: "Checker Examination may only use the read-only Question Review endpoint.",

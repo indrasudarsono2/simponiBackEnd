@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { getExamConfiguration, ratingConfiguration } from './eventConfiguration.js';
 import {
   getRandomEssayByGroup,
   getRandomMultipleChoiceByGroup,
@@ -14,24 +15,14 @@ const shuffle = (items) => {
   return result;
 };
 
-export const createTheoryQuestionSnapshot = async ({ event, appRating }) => {
+export const createTheoryQuestionSnapshot = async ({ event, appRating, actorNik = null }) => {
   const sectorId = event.sectorId;
   const ratingId = appRating.ratingId;
-  const subRating = await prisma.subBranchUnitRating.findFirst({
-    where: { ratingId, sectorId, deletedAt: null },
-    select: {
-      questionGroups: {
-        where: { deletedAt: null, kindOfQuestionId: { in: [1, 2] } },
-        select: { id: true, group: true, quantity: true, kindOfQuestionId: true, mandatoryRating: { select: { mandatoryItemId: true } } },
-      },
-    },
-  });
+  const savedConfiguration = await getExamConfiguration(event.id, { actorNik, trigger: 'MODE_2_RATING_SELECTION' });
+  const subRating = ratingConfiguration(savedConfiguration, ratingId);
   if (!subRating) throw new Error("This rating has no question configuration in the event sector.");
 
-  const eventQuestions = await prisma.eventQuestion.findMany({
-    where: { eventId: event.id, deletedAt: null, kindOfQuestionId: { in: [1, 2] } },
-    select: { kindOfQuestionId: true, persentage: true },
-  });
+  const eventQuestions = savedConfiguration.eventQuestions;
   const essayWeight = Number(eventQuestions.find((item) => item.kindOfQuestionId === 1)?.persentage || 0);
   const multipleChoiceWeight = Number(eventQuestions.find((item) => item.kindOfQuestionId === 2)?.persentage || 0);
   if (essayWeight + multipleChoiceWeight <= 0) throw new Error("Theory event questions have not been configured.");
@@ -50,10 +41,10 @@ export const createTheoryQuestionSnapshot = async ({ event, appRating }) => {
   let matsMode = null;
   if (multipleChoiceWeight > 0) {
     const groups = subRating.questionGroups.filter((item) => item.kindOfQuestionId === 2);
-    const configuration = await prisma.matsConfiguration.findUnique({ where: { id: 1 } });
+    const configuration = savedConfiguration.mats;
     matsMode = configuration?.mode === "CATEGORY_PORTION" ? "CATEGORY_PORTION" : "SEPARATE_POOL";
     const allocations = matsMode === "CATEGORY_PORTION"
-      ? await prisma.matsCategoryAllocation.findMany({ where: { deletedAt: null }, select: { mandatoryItemId: true, quantity: true } })
+      ? savedConfiguration.mats.allocations
       : [];
     const allocationByItem = new Map(allocations.map((item) => [item.mandatoryItemId, Number(item.quantity || 0)]));
     for (const group of groups) {
@@ -63,11 +54,9 @@ export const createTheoryQuestionSnapshot = async ({ event, appRating }) => {
       const rows = await getRandomMultipleChoiceByGroup({ sectorId, questionGroupId: group.id, quantity: Math.max(0, quantity - matsPortion) });
       multipleChoiceGroups.push({ group: group.group, quantity, mandatoryItemId, questions: rows.map(({ multipleChoice }) => multipleChoice) });
     }
-    const mandatoryItemIds = (await prisma.mandatoryRating.findMany({
-      where: { ratingId, mandatoryItemId: { not: null }, deletedAt: null },
-      select: { mandatoryItemId: true },
-    })).map((item) => item.mandatoryItemId);
+    const mandatoryItemIds = subRating.mandatoryItemIds;
     const mats = await getRandomMatsQuestions({
+      savedConfiguration: savedConfiguration.mats,
       appRatingId: appRating.id,
       eventId: event.id,
       mandatoryItemIds,
@@ -87,6 +76,8 @@ export const createTheoryQuestionSnapshot = async ({ event, appRating }) => {
   }
 
   return {
+    configurationVersionId: savedConfiguration.configurationVersionId,
+    configurationVersion: savedConfiguration.configurationVersion,
     essayWeight,
     multipleChoiceWeight,
     matsMode,

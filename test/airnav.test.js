@@ -96,7 +96,7 @@ test('registered employee gets the PERFORMA JWT and frontend session-completion 
   assert.equal(res.location, 'https://performa.example.invalid/auth/complete');
   const token = jwt.verify(res.cookies.auth_token.value, process.env.JWT_SECRET, { algorithms: ['HS256'] });
   assert.equal(token.sub, '12345678');
-  assert.deepEqual(token.roles, roles);
+  assert.equal(token.roles, undefined);
   assert.deepEqual(token.roleNames, ['DOCTOR']);
   assert.equal(token.professionId, 5);
   assert.equal(token.exp - token.iat, 10800);
@@ -104,6 +104,35 @@ test('registered employee gets the PERFORMA JWT and frontend session-completion 
   assert.equal(res.cookies.auth_token.options.httpOnly, true);
   assert.equal(res.cookies.auth_token.options.secure, true);
   assert.ok(res.cookies.csrf_token);
+});
+
+test('PERFORMA session cookie stays below the browser cookie-size limit for users with many permissions', async () => {
+  const roles = Array.from({ length: 10 }, (_, roleIndex) => ({
+    roles: {
+      role: `ROLE ${roleIndex}`,
+      rolesMenu: Array.from({ length: 20 }, (_, menuIndex) => ({
+        menu: { menu: `permission-${roleIndex}-${menuIndex}-${'x'.repeat(40)}` },
+      })),
+    },
+  }));
+  prisma.user.findFirst = async () => ({
+    nik: '10011523', name: 'INDRA SUDARSONO', authenticationType: 'AIRNAV_SSO',
+    tokenVersion: 0, userRoles: roles, branchId: null, branchUnitId: null,
+    sectorId: null, professionInBranchId: null, professionInBranch: null,
+  });
+  prisma.userLoginSecurity.upsert = () => Promise.resolve({});
+  prisma.authenticationAudit.create = () => Promise.resolve({});
+  prisma.$transaction = async (operations) => Promise.all(operations);
+  globalThis.fetch = async (url) => url.endsWith('/sso/token')
+    ? { ok: true, json: async () => ({ data: { accessToken: 'external-test-token' } }) }
+    : { ok: true, json: async () => ({ data: { employee_no: '10011523' } }) };
+
+  const res = response();
+  await completeAirnavLogin(request(), res);
+  assert.ok(res.cookies.auth_token.value.length < 3800);
+  const token = jwt.verify(res.cookies.auth_token.value, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+  assert.equal(token.roles, undefined);
+  assert.equal(token.roleNames.length, 10);
 });
 
 test('AirNav identity without a PERFORMA account is rejected', async () => {

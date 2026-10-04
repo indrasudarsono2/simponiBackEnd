@@ -76,6 +76,7 @@ export const finalizeTheoryParticipant = async (participantId) => {
     const finalScore = await tx.finalScore.create({
       data: {
         eventId: event.id,
+        configurationVersionId: snapshot.configurationVersionId || null,
         appRatingId: participant.appRatingId,
         groupMemberId: groupMember.id,
         statusId: status.id,
