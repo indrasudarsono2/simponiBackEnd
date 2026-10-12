@@ -5,6 +5,9 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import {verifyCredentialSyncReceipt} from '../utils/credentialSyncReceipt.js';
+import {performanceReceiptData,performanceDate,trustedPerformanceFile} from '../services/echainPerformance.js';
+import {fileTypeFromBuffer} from 'file-type';
 
 dayjs.extend(utc);
 
@@ -116,9 +119,9 @@ const getExtensionForLicenseFile = (fileName, mimeType) => {
 const downloadEchainLicenseFile = async ({ fileUrl, fileName, fileMimeType }) => {
   if (!fileUrl) return null;
 
-  const response = await fetch(fileUrl, {
+  const response = await fetch(trustedPerformanceFile(fileUrl), {
     method: "GET",
-    headers: buildEchainHeaders(),
+    redirect:'error',signal:AbortSignal.timeout(10000),
   });
 
   if (!response.ok) {
@@ -126,7 +129,7 @@ const downloadEchainLicenseFile = async ({ fileUrl, fileName, fileMimeType }) =>
   }
 
   const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() || fileMimeType || "";
-  if (contentType && !ALLOWED_ECHAIN_LICENSE_MIME_TYPES.has(contentType)) {
+  if (contentType && contentType!=='application/octet-stream' && !ALLOWED_ECHAIN_LICENSE_MIME_TYPES.has(contentType)) {
     throw new Error(`Unsupported e-chain license file type: ${contentType}.`);
   }
 
@@ -135,14 +138,15 @@ const downloadEchainLicenseFile = async ({ fileUrl, fileName, fileMimeType }) =>
     throw new Error("e-chain license file exceeds maximum allowed size.");
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length > MAX_ECHAIN_LICENSE_FILE_BYTES) {
-    throw new Error("e-chain license file exceeds maximum allowed size.");
-  }
+  let size=0;const chunks=[];
+  for await(const chunk of response.body){size+=chunk.length;if(size>MAX_ECHAIN_LICENSE_FILE_BYTES)throw new Error('e-chain license file exceeds maximum allowed size.');chunks.push(chunk);}
+  const buffer=Buffer.concat(chunks);
+  const detected=await fileTypeFromBuffer(buffer);
+  if(!detected||!ALLOWED_ECHAIN_LICENSE_MIME_TYPES.has(detected.mime))throw new Error('Unsupported e-chain license file content.');
 
   fs.mkdirSync(LICENSE_UPLOAD_DIR, { recursive: true });
 
-  const extension = getExtensionForLicenseFile(fileName, contentType);
+  const extension = '.'+detected.ext;
   const filename = `license-echain-${Date.now()}-${randomUUID()}${extension}`;
   const destination = path.join(LICENSE_UPLOAD_DIR, filename);
   fs.writeFileSync(destination, buffer);
@@ -150,7 +154,7 @@ const downloadEchainLicenseFile = async ({ fileUrl, fileName, fileMimeType }) =>
   return {
     filename,
     originalname: fileName || filename,
-    mimetype: contentType || fileMimeType || "application/octet-stream",
+    mimetype: detected.mime,
     size: buffer.length,
     url: `/uploads/license/${filename}`,
   };
@@ -279,7 +283,14 @@ const addLicenseUser = async (req, res) => {
     const {note, licenseExpiredDate, echainFileUrl, echainFileName, echainFileMimeType} = req.body
     const files = req.files
     const file = files && files.length > 0 ? files[0] : null
-    const downloadedFile = !file && echainFileUrl
+    const isEchain=req.body.source==='ECHAIN_PERFORMANCE';
+    if(isEchain){
+      const data=performanceReceiptData({note,licenseExpiredDate,fileUrl:echainFileUrl,fileName:echainFileName,fileMimeType:echainFileMimeType});
+      if(req.user.authenticationType!=='AIRNAV_SSO'||!verifyCredentialSyncReceipt({receipt:req.body.syncReceipt,type:'LICENSE_PERFORMANCE',nik:req.user.nik,data}))return res.status(400).json({message:'Invalid or expired performance-check receipt. Please sync again.'});
+      if(file)return res.status(400).json({message:'Do not replace the signed ECHAIN document. Use manual input instead.'});
+      try{performanceDate(licenseExpiredDate);}catch{return res.status(400).json({message:'Invalid performance-check expiry. Please sync again.'});}
+    }else if(echainFileUrl){return res.status(400).json({message:'An external file requires a signed ECHAIN performance-check receipt.'});}
+    const downloadedFile = isEchain && echainFileUrl
       ? await downloadEchainLicenseFile({
           fileUrl: echainFileUrl,
           fileName: echainFileName,

@@ -1,4 +1,7 @@
 import express from 'express';
+import { syncLiveIelp } from '../services/echainIelp.js';
+import { syncLiveMedex } from '../services/echainMedex.js';
+import { syncLivePerformance } from '../services/echainPerformance.js';
 import { rateLimit } from 'express-rate-limit';
 const router = express.Router();
 const clockLimiter = rateLimit({
@@ -21,6 +24,7 @@ import { signFileUrlsInJson } from '../middleware/privateFiles.js';
 import * as monitorTime from '../controller/monitorTimeController.js'
 import { saveModeOneDraft } from '../services/modeOneDraft.js'
 import * as profileController from '../controller/profileController.js'
+import { syncProfileFromEchain } from '../controller/echainProfileSyncController.js'
 import * as regionalController from '../controller/regionalController.js';
 import * as branchController from '../controller/branchController.js';
 import * as professionController from '../controller/professionController.js';
@@ -72,6 +76,8 @@ import * as roomController from '../controller/roomController.js'
 import * as performanceCheckController from '../controller/performanceCheckController.js'
 import * as checkerExamResetController from '../controller/checkerExamResetController.js'
 import * as practicalExamController from '../controller/practicalExamController.js'
+import * as groupAssignmentController from '../controller/groupAssignmentController.js'
+import { putRatingLicense } from '../controller/practicalLicenseController.js'
 import * as previewController from '../controller/previewController.js'
 import * as scoreUserController from '../controller/scoreUserController.js'
 import * as certificateController from '../controller/certificateController.js'
@@ -136,7 +142,7 @@ router.post('/auth/logout', authController.logout)
 router.post('/postTime', monitorTime.postTime)
 
 router.get('/profile', profileController.getProfile);
-router.post('/profile/sync-echain', requireEchainAccount, profileController.syncProfileFromEchain);
+router.post('/profile/sync-echain', requireEchainAccount, syncProfileFromEchain);
 router.put('/profile/:id', profileController.editProfile)
 router.post('/profile/change-password', profileController.changePassword)
 
@@ -254,9 +260,9 @@ router.post('/eventsPostUser', eventController.postUser)
 router.post('/eventsDeleteEventUser', eventController.deleteEventUser)
 
 router.get('/groups', groupController.getGroups)
-router.post('/groups', groupController.addGroup)
-router.put('/groups/:id', groupController.getGroupById)
-router.delete('/groups/:id', groupController.deleteGroupById)
+router.post('/groups', groupAssignmentController.addGroup)
+router.put('/groups/:id', groupAssignmentController.updateGroup)
+router.delete('/groups/:id', groupAssignmentController.deleteGroup)
 
 router.get('/eventQuestions', eventQuestionController.getEventQuestions);
 router.post('/eventQuestions', eventQuestionController.addEventQuestions)
@@ -276,7 +282,7 @@ router.patch('/theorySessions/:id/draft', requireRole(ROLES.OPERATIONAL), theory
 router.post('/theorySessions/:id/submit', requireRole(ROLES.OPERATIONAL), theorySessionController.submitPart)
 
 router.get('/licenseUser', licenseUserController.getLicenseUser)
-router.post('/licenseUser/sync-echain', requireEchainAccount, licenseUserController.syncLicenseFromEchain)
+router.post('/licenseUser/sync-echain', requireEchainAccount, syncLivePerformance)
 router.post('/licenseUser', uploadLicense.any(), licenseUserController.addLicenseUser)
 router.put('/licenseUser/:id', uploadLicense.any(), licenseUserController.getLicenseById)
 router.delete('/licenseUser/:id', uploadLicense.any(), licenseUserController.deleteLicenseById)
@@ -290,13 +296,13 @@ router.get('/eLogbookUser', eLogbookUserController.getELogbookUser)
 
 
 router.get('/ielpUser', ielpUserController.getIelpUser)
-router.post('/ielpUser/sync-echain', requireEchainAccount, ielpUserController.syncIelpUserFromEchain)
+router.post('/ielpUser/sync-echain', requireEchainAccount, syncLiveIelp)
 router.post('/ielpUser', uploadIelp.any(), ielpUserController.addIelpUser)
 router.put('/ielpUser/:id', uploadIelp.any(), ielpUserController.getIelpById)
 router.delete('/ielpUser/:id', ielpUserController.deleteIelpById)
 
 router.get('/medexUser', medexUserController.getMedexUser)
-router.post('/medexUser/sync-echain', requireEchainAccount, medexUserController.syncMedexUserFromEchain)
+router.post('/medexUser/sync-echain', requireEchainAccount, syncLiveMedex)
 router.post('/medexUser', uploadMedex.any(), medexUserController.addMedexUser)
 router.put('/medexUser/:id', uploadMedex.any(), medexUserController.getMedexById);
 router.delete('/medexUser/:id', medexUserController.deleteMedexById)
@@ -399,6 +405,7 @@ router.post('/practicalExam/:id/send-echain', practicalExamController.sendPracti
 router.get('/practicalExam/recheck/:id/echain-payload', practicalExamController.getPracticalRecheckEchainPayload)
 router.post('/practicalExam/recheck/:id/send-echain', practicalExamController.sendPracticalRecheckToEchain)
 router.put('/practicalExam/:id', uploadPracticalTest.any(), practicalExamController.putPractical)
+router.put('/practicalExam/:id/license', uploadPracticalTest.any(), putRatingLicense)
 router.put('/practicalExam/recheck/:id', uploadPracticalTest.any(), practicalExamController.putPracticalRecheck)
 
 router.post('/preview', uploadPreview.any(), previewController.postPreview)

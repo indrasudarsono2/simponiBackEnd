@@ -302,6 +302,7 @@ model Rating {
   userRatings          userRating[]
   competences          Competence[]
   checkerRatings       CheckerRating[]
+  groupCheckerRatings  CheckerGroupRating[]
   mandatoryRatings     MandatoryRating[]
   cwp                  Cwp[]
 }
@@ -539,11 +540,14 @@ model Group {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+  assignmentPolicy Int @default(0)
+  ratingIds Json?
 
   event         Event?         @relation(fields: [eventId], references: [id])
   userPic       User?          @relation("PicGroup", fields: [pic], references: [nik])
   checkerGroups CheckerGroup[]
   groupMembers  GroupMember[]
+  assignmentAudits GroupAssignmentAudit[]
 }
 
 model GroupMember {
@@ -576,6 +580,28 @@ model CheckerGroup {
   userChecker              User?                     @relation("CheckerGroup", fields: [checker], references: [nik])
   practicalTests           PracticalTest[]
   practicalRecheckAttempts PracticalRecheckAttempt[]
+  ratingAssignments CheckerGroupRating[]
+}
+
+model CheckerGroupRating {
+  id Int @id @default(autoincrement())
+  checkerGroupId Int
+  ratingId Int
+  checkerGroup CheckerGroup @relation(fields: [checkerGroupId], references: [id], onDelete: Restrict)
+  rating Rating @relation(fields: [ratingId], references: [id], onDelete: Restrict)
+  @@unique([checkerGroupId, ratingId])
+  @@index([ratingId])
+}
+
+model GroupAssignmentAudit {
+  id Int @id @default(autoincrement())
+  groupId Int
+  actorNik String @db.VarChar(150)
+  action String @db.VarChar(30)
+  snapshot Json
+  createdAt DateTime @default(now())
+  group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  @@index([groupId, createdAt])
 }
 
 model Medex {

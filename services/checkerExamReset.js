@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma.js';
 import { revokeCertificatesForFinalScore } from './certificate.js';
+import { groupPolicyInclude, assignedForRating } from './groupRatingPolicy.js';
 
 const PARTIAL_STATUSES = new Set(['CHECKING ESSAY', 'CHECKED']);
 const FINAL_STATUSES = new Set(['SUCCESS', 'WAITING PRACTICAL', 'PRACTICAL RECHECK']);
@@ -32,7 +33,7 @@ export async function findAssignedResetMember(user, groupMemberId, client = pris
         checkerGroups: { some: { checker: user.nik, deletedAt: null } },
         event: { is: { deletedAt: null, theoryMode: 'MODE_1' } },
       } } },
-    select: { id: true, member: true, userMember: { select: { name: true } },
+    select: { id: true, groupId: true, member: true, userMember: { select: { name: true } },
       group: { select: { eventId: true, event: { select: { id: true, event: true,
         sector: { select: { branchUnitId: true } },
         eventQuestions: { where: { deletedAt: null }, select: { kindOfQuestionId: true } },
@@ -42,11 +43,12 @@ export async function findAssignedResetMember(user, groupMemberId, client = pris
   if (!member || !member.member || member.member === user.nik || !event ||
       Number(event.sector?.branchUnitId) !== Number(user.branchUnitId) ||
       !event.eventQuestions.some((question) => question.kindOfQuestionId === 1)) return null;
+  member.requestingCheckerNik = user.nik;
   return member;
 }
 
 export const ratingResetSelect = {
-  id: true, statusId: true, status: { select: { status: true } },
+  id: true, ratingId: true, statusId: true, status: { select: { status: true } },
   rating: { select: { rating: true } },
   finalScores: { where: { deletedAt: null, isInvalidated: false }, orderBy: { id: 'asc' },
     select: { id: true, statusId: true, updatedAt: true, status: { select: { status: true } } } },
@@ -55,13 +57,16 @@ export const ratingResetSelect = {
 };
 
 export async function findMemberRatings(member, client = prisma) {
-  return client.appRating.findMany({
+  const ratings = await client.appRating.findMany({
     where: { deletedAt: null, applicationDoc: { is: { deletedAt: null,
       eventUser: { is: { deletedAt: null, eventId: member.group.eventId, userNik: member.member } },
     } } },
     select: ratingResetSelect,
     orderBy: { id: 'desc' },
   });
+  if (!member.requestingCheckerNik) return ratings;
+  const group = await client.group.findUnique({ where: { id: member.groupId }, include: groupPolicyInclude });
+  return ratings.filter(r => assignedForRating(group, member.requestingCheckerNik, r.ratingId));
 }
 
 export async function resetCheckerAttempt({ member, appRatingId, checkerNik, reason }) {

@@ -5,9 +5,11 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import { fileTypeFromBuffer } from 'file-type';
 import { createCredentialSyncReceipt, verifyCredentialSyncReceipt } from "../utils/credentialSyncReceipt.js";
 import { normalizeIelpValidity } from "../utils/ielpValidity.js";
 import { appendCredentialHistory } from "../utils/credentialHistory.js";
+import { ielpReceiptData, selectedIelpValidity, trustedIelpFile } from '../services/echainIelp.js';
 
 dayjs.extend(utc);
 
@@ -36,17 +38,6 @@ const ECHAIN_IELP_USER_MOCK_DATA = {
   fileMimeType: "application/pdf",
   fileSizeBytes: 245000,
 };
-const ielpReceiptData = (data) => ({
-  institution: data.institution,
-  level: data.level,
-  released: data.released,
-  expired: data.expired || null,
-  fileName: data.fileName || null,
-  fileUrl: data.fileUrl || null,
-  fileUrlExpiresAt: data.fileUrlExpiresAt || null,
-  fileMimeType: data.fileMimeType || null,
-  fileSizeBytes: data.fileSizeBytes == null ? null : Number(data.fileSizeBytes),
-});
 
 const IELP_UPLOAD_DIR = path.join(process.cwd(), "uploads", "ielp");
 const MAX_ECHAIN_IELP_USER_FILE_BYTES = Number(process.env.ECHAIN_IELP_USER_MAX_FILE_BYTES || 2 * 1024 * 1024);
@@ -180,9 +171,11 @@ const getExtensionForIelpUserFile = (fileName, mimeType) => {
 const downloadEchainIelpUserFile = async ({ fileUrl, fileName, fileMimeType }) => {
   if (!fileUrl) return null;
 
-  const response = await fetch(fileUrl, {
+  const response = await fetch(trustedIelpFile(fileUrl), {
     method: "GET",
-    headers: buildEchainHeaders(),
+    headers: { Accept: 'application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+    redirect: 'error',
+    signal: AbortSignal.timeout(10000),
   });
 
   if (!response.ok) throw new Error(`e-chain file download failed with HTTP ${response.status}.`);
@@ -195,12 +188,21 @@ const downloadEchainIelpUserFile = async ({ fileUrl, fileName, fileMimeType }) =
   const contentLength = Number(response.headers.get("content-length") || 0);
   if (contentLength > MAX_ECHAIN_IELP_USER_FILE_BYTES) throw new Error("e-chain IELP file exceeds maximum allowed size.");
 
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of response.body) {
+    bytes += chunk.length;
+    if (bytes > MAX_ECHAIN_IELP_USER_FILE_BYTES) throw new Error("e-chain IELP file exceeds maximum allowed size.");
+    chunks.push(chunk);
+  }
+  const buffer = Buffer.concat(chunks);
   if (buffer.length > MAX_ECHAIN_IELP_USER_FILE_BYTES) throw new Error("e-chain IELP file exceeds maximum allowed size.");
+  const detected = await fileTypeFromBuffer(buffer);
+  if (!detected || !ALLOWED_ECHAIN_IELP_USER_MIME_TYPES.has(detected.mime)) throw new Error('Unsupported e-chain IELP file content.');
 
   fs.mkdirSync(IELP_UPLOAD_DIR, { recursive: true });
 
-  const extension = getExtensionForIelpUserFile(fileName, contentType);
+  const extension = ECHAIN_IELP_USER_EXTENSIONS.get(detected.mime);
   const filename = `ielp-echain-${Date.now()}-${randomUUID()}${extension}`;
   const destination = path.join(IELP_UPLOAD_DIR, filename);
   fs.writeFileSync(destination, buffer);
@@ -208,7 +210,7 @@ const downloadEchainIelpUserFile = async ({ fileUrl, fileName, fileMimeType }) =
   return {
     filename,
     originalname: fileName || filename,
-    mimetype: contentType || fileMimeType || "application/octet-stream",
+    mimetype: detected.mime,
     size: buffer.length,
     url: `/uploads/ielp/${filename}`,
   };
@@ -472,17 +474,11 @@ const addIelpUser = async (req, res) => {
     const {institution, level, released, expired, rater, echainFileUrl, echainFileName, echainFileMimeType, source, requestedCheckerNik, syncReceipt} = req.body
     const files = req.files
     const file = files && files.length > 0 ? files[0] : null
-    const downloadedFile = !file && echainFileUrl
-      ? await downloadEchainIelpUserFile({
-          fileUrl: echainFileUrl,
-          fileName: echainFileName,
-          fileMimeType: echainFileMimeType,
-        })
-      : null;
     
-    const receiptData = ielpReceiptData({ institution, level, released, expired, fileName: echainFileName, fileUrl: echainFileUrl, fileUrlExpiresAt: req.body.echainFileUrlExpiresAt, fileMimeType: echainFileMimeType, fileSizeBytes: req.body.echainFileSizeBytes });
-    const isEchain = source === "ECHAIN" && req.user.authenticationType !== "LOCAL" && verifyCredentialSyncReceipt({ receipt: syncReceipt, type: "IELP", nik: req.user.nik, data: receiptData });
+    const receiptData = ielpReceiptData({ institution, level, released, expired, fileName: echainFileName, fileUrl: echainFileUrl, fileUrlExpiresAt: req.body.echainFileUrlExpiresAt, fileMimeType: echainFileMimeType, fileSizeBytes: req.body.echainFileSizeBytes, expirySource: req.body.expirySource, echainExpired: req.body.echainExpired, calculatedExpired: req.body.calculatedExpired, institutionMissing:req.body.institutionMissing });
+    const isEchain = source === "ECHAIN" && req.user.authenticationType === "AIRNAV_SSO" && verifyCredentialSyncReceipt({ receipt: syncReceipt, type: "IELP", nik: req.user.nik, data: receiptData });
     if (source === "ECHAIN" && !isEchain) return res.status(400).json({ message: "The e-chain synchronization receipt is invalid or expired. Please sync again." });
+    if (isEchain && (typeof institution !== 'string' || institution.trim().length < 2 || institution.trim().length > 150)) return res.status(400).json({message:'Enter the institution name before saving. Please also correct the missing institution in ECHAIN.'});
     if (!isEchain && !requestedCheckerNik) {
       return res.status(400).json({ message: "Please select a checker for manual IELP verification." });
     }
@@ -503,7 +499,11 @@ const addIelpUser = async (req, res) => {
       if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
     }
 
-    const validity = normalizeIelpValidity({ level, released });
+    const validity = isEchain ? selectedIelpValidity(receiptData) : normalizeIelpValidity({ level, released });
+    if (!isEchain && echainFileUrl) return res.status(400).json({message:'External file downloads require a verified ECHAIN receipt.'});
+    const downloadedFile = isEchain && !file && echainFileUrl
+      ? await downloadEchainIelpUserFile({fileUrl:echainFileUrl,fileName:echainFileName,fileMimeType:echainFileMimeType}) : null;
+    const verificationNote = isEchain ? `Imported from ECHAIN; expiry chosen: ${receiptData.expirySource}; ECHAIN: ${receiptData.echainExpired || 'Lifetime'}; PERFORMA: ${receiptData.calculatedExpired || 'Lifetime'}.${receiptData.expirySource === 'PERFORMA' && receiptData.echainExpired !== receiptData.calculatedExpired ? ' Please correct the IELP expiry in ECHAIN.' : ''}` : null;
     const now = new Date();
     const ielp = await prisma.$transaction(async (tx) => {
       const created = await tx.ielp.create({ data: {
@@ -515,7 +515,7 @@ const addIelpUser = async (req, res) => {
         verificationStatus: isEchain ? "APPROVED" : "PENDING",
         requestedCheckerNik: isEchain ? null : requestedCheckerNik,
         verifiedAt: isEchain ? now : null,
-        verificationNote: isEchain ? "Verified by e-chain" : null,
+        verificationNote: isEchain && receiptData.institutionMissing ? verificationNote + ' Institution supplied by user because ECHAIN institution was missing; please correct the institution in ECHAIN.' : verificationNote,
         institution,
         level: validity.level,
         released: validity.released,
@@ -527,7 +527,7 @@ const addIelpUser = async (req, res) => {
       await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: isEchain ? "ECHAIN_SYNCED" : "CREATED", actorNik: req.user.nik, checkerNik: requestedCheckerNik || null });
       await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
       if (isEchain) {
-        await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "APPROVED", actorNik: req.user.nik, note: "Verified by e-chain" });
+        await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "APPROVED", actorNik: req.user.nik, note: verificationNote });
       } else {
         await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "CHECKER_ASSIGNED", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
         await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "SUBMITTED_FOR_VERIFICATION", actorNik: req.user.nik, checkerNik: requestedCheckerNik });

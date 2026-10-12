@@ -5,6 +5,7 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { scoreTheorySessionEssay } from "../services/scoreTheorySessionEssay.js";
+import { assertRatingChecker, assignedForRating, groupPolicyInclude } from '../services/groupRatingPolicy.js';
 
 const getEvent = async (req, res) => {
 
@@ -20,7 +21,8 @@ const getEvent = async (req, res) => {
       return res.status(400).json({ message: "Invalid event ID." });
     }
     const eventWhere = {
-      sectorId,
+      deletedAt: null,
+      session: { branchUnitId: req.user.branchUnitId },
       ...(eventId !== null ? { id: eventId } : {}),
       groups: { some: { checkerGroups: { some: { deletedAt: null, checker: userN } } } },
     };
@@ -104,6 +106,7 @@ const getEvent = async (req, res) => {
                     appRating: {
                       select: {
                         id: true,
+                        ratingId: true,
                         rating: { select: { rating: true } },
                       },
                     },
@@ -142,6 +145,7 @@ const getEvent = async (req, res) => {
                     appRating: {
                       select: {
                         id: true,
+                        ratingId: true,
                         rating: { select: { rating: true } },
                       }
                     },
@@ -173,6 +177,14 @@ const getEvent = async (req, res) => {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
     })
 
+    const policies = await prisma.group.findMany({ where: { id: { in: event.flatMap(e => e.groups.map(g => g.id)) } }, include: groupPolicyInclude });
+    for (const e of event) for (const g of e.groups) {
+      const policy = policies.find(p => p.id === g.id);
+      for (const m of g.groupMembers) {
+        m.finalScores = m.finalScores.filter(s => assignedForRating(policy, userN, s.appRating?.ratingId));
+        m.essayCorrections = m.essayCorrections.filter(s => assignedForRating(policy, userN, s.appRating?.ratingId));
+      }
+    }
     res.json({event});
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -184,6 +196,7 @@ const postEssayAnswer = async (req, res) => {
     const {finalScoreId, persentage, essayCorrection} = req.body
     const mode2Score = await prisma.finalScore.findUnique({ where: { id: Number(finalScoreId) }, select: {
       id: true, statusId: true, isInvalidated: true, deletedAt: true, multipleChoiceScore: true,
+      appRating: { select: { ratingId: true } },
       configurationVersion: { select: { snapshot: true } },
       theorySessionParticipant: { select: { id: true } },
       groupMember: { select: { groupId: true, group: { select: {
@@ -193,6 +206,7 @@ const postEssayAnswer = async (req, res) => {
       essayCorrections: { where: { deletedAt: null, checker: null, score: null },
         select: { id: true, essay: { select: { value: true } } } },
     } });
+    if (mode2Score) await assertRatingChecker(mode2Score.groupMember?.groupId, mode2Score.appRating?.ratingId, req.user);
     if (mode2Score?.theorySessionParticipant) return scoreTheorySessionEssay(req, res, mode2Score);
     if (!mode2Score || mode2Score.deletedAt || mode2Score.isInvalidated || mode2Score.statusId !== 3 ||
         !mode2Score.groupMember?.group?.checkerGroups?.some((item) => item.checker === req.user.nik) ||
@@ -225,39 +239,19 @@ const postEssayAnswer = async (req, res) => {
     }
 
     const essayScore = sumScore/sumValue*100*Number(scoringWeight)
-    await prisma.$transaction(
-      essayCorrection.map((item) =>
-        prisma.essayCorrection.update({
-          where: { id: item.essayCorrectionId },
-          data: { score: item.score, checker:req.user.nik }
-        })
-      )
-    );
-
-    const finalScoreUpdate = await prisma.finalScore.update({
-      where: {
-        id: finalScoreId
-      },
-      data: {
-        statusId: 4,
-        essayScore: essayScore,
-        finalScore: essayScore,
-        essayResultEmailQueuedAt: new Date(),
-      }
-    })
-
-    await prisma.appRating.update({
-      where: {
-        id: finalScoreUpdate.appRatingId
-      },
-      data: {
-        statusId: 4
-      }
-    })
+    await prisma.$transaction(async tx => {
+      await assertRatingChecker(mode2Score.groupMember.groupId, mode2Score.appRating.ratingId, req.user, tx);
+      const claimed = await tx.finalScore.updateMany({ where: { id: Number(finalScoreId), statusId: 3, deletedAt: null, isInvalidated: false },
+        data: { statusId: 4, essayScore, finalScore: essayScore, essayResultEmailQueuedAt: new Date() } });
+      if (claimed.count !== 1) throw Object.assign(new Error('This essay has already been scored. Refresh the list.'), { status: 409 });
+      for (const item of submitted) await tx.essayCorrection.update({ where: { id: Number(item.essayCorrectionId) }, data: { score: Number(item.score), checker: req.user.nik } });
+      const finalScoreUpdate = await tx.finalScore.findUnique({ where: { id: Number(finalScoreId) }, select: { appRatingId: true } });
+      await tx.appRating.update({ where: { id: finalScoreUpdate.appRatingId }, data: { statusId: 4 } });
+    });
 
     res.status(200).json({ success: true, emailPending: true });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 }
 

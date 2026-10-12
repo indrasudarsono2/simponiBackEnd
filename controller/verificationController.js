@@ -105,10 +105,12 @@ const getVerification = async (req, res) => {
     
     const eventUserId = eventUsr.map(data => data.event.eventUsers.map(eu => eu.id)).flat()
 
-    const rating = await prisma.user.findFirst({
+    const rating = await prisma.event.findFirst({
       where: {
         deletedAt: null,
-        nik: userN
+        id: Number(eventId),
+        session: { branchUnitId: req.user.branchUnitId },
+        groups: { some: { deletedAt: null, pic: userN } }
       },
       select: {
         sector: {
@@ -124,7 +126,7 @@ const getVerification = async (req, res) => {
     })
     if (!rating?.sector) {
       return res.status(400).json({
-        message: "Your account has no sector assigned. Please ask the administrator to assign a sector before opening verification data."
+        message: "This event is not assigned to you as PIC in your branch unit, or has no sector configured."
       });
     }
 

@@ -5,12 +5,21 @@
 | Item | Value |
 | --- | --- |
 | Integration | SIMPONI practical exam result send to e-chain |
-| Version | v1.1-draft |
+| Version | v1.2-draft |
 | Status | Draft |
 | Created | 2026-07-12 |
-| Updated | 2026-10-02 |
+| Updated | 2026-10-12 |
 
 ## Purpose
+
+### Assignment authorization (2026-10-12)
+
+For PERPANJANGAN, the checker responsible for each rating records their own practical score/evaluation sheet.
+For PENERBITAN, every assigned checker (including PIC) records their own score and evaluation sheet for the single proposed rating. Any below-passing-grade score fails the rating; SUCCESS requires every required checker/type assessment and evaluation sheet.
+Only the member's assigned PIC may upload the rating license and call the e-chain preview/send endpoints, including recheck send. The backend enforces this; being a qualified or additional checker does not confer e-chain authority.
+`PUT /api/practicalExam/{practicalTestId}/license` accepts one `licenseFile` PDF from PIC, without changing scores.
+The e-chain `file` remains the examinee's related rating license. Evaluation sheets are internal evidence and MUST NOT be included in the outbound payload. Other v1 payload fields/endpoints remain unchanged.
+Legacy groups are retained under their previous policy until reviewed; no production migration is performed by this development release.
 
 This ICD defines the API contract for sending checked SIMPONI practical examination data to e-chain from `/practicalExam/practical`.
 

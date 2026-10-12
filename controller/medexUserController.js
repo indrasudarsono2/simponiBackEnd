@@ -6,6 +6,8 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { createCredentialSyncReceipt, verifyCredentialSyncReceipt } from "../utils/credentialSyncReceipt.js";
+import { medexReceiptData, medexDate, trustedMedexFile } from '../services/echainMedex.js';
+import { fileTypeFromBuffer } from 'file-type';
 
 dayjs.extend(utc);
 
@@ -32,16 +34,6 @@ const ECHAIN_MEDEX_USER_MOCK_DATA = {
   fileMimeType: "application/pdf",
   fileSizeBytes: 245000,
 };
-const medexReceiptData = (data) => ({
-  institution: data.institution,
-  released: data.released,
-  expired: data.expired,
-  fileName: data.fileName || null,
-  fileUrl: data.fileUrl || null,
-  fileUrlExpiresAt: data.fileUrlExpiresAt || null,
-  fileMimeType: data.fileMimeType || null,
-  fileSizeBytes: data.fileSizeBytes == null ? null : Number(data.fileSizeBytes),
-});
 
 const MEDEX_UPLOAD_DIR = path.join(process.cwd(), "uploads", "medex");
 const MAX_ECHAIN_MEDEX_USER_FILE_BYTES = Number(process.env.ECHAIN_MEDEX_USER_MAX_FILE_BYTES || 2 * 1024 * 1024);
@@ -172,9 +164,9 @@ const getExtensionForMedexUserFile = (fileName, mimeType) => {
 const downloadEchainMedexUserFile = async ({ fileUrl, fileName, fileMimeType }) => {
   if (!fileUrl) return null;
 
-  const response = await fetch(fileUrl, {
+  const response = await fetch(trustedMedexFile(fileUrl), {
     method: "GET",
-    headers: buildEchainHeaders(),
+    redirect: 'error', signal: AbortSignal.timeout(10000),
   });
 
   if (!response.ok) throw new Error(`e-chain file download failed with HTTP ${response.status}.`);
@@ -187,12 +179,15 @@ const downloadEchainMedexUserFile = async ({ fileUrl, fileName, fileMimeType }) 
   const contentLength = Number(response.headers.get("content-length") || 0);
   if (contentLength > MAX_ECHAIN_MEDEX_USER_FILE_BYTES) throw new Error("e-chain MEDEX file exceeds maximum allowed size.");
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length > MAX_ECHAIN_MEDEX_USER_FILE_BYTES) throw new Error("e-chain MEDEX file exceeds maximum allowed size.");
+  let size=0; const chunks=[];
+  for await (const chunk of response.body) {size+=chunk.length;if(size>MAX_ECHAIN_MEDEX_USER_FILE_BYTES) throw new Error('e-chain MEDEX file exceeds maximum allowed size.');chunks.push(chunk);}
+  const buffer=Buffer.concat(chunks);
+  const detected=await fileTypeFromBuffer(buffer);
+  if (!detected || !ALLOWED_ECHAIN_MEDEX_USER_MIME_TYPES.has(detected.mime)) throw new Error('Unsupported e-chain MEDEX file content.');
 
   fs.mkdirSync(MEDEX_UPLOAD_DIR, { recursive: true });
 
-  const extension = getExtensionForMedexUserFile(fileName, contentType);
+  const extension = '.'+detected.ext;
   const filename = `medex-echain-${Date.now()}-${randomUUID()}${extension}`;
   const destination = path.join(MEDEX_UPLOAD_DIR, filename);
   fs.writeFileSync(destination, buffer);
@@ -200,7 +195,7 @@ const downloadEchainMedexUserFile = async ({ fileUrl, fileName, fileMimeType }) 
   return {
     filename,
     originalname: fileName || filename,
-    mimetype: contentType || fileMimeType || "application/octet-stream",
+    mimetype: detected.mime,
     size: buffer.length,
     url: `/uploads/medex/${filename}`,
   };
@@ -461,17 +456,15 @@ const addMedexUser = async (req, res) => {
     const {institution, released, expired, examiner, echainFileUrl, echainFileName, echainFileMimeType, source, requestedCheckerNik, syncReceipt} = req.body
     const files = req.files
     const file = files && files.length > 0 ? files[0] : null
-    const downloadedFile = !file && echainFileUrl
-      ? await downloadEchainMedexUserFile({
-          fileUrl: echainFileUrl,
-          fileName: echainFileName,
-          fileMimeType: echainFileMimeType,
-        })
-      : null;
-    
-    const receiptData = medexReceiptData({ institution, released, expired, fileName: echainFileName, fileUrl: echainFileUrl, fileUrlExpiresAt: req.body.echainFileUrlExpiresAt, fileMimeType: echainFileMimeType, fileSizeBytes: req.body.echainFileSizeBytes });
-    const isEchain = source === "ECHAIN" && req.user.authenticationType !== "LOCAL" && verifyCredentialSyncReceipt({ receipt: syncReceipt, type: "MEDEX", nik: req.user.nik, data: receiptData });
+    const receiptData = medexReceiptData({ institution, examiner, institutionMissing:req.body.institutionMissing, examinerMissing:req.body.examinerMissing, released, expired, fileName: echainFileName, fileUrl: echainFileUrl, fileUrlExpiresAt: req.body.echainFileUrlExpiresAt, fileMimeType: echainFileMimeType, fileSizeBytes: req.body.echainFileSizeBytes });
+    const isEchain = source === "ECHAIN" && req.user.authenticationType === "AIRNAV_SSO" && verifyCredentialSyncReceipt({ receipt: syncReceipt, type: "MEDEX", nik: req.user.nik, data: receiptData });
     if (source === "ECHAIN" && !isEchain) return res.status(400).json({ message: "The e-chain synchronization receipt is invalid or expired. Please sync again." });
+    if (isEchain) {
+      if (file) return res.status(400).json({message:'Do not replace the signed ECHAIN file. Use manual entry instead.'});
+      if (typeof institution!=='string' || institution.trim().length<2 || institution.length>150 || typeof examiner!=='string' || examiner.trim().length<2 || examiner.length>150) return res.status(400).json({message:'Enter the institution and examiner before saving.'});
+      try {medexDate(released);medexDate(expired);if(expired<released) throw new Error();} catch {return res.status(400).json({message:'Invalid MEDEX dates. Please sync again.'});}
+    }
+    if (!isEchain && echainFileUrl) return res.status(400).json({message:'External files require a valid ECHAIN sync receipt.'});
     if (!isEchain && !requestedCheckerNik) {
       return res.status(400).json({ message: "Please select a checker for manual MEDEX verification." });
     }
@@ -492,6 +485,10 @@ const addMedexUser = async (req, res) => {
       if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
     }
 
+    const downloadedFile = isEchain && echainFileUrl ? await downloadEchainMedexUserFile({fileUrl:echainFileUrl,fileName:echainFileName,fileMimeType:echainFileMimeType}) : null;
+    const verificationNote = isEchain ? 'Verified by e-chain; expiry and file selected by user from latest examination records.'
+      + (receiptData.institutionMissing ? ' Institution supplied by user because the API does not provide it.' : '')
+      + (receiptData.examinerMissing ? ' Examiner supplied by user because ECHAIN examiner was missing; please correct ECHAIN.' : '') : null;
     const now = new Date();
     const medex = await prisma.$transaction(async (tx) => {
       const created = await tx.medex.create({ data: {
@@ -503,7 +500,7 @@ const addMedexUser = async (req, res) => {
         verificationStatus: isEchain ? "APPROVED" : "PENDING",
         requestedCheckerNik: isEchain ? null : requestedCheckerNik,
         verifiedAt: isEchain ? now : null,
-        verificationNote: isEchain ? "Verified by e-chain" : null,
+        verificationNote,
         institution,
         released: dayjs.utc(released).toDate(),
         expired: dayjs.utc(`${expired} 23:59:59`).toDate(),
@@ -514,7 +511,7 @@ const addMedexUser = async (req, res) => {
       await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: isEchain ? "ECHAIN_SYNCED" : "CREATED", actorNik: req.user.nik, checkerNik: requestedCheckerNik || null });
       await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
       if (isEchain) {
-        await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "APPROVED", actorNik: req.user.nik, note: "Verified by e-chain" });
+        await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "APPROVED", actorNik: req.user.nik, note: verificationNote });
       } else {
         await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "CHECKER_ASSIGNED", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
         await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "SUBMITTED_FOR_VERIFICATION", actorNik: req.user.nik, checkerNik: requestedCheckerNik });

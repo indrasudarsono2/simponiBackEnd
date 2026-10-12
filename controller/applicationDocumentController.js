@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import { getApplicationAssignment } from '../services/groupRatingPolicy.js';
 
 const letterSuffixToNumber = (suffix) => {
   if (!/^[A-Z]+$/.test(suffix)) return null;
@@ -154,6 +155,7 @@ const getApplicationDoc = async (req, res) => {
                   },
                   select: {
                     id: true,
+                    assignmentPolicy: true,
                     group: true,
                     pic: true,
                     checkerGroups: {
@@ -162,6 +164,7 @@ const getApplicationDoc = async (req, res) => {
                       },
                       select: {
                         id: true,
+                        ratingAssignments: { select: { ratingId: true } },
                         userChecker: {
                           where: {
                             deletedAt: null,
@@ -220,6 +223,11 @@ const getApplicationDoc = async (req, res) => {
       }
     })
 
+    for (const e of firstEvent) for (const eu of e.eventUsers) for (const g of eu.event?.groups || []) {
+      if (g.assignmentPolicy) for (const cg of g.checkerGroups) {
+        for (const role of cg.userChecker?.userRoles || []) role.checkerRatings = role.checkerRatings.filter(r => cg.ratingAssignments.some(a => a.ratingId === r.rating?.id));
+      }
+    }
     const event = firstEvent.filter(e => {
       // Include event when user has no application docs yet (null or empty array).
       return e.eventUsers.some(
@@ -402,7 +410,7 @@ const getApplicationDoc = async (req, res) => {
 
     res.json({event, applicationDoc: applicationDocWithVerification, user, rating, competence, ratingReal});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -420,6 +428,8 @@ const addApplicationDoc = async (req, res) => {
     const eventUser = await prisma.eventUser.findFirst({
       where: {
         id: parseInt(eventUserId),
+        userNik: req.user.nik,
+        deletedAt: null,
       },
       select: {
         event: {
@@ -532,6 +542,8 @@ const addApplicationDoc = async (req, res) => {
       }
     })
 
+    if (!eventUser?.event) return res.status(404).json({ message: 'Your event assignment was not found.' });
+    const assignment = await getApplicationAssignment(prisma, { eventId: eventUser.event.id, memberNik: req.user.nik, branchUnitId: req.user.branchUnitId, ratings: appRating, groupMemberId });
     const baseNumber = `${eventUser.user.professionInBranch.profession.profession}/${eventUser.event.remarkDoc.remark}/${eventUser.user.licenseUserId}-${eventUser.event.id}`
     const isPenerbitan = eventUser.event.remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN";
     if (isPenerbitan) {
@@ -544,7 +556,10 @@ const addApplicationDoc = async (req, res) => {
       eventUser.applicationDocs.map((applicationDoc) => applicationDoc.number),
     )
  
-    const appDoc = await prisma.applicationDoc.create({
+    await prisma.$transaction(async tx => {
+      await tx.$queryRawUnsafe('SELECT id FROM `Event` WHERE id = ? FOR UPDATE', eventUser.event.id);
+      const assignment = await getApplicationAssignment(tx, { eventId: eventUser.event.id, memberNik: req.user.nik, branchUnitId: req.user.branchUnitId, ratings: appRating });
+      const appDoc = await tx.applicationDoc.create({
       data: {
         userNik: req.user.nik,
         // userNik: "10011520",
@@ -578,7 +593,7 @@ const addApplicationDoc = async (req, res) => {
       }
     })
     
-    const appRat = await prisma.appRating.findMany({
+    const appRat = await tx.appRating.findMany({
       where: {
         deletedAt: null,
         applicationDocId: appDoc.id
@@ -592,12 +607,13 @@ const addApplicationDoc = async (req, res) => {
     for(let i in appRat){
       // const find = appRating.find(d => d.rating.id === appRat[i].ratingId)
       const find = appRating.find(d => parseInt(d.rating.id) === appRat[i].ratingId)
+      const assignedCheckers = assignment.checkersByRating.get(appRat[i].ratingId) || [];
     
       if(eventUser.event.isPractical === true && find){
-        await prisma.practicalTest.createMany({
-          data: find.checkerGroupId.map(d => ({
-            groupMemberId: parseInt(groupMemberId),
-            checkerGroupId: parseInt(d),
+        await tx.practicalTest.createMany({
+          data: assignedCheckers.map(d => ({
+            groupMemberId: assignment.member.id,
+            checkerGroupId: d.id,
             appRatingId: appRat[i].id,
             kindOfPracticalId: 1
           }))
@@ -605,21 +621,22 @@ const addApplicationDoc = async (req, res) => {
       }
 
       if(eventUser.event.isSimulator === true && find){
-        await prisma.practicalTest.createMany({
-          data: find.checkerGroupId.map(d => ({
-            groupMemberId: parseInt(groupMemberId),
-            checkerGroupId: parseInt(d),
+        await tx.practicalTest.createMany({
+          data: assignedCheckers.map(d => ({
+            groupMemberId: assignment.member.id,
+            checkerGroupId: d.id,
             appRatingId: appRat[i].id,
             kindOfPracticalId: 2
           }))
         })
       }
     }
+    });
 
     res.status(201).json({ success: true });
   } catch (error) {
     console.log(error)
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -764,14 +781,14 @@ const getApplicationDocById = async (req, res) => {
       }
     })
 
-    const groupMember = eventUser.event.groups[0].groupMembers
+    const assignment = await getApplicationAssignment(prisma, { eventId: eventUser.event.id, memberNik: req.user.nik, branchUnitId: req.user.branchUnitId, ratings: appRating });
+    const groupMember = [assignment.member];
     const isPenerbitan = eventUser.event.remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN";
     if (isPenerbitan) {
       if (eventUser.event.sector?.branchUnitId !== req.user.branchUnitId) return res.status(403).json({ message: "The PENERBITAN event is outside your branch unit." });
       const requirementError = await validatePenerbitanRequirements(req.user.nik, parsedOjtLicenseId, req.user.sectorId, req.user.branchUnitId);
       if (requirementError) return res.status(422).json({ message: requirementError });
     }
-    const checkerGroup = eventUser.event.groups[0].checkerGroups 
     
     const data = {
       medexId: medexValidation.record.id,
@@ -804,27 +821,32 @@ const getApplicationDocById = async (req, res) => {
       data.rating = JSON.stringify(ratings)
     }
 
-    const appDoc = await prisma.applicationDoc.update({
+    await prisma.$transaction(async tx => {
+      await tx.$queryRawUnsafe('SELECT id FROM `Event` WHERE id = ? FOR UPDATE', eventUser.event.id);
+      const assignment = await getApplicationAssignment(tx, { eventId: eventUser.event.id, memberNik: req.user.nik, branchUnitId: req.user.branchUnitId, ratings: appRating });
+      const appDoc = await tx.applicationDoc.update({
       where: {
         id: parseInt(id)
       },
       data
     })
 
-    const appRat = await prisma.appRating.findMany({
+    const appRat = await tx.appRating.findMany({
       where: {
         deletedAt: null,
         applicationDocId: appDoc.id
       },
       select:{
-        id: true
+        id: true,
+        ratingId: true
       }
     })
 
     for(let i in appRat){
+      const ratingCheckers = assignment.checkersByRating.get(appRat[i].ratingId) || [];
       if(eventUser.event.isPractical === true){
-        await prisma.practicalTest.createMany({
-          data: checkerGroup.map(d => ({
+        await tx.practicalTest.createMany({
+          data: ratingCheckers.map(d => ({
             groupMemberId: groupMember[0].id,
             checkerGroupId: d.id,
             appRatingId: appRat[i].id,
@@ -834,8 +856,8 @@ const getApplicationDocById = async (req, res) => {
       }
 
       if(eventUser.event.isSimulator === true){
-        await prisma.practicalTest.createMany({
-          data: checkerGroup.map(d => ({
+        await tx.practicalTest.createMany({
+          data: ratingCheckers.map(d => ({
             groupMemberId: groupMember[0].id,
             checkerGroupId: d.id,
             appRatingId: appRat[i].id,
@@ -844,11 +866,12 @@ const getApplicationDocById = async (req, res) => {
         })
       }
     }
+    });
 
     res.status(201).json({ success: true}); 
   } catch (error) {
     console.log(error)
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -870,7 +893,7 @@ const deleteApplicationDoc = async (req, res) => {
 
     res.status(201).json({ success: true,});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
   
 };

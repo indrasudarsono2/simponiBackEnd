@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { assertRatingChecker } from './groupRatingPolicy.js';
 
 export const scoreTheorySessionEssay = async (req, res, finalScore) => {
   try {
@@ -43,6 +44,7 @@ export const scoreTheorySessionEssay = async (req, res, finalScore) => {
     const status = await prisma.status.findFirst({ where: { status: statusName, deletedAt: null }, select: { id: true } });
     if (!status) return res.status(500).json({ message: `Status ${statusName} is not configured.` });
     const changed = await prisma.$transaction(async (tx) => {
+      await assertRatingChecker(finalScore.groupMember?.groupId, participant.appRating?.ratingId, req.user, tx);
       const claim = await tx.finalScore.updateMany({ where: { id: finalScore.id, statusId: finalScore.statusId, isInvalidated: false, deletedAt: null }, data: { statusId: status.id, essayScore, finalScore: total } });
       if (claim.count !== 1) return false;
       for (const item of corrections) {
@@ -64,6 +66,6 @@ export const scoreTheorySessionEssay = async (req, res, finalScore) => {
     res.json({ success: true, finalScore: total, status: statusName, emailPending: true });
   } catch (error) {
     console.error("Mode 2 Essay scoring failed", error);
-    res.status(500).json({ message: "Unable to score this Mode 2 Essay." });
+    res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to score this Mode 2 Essay." });
   }
 };

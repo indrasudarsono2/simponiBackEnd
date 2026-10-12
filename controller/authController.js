@@ -1,4 +1,6 @@
 import prisma from "../lib/prisma.js";
+import { captureEchainPreview } from "../services/echainUserPreview.js";
+import { clearAirnavTokens } from "../services/echainLiveSync.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import securityConfig from "../config/security.js";
@@ -319,8 +321,9 @@ const completeAirnavLogin = async (req, res) => {
       clearCookies();
       return loginErrorRedirect(res, "This account is configured for Non-AirNav Sign In");
     }
-    const session = await establishLocalSession(user, req, res);
-    clearCookies();
+      const session = await establishLocalSession(user, req, res);
+      await captureEchainPreview(user, accessToken, session.csrfToken, tokenPayload?.data);
+      clearCookies();
     const publicBaseUrl = process.env.PERFORMA_PUBLIC_BASE_URL || process.env.SIMPONI_PUBLIC_BASE_URL;
     if (!publicBaseUrl) return res.status(200).json({ success: true, ...session });
     return res.redirect(new URL("/auth/complete", publicBaseUrl).toString());
@@ -568,7 +571,8 @@ const session = (req, res) => res.json({
   },
 });
 
-const logout = (_req, res) => {
+const logout = async (_req, res) => {
+  await clearAirnavTokens(_req).catch(() => {});
   res.clearCookie("auth_token", clearSessionCookieOptions(true));
   res.clearCookie("csrf_token", clearSessionCookieOptions(false));
   res.clearCookie("auth_user", { path: "/" });

@@ -9,6 +9,8 @@ import { dirname, join } from 'path';
 
 import cors from 'cors';
 import apiRouter from './router/api.js';
+import { authenticateToken } from './middleware/auth.js';
+import { showEchainPreview } from './services/echainUserPreview.js';
 import securityConfig from './config/security.js';
 import prisma from './lib/prisma.js';
 import { serveSignedFile } from './middleware/privateFiles.js';
@@ -138,6 +140,7 @@ app.use('/api/auth/login', rateLimit({
 app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }));
 app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
 
+app.get('/api/integrations/echain/user-preview', authenticateToken, showEchainPreview);
 app.use('/api', apiRouter);
 
 // 5. Error Handling Middleware (Optional but recommended)
