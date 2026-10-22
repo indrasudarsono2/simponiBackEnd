@@ -33,7 +33,7 @@ export const defaultRoomDatesAreValid = event => Boolean(event.startDate && even
 
 // The caller owns the transaction. Lock the event-user row before deciding
 // whether a manual assignment already exists, then serialize room creation per event.
-export async function ensureDefaultRoom(db, eventUserId, { branchUnitId = null, checkerNik = null, now = new Date() } = {}) {
+export async function ensureDefaultRoom(db, eventUserId, { branchUnitId = null, checkerNik = null, now = new Date(), allowExpired = false } = {}) {
   await db.eventUser.update({ where: { id: Number(eventUserId) }, data: { updatedAt: now } });
   const participant = await db.eventUser.findFirst({
     where: { id: Number(eventUserId), deletedAt: null, applicationDocs: { some: verifiedRoomDocumentWhere },
@@ -46,7 +46,7 @@ export async function ensureDefaultRoom(db, eventUserId, { branchUnitId = null, 
   if (attendance?.roomId && !attendance.deletedAt && attendance.room && !attendance.room.deletedAt) return { assigned: true, preserved: true, roomId: attendance.roomId };
   const event = participant.event;
   if (!defaultRoomDatesAreValid(event)) return { assigned: false, reason: 'The event must have valid examination start and finish dates.' };
-  if (new Date(event.finishDate) < now) return { assigned: false, reason: 'The event examination period has ended.' };
+  if (!allowExpired && new Date(event.finishDate) < now) return { assigned: false, reason: 'The event examination period has ended.' };
   await db.event.update({ where: { id: event.id }, data: { updatedAt: now } });
   const name = `Default — ${event.event || `Event ${event.id}`}`.slice(0, 150);
   const room = await db.room.upsert({

@@ -406,6 +406,7 @@ const getEventUser = async(req, res) => {
       },
       select: {
         id: true,
+        applicationDocs: { where: { deletedAt: null }, select: { appRatings: { where: { deletedAt: null }, select: { rating: { select: { rating: true } }, examAccessExtensions: { orderBy: { id: 'desc' }, take: 1, select: { accessUntil: true } } } } } },
         user: {
           select: {
             nik: true,

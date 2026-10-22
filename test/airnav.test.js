@@ -78,7 +78,9 @@ test('registered employee gets the PERFORMA JWT and frontend session-completion 
   };
   prisma.userLoginSecurity.upsert = () => Promise.resolve({});
   prisma.authenticationAudit.create = () => Promise.resolve({});
-  prisma.$transaction = async (operations) => Promise.all(operations);
+  prisma.$queryRaw = async () => [];
+  prisma.userLoginSecurity.findUnique = async () => null;
+  prisma.$transaction = async (operations) => typeof operations === 'function' ? operations(prisma) : Promise.all(operations);
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push(url);
@@ -122,7 +124,9 @@ test('PERFORMA session cookie stays below the browser cookie-size limit for user
   });
   prisma.userLoginSecurity.upsert = () => Promise.resolve({});
   prisma.authenticationAudit.create = () => Promise.resolve({});
-  prisma.$transaction = async (operations) => Promise.all(operations);
+  prisma.$queryRaw = async () => [];
+  prisma.userLoginSecurity.findUnique = async () => null;
+  prisma.$transaction = async (operations) => typeof operations === 'function' ? operations(prisma) : Promise.all(operations);
   globalThis.fetch = async (url) => url.endsWith('/sso/token')
     ? { ok: true, json: async () => ({ data: { accessToken: 'external-test-token' } }) }
     : { ok: true, json: async () => ({ data: { employee_no: '10011523' } }) };

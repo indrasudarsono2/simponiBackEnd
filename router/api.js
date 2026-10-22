@@ -1,10 +1,13 @@
 import express from 'express';
+import { getAdminExaminationActivity } from '../controller/examinationActivityController.js';
 import { syncLiveIelp } from '../services/echainIelp.js';
 import { syncLiveMedex } from '../services/echainMedex.js';
 import { syncLivePerformance } from '../services/echainPerformance.js';
 import { rateLimit } from 'express-rate-limit';
+import { sharedRateLimitStore } from '../security/databaseRateLimitStore.js';
 const router = express.Router();
 const clockLimiter = rateLimit({
+  store: sharedRateLimitStore('exam-clock'),
   windowMs: 15 * 60 * 1000,
   limit: 1200,
   standardHeaders: 'draft-8',
@@ -53,6 +56,8 @@ import * as logbookUserController from '../controller/logbookUserController.js'
 import * as eLogbookUserController from '../controller/eLogbookUserController.js'
 
 import * as ielpUserController from '../controller/ielpUserController.js'
+import { getExamAccess, extendExamAccess } from '../controller/examAccessExtensionController.js';
+import { checkModeOneEventAccess } from '../middleware/modeOneEventAccess.js';
 import * as medexUserController from '../controller/medexUserController.js'
 import * as competenceUserController from '../controller/competenceUserController.js'
 import * as userGeneralController from '../controller/userGeneralController.js'
@@ -67,6 +72,8 @@ import * as userBranchUnitController from '../controller/userBranchUnitControlle
 import * as applicationDocumentController from '../controller/applicationDocumentController.js'
 import * as ojtiRecommendationController from '../controller/ojtiRecommendationController.js'
 import * as proposalLetterController from '../controller/proposalLetterController.js'
+import * as applicationCorrectionsController from '../controller/applicationCorrectionsController.js'
+import * as missingControlHoursController from '../controller/missingControlHoursController.js'
 import * as verificationController from '../controller/verificationController.js'
 import * as dashboardController from '../controller/dashboardController.js'
 import * as operationalGuideController from '../controller/operationalGuideController.js'
@@ -124,7 +131,7 @@ router.get('/auth/airnav/start', authController.startAirnavLogin)
 router.get('/auth/airnav/callback', authController.completeAirnavLogin)
 router.post('/integrations/e-chain/ielp-user/verified', ielpUserController.receiveIelpUserVerifiedFromEchain)
 router.post('/integrations/e-chain/medex-user/verified', medexUserController.receiveMedexUserVerifiedFromEchain)
-router.get('/certificates/verify/:publicId', rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false }), certificateController.verifyCertificate)
+router.get('/certificates/verify/:publicId', rateLimit({ store: sharedRateLimitStore('certificate-verify'), windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false }), certificateController.verifyCertificate)
 
 // Apply authentication middleware to all routes below this line
 router.use(authenticateToken)
@@ -147,6 +154,7 @@ router.put('/profile/:id', profileController.editProfile)
 router.post('/profile/change-password', profileController.changePassword)
 
 router.get('/dashboardOperational', dashboardController.getDashboardOperational)
+router.get('/adminExaminationActivity', getAdminExaminationActivity)
 router.get('/dashboardCheckerAdmin', requireRole(ROLES.CHECKER_ADMIN), checkerAdminDashboardController.getCheckerAdminDashboard)
 router.get('/operationalGuide', requireRole(ROLES.OPERATIONAL), operationalGuideController.getOperationalGuide)
 router.get('/dashboardGeneralAdmin', dashboardController.getDashboardGeneralAdmin)
@@ -325,8 +333,8 @@ router.delete('/userGeneral/:id', userGeneralController.deleteUserById)
 router.get('/userRoleGeneral', userRoleGeneralController.getUserRoleGeneral)
 router.put('/userRoleGeneral/:id', userRoleGeneralController.getUpdateData)
 
-router.get('/userLoginSecurity', userLoginController.getFailedUserLogins)
-router.post('/userLoginSecurity/:nik/clear', userLoginController.clearFailedUserLogin)
+router.get('/userLoginSecurity', requireRole(ROLES.GENERAL_ADMIN), userLoginController.getFailedUserLogins)
+router.post('/userLoginSecurity/:nik/clear', requireRole(ROLES.GENERAL_ADMIN), userLoginController.clearFailedUserLogin)
 
 router.get('/rolesManagement', rolesManagementController.getRolesManagement)
 router.get('/rolesManagement/menus', rolesManagementController.getMenuOptions)
@@ -356,15 +364,20 @@ router.put('/professionInBranch/:id', professionInBranchController.getProfession
 router.delete('/professionInBranch/:id', professionInBranchController.deleteProfessionById)
 
 router.get('/applicationDocument', applicationDocumentController.getApplicationDoc)
+router.get('/applicationDocument/:id/missing-hours', requireRole(ROLES.OPERATIONAL), missingControlHoursController.get)
+router.patch('/applicationDocument/:id/missing-hours', requireRole(ROLES.OPERATIONAL), missingControlHoursController.save)
 router.get('/ojtiRecommendations/eligible', requireRole(ROLES.OPERATIONAL), ojtiRecommendationController.listEligibleOjti)
 router.get('/ojtiRecommendations/inbox', requireRole(ROLES.OPERATIONAL), ojtiRecommendationController.listInbox)
 router.get('/proposalLetters/supervisors', requireRole(ROLES.OPERATIONAL), proposalLetterController.listSupervisors)
+router.get('/applicationCorrections', requireRole(ROLES.CHECKER_ADMIN), applicationCorrectionsController.list)
+router.get('/applicationCorrections/:id', requireRole(ROLES.CHECKER_ADMIN), applicationCorrectionsController.detail)
+router.post('/applicationCorrections/:id', requireRole(ROLES.CHECKER_ADMIN), applicationCorrectionsController.correct)
 router.get('/proposalLetters/application/:applicationDocId', requireRole(ROLES.OPERATIONAL), proposalLetterController.listApplicationLetters)
 router.post('/proposalLetters/application/:applicationDocId/assign', requireRole(ROLES.OPERATIONAL), proposalLetterController.assignSupervisor)
-router.get('/proposalLetters/inbox', requireRole(ROLES.SUPERVISOR), proposalLetterController.listInbox)
-router.get('/proposalLetters/:id', requireRole(ROLES.OPERATIONAL, ROLES.SUPERVISOR), proposalLetterController.getLetter)
+router.get('/proposalLetters/inbox', requireRole(ROLES.SUPERVISOR, ROLES.CHECKER_ADMIN), proposalLetterController.listInbox)
+router.get('/proposalLetters/:id', requireRole(ROLES.OPERATIONAL, ROLES.SUPERVISOR, ROLES.CHECKER_ADMIN), proposalLetterController.getLetter)
 router.patch('/proposalLetters/:id/revise', requireRole(ROLES.OPERATIONAL), proposalLetterController.reviseLetter)
-router.post('/proposalLetters/:id/decision', requireRole(ROLES.SUPERVISOR, ROLES.OPERATIONAL), proposalLetterController.decideLetter)
+router.post('/proposalLetters/:id/decision', requireRole(ROLES.SUPERVISOR, ROLES.OPERATIONAL, ROLES.CHECKER_ADMIN), proposalLetterController.decideLetter)
 router.post('/applicationDocument', applicationDocumentController.addApplicationDoc)
 router.put('/applicationDocument/:id', applicationDocumentController.getApplicationDocById)
 router.delete('/applicationDocument/:id', applicationDocumentController.deleteApplicationDoc)
@@ -386,17 +399,19 @@ router.post('/room', uploadRoom.any(), roomController.postRoom)
 router.put('/room/:id', uploadRoom.any(), roomController.editRoom)
 router.delete('/room/:id', roomController.deleteRoom)
 
+router.get('/events/:id/exam-access/:eventUserId', requireRole(ROLES.CHECKER_ADMIN), getExamAccess)
+router.post('/events/:id/exam-access/:eventUserId', requireRole(ROLES.CHECKER_ADMIN), extendExamAccess)
 router.get('/examination', examinationController.getExamination)
-router.post('/examinationEssay', examinationController.getEssayQuestion)
+router.post('/examinationEssay', checkModeOneEventAccess, examinationController.getEssayQuestion)
 router.post('/examinationAnswer', examinationController.postEssayAnswer)
 router.post('/examinationDraft', saveModeOneDraft)
-router.post('/examinationMultipleChoice', examinationController.getMultipleChoiceQuestion)
+router.post('/examinationMultipleChoice', checkModeOneEventAccess, examinationController.getMultipleChoiceQuestion)
 router.post('/examinationMultipleChoiceAnswer', examinationController.postMultipleChoiceAnswer)
 
 router.get('/performanceCheck', performanceCheckController.getEvent)
 router.post('/performanceCheck', performanceCheckController.postEssayAnswer)
-router.get('/performanceCheck/reset-options/:groupMemberId', requireRole(ROLES.CHECKER), checkerExamResetController.getResetOptions)
-router.post('/performanceCheck/reset-attempt', requireRole(ROLES.CHECKER), checkerExamResetController.postResetAttempt)
+router.get('/performanceCheck/reset-options/:groupMemberId', requireRole(ROLES.CHECKER, ROLES.CHECKER_ADMIN), checkerExamResetController.getResetOptions)
+router.post('/performanceCheck/reset-attempt', requireRole(ROLES.CHECKER, ROLES.CHECKER_ADMIN), checkerExamResetController.postResetAttempt)
 
 router.get('/practicalExam', practicalExamController.getPractical)
 router.get('/practicalExam/theory-review/:appRatingId', practicalExamController.getTheoryReview)

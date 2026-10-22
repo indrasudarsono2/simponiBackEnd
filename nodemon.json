@@ -1,0 +1,25 @@
+{
+  "watch": [
+    "app.js",
+    "controller",
+    "router",
+    "middleware",
+    "services",
+    "config",
+    "lib",
+    "utils",
+    "workers",
+    "prisma/schema.prisma",
+    "prisma.config.ts"
+  ],
+  "ignore": [
+    "node_modules/**",
+    "uploads/**",
+    "generated/**",
+    "docs/**",
+    "test/**"
+  ],
+  "ext": "js,mjs,cjs,ts,json,prisma",
+  "legacyWatch": true,
+  "delay": "500"
+}

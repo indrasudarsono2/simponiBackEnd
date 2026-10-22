@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import {isCheckerAdmin, canAdminReviewProposal} from '../utils/checkerAdminScope.js';
 const romanMonths = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
 const idOf = (value) => {
@@ -29,7 +30,7 @@ const ratingInclude = {
 const loadRating = (id) => prisma.appRating.findFirst({ where: { id, deletedAt: null, applicationDoc: { deletedAt: null } }, include: ratingInclude });
 const branchUnitOf = (rating) => rating?.applicationDoc?.eventUser?.event?.sector?.branchUnitId;
 const purposeOf = (rating) => String(rating?.applicationDoc?.eventUser?.event?.remarkDoc?.remark || "").trim().toUpperCase();
-const snapshot = (rating, controlHour = rating.controlHour, baseNumber = rating.applicationDoc.letterNumber, issuedAt = rating.applicationDoc.letterDate) => {
+export const snapshot = (rating, controlHour = rating.controlHour, baseNumber = rating.applicationDoc.letterNumber, issuedAt = rating.applicationDoc.letterDate) => {
   const doc = rating.applicationDoc;
   const event = doc.eventUser?.event;
   const remark = String(event?.remarkDoc?.remark || "").toUpperCase();
@@ -142,8 +143,10 @@ export const assignSupervisor = async (req, res) => {
 
 export const listInbox = async (req, res) => {
   try {
+    if (!req.user.branchUnitId) return res.status(403).json({message:'Your branch unit is not configured.'});
     const status = req.query.status === "validated" ? "validated" : "not-validated";
-    const scope = { supervisorNik: req.user.nik, applicationDoc: { deletedAt: null, eventUser: { event: { remarkDoc: { remark: "PERPANJANGAN" }, sector: { branchUnitId: req.user.branchUnitId } } } } };
+    const admin=isCheckerAdmin(req.user);
+    const scope = { ...(admin ? {} : {supervisorNik:req.user.nik}), appRating:{deletedAt:null}, applicationDoc: { deletedAt: null, ...(admin?{user:{branchUnitId:req.user.branchUnitId},userNik:{not:req.user.nik}}:{}), eventUser: { event: { remarkDoc: { remark: "PERPANJANGAN" }, sector: { branchUnitId: req.user.branchUnitId } } } } };
     const [letters, validatedCount] = await Promise.all([
       prisma.proposalLetter.findMany({
       where: { ...scope, status: status === "validated" ? "VALIDATED" : { not: "VALIDATED" } },
@@ -166,8 +169,9 @@ export const getLetter = async (req, res) => {
     const isPenerbitan = purposeOf(letter.appRating) === "PENERBITAN";
     const isOwner = doc.userNik === req.user.nik;
     const isReviewer = letter.supervisorNik === req.user.nik && branchUnitOf(letter.appRating) === req.user.branchUnitId && (isPenerbitan ? doc.ojtUser?.nik === req.user.nik && doc.ojtLicenseId === req.user.licenseUserId && req.user.roleNames.includes("OPERATIONAL") : req.user.roleNames.includes("SUPERVISOR"));
-    if (!isOwner && !isReviewer) return res.status(403).json({ message: "Not allowed to view this letter." });
-    return res.json({ ...letter, content: letter.status === "PENDING" ? snapshot(letter.appRating) : letter.content, recipientBranchUnit: doc.eventUser?.event?.sector?.branchUnit?.unit || "", permissions: { canReview: isReviewer && letter.status === "PENDING" && !isOwner, canRevise: isOwner && letter.status === "RETURNED" }, appRating: { id: letter.appRating.id, controlHour: letter.appRating.controlHour, rating: letter.appRating.rating }, documents: {
+    const adminReviewer=canAdminReviewProposal(req.user,letter.appRating);
+    if (!isOwner && !isReviewer && !adminReviewer) return res.status(403).json({ message: "Not allowed to view this letter." });
+    return res.json({ ...letter, content: letter.status === "PENDING" ? snapshot(letter.appRating) : letter.content, recipientBranchUnit: doc.eventUser?.event?.sector?.branchUnit?.unit || "", permissions: { canReview: (isReviewer || adminReviewer) && letter.status === "PENDING" && !isOwner, canRevise: isOwner && letter.status === "RETURNED" }, appRating: { id: letter.appRating.id, controlHour: letter.appRating.controlHour, rating: letter.appRating.rating }, documents: {
       applicationDocId: doc.id, applicationNumber: doc.number,
       applicationDoc: doc,
       license: doc.license, logbook: doc.logbook, medex: doc.medex, ielp: doc.ielp,
@@ -207,11 +211,11 @@ export const decideLetter = async (req, res) => {
     if (!id || !["VALIDATE", "RETURN"].includes(decision)) return res.status(400).json({ message: "Invalid decision." });
     if (decision === "RETURN" && reason.length < 10) return res.status(400).json({ message: "Explain the required correction (at least 10 characters)." });
     const letter = await prisma.proposalLetter.findUnique({ where: { id }, include: { appRating: { include: ratingInclude } } });
-    if (!letter || letter.appRating.applicationDoc.deletedAt) return res.status(404).json({ message: "Letter not found." });
+    if (!letter || letter.appRating.deletedAt || letter.appRating.applicationDoc.deletedAt) return res.status(404).json({ message: "Letter not found." });
     const isPenerbitan = purposeOf(letter.appRating) === "PENERBITAN";
     const doc = letter.appRating.applicationDoc;
     const isReviewer = letter.supervisorNik === req.user.nik && branchUnitOf(letter.appRating) === req.user.branchUnitId && doc.userNik !== req.user.nik && (isPenerbitan ? doc.ojtUser?.nik === req.user.nik && doc.ojtLicenseId === req.user.licenseUserId && req.user.roleNames.includes("OPERATIONAL") : req.user.roleNames.includes("SUPERVISOR"));
-    if (!isReviewer) return res.status(403).json({ message: "This letter is not assigned to you." });
+    if (!isReviewer && !canAdminReviewProposal(req.user,letter.appRating)) return res.status(403).json({ message: "This letter is not assigned to you or is outside your permitted branch unit." });
     if (letter.status !== "PENDING") return res.status(409).json({ message: "This letter is not pending validation." });
     if (decision === "VALIDATE" && (!doc.license?.file || !doc.logbook?.file || !doc.medex?.file || !doc.ielp?.file)) {
       return res.status(409).json({ message: "Review cannot be completed: license, logbook, Medex, and IELP files are required." });
@@ -238,7 +242,9 @@ export const decideLetter = async (req, res) => {
         }
       }
       const currentContent = snapshot(letter.appRating, letter.appRating.controlHour, baseNumber, issuedAt);
-      const claim = await tx.proposalLetter.updateMany({ where: { id, status: "PENDING", supervisorNik: req.user.nik, revision: letter.revision }, data: { status: decision === "VALIDATE" ? "VALIDATED" : "RETURNED", content: currentContent, validatedAt: decision === "VALIDATE" ? now : null } });
+      const claim = await tx.proposalLetter.updateMany({ where: { id, status: "PENDING", supervisorNik: letter.supervisorNik, revision: letter.revision,
+        ...(canAdminReviewProposal(req.user,letter.appRating)?{appRating:{deletedAt:null},applicationDoc:{deletedAt:null,userNik:{not:req.user.nik},user:{branchUnitId:req.user.branchUnitId},eventUser:{event:{remarkDoc:{remark:'PERPANJANGAN'},sector:{branchUnitId:req.user.branchUnitId}}}}}:{})
+      }, data: { status: decision === "VALIDATE" ? "VALIDATED" : "RETURNED", content: currentContent, validatedAt: decision === "VALIDATE" ? now : null } });
       if (claim.count !== 1) throw new Error("Letter changed during validation. Refresh and retry.");
       await tx.proposalLetterAction.create({ data: { letterId: id, actorNik: req.user.nik, action: decision === "VALIDATE" ? "VALIDATED" : "RETURNED", revision: letter.revision, reason: reason || null, content: currentContent } });
       if (isPenerbitan) {

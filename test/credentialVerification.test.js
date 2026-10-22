@@ -35,15 +35,15 @@ test("e-chain credential receipt rejects modified credential data", () => {
   }), false);
 });
 
-test("manual credential workflow prohibits self-assignment and self-verification", () => {
+test("new manual credentials are self-declared; legacy checker review still prohibits self-verification", () => {
   const verificationController = fs.readFileSync(new URL("../controller/credentialVerificationController.js", import.meta.url), "utf8");
   const ielpController = fs.readFileSync(new URL("../controller/ielpUserController.js", import.meta.url), "utf8");
   const medexController = fs.readFileSync(new URL("../controller/medexUserController.js", import.meta.url), "utf8");
 
   assert.match(verificationController, /nik:\s*\{\s*not:\s*req\.user\.nik\s*\}/);
   assert.match(verificationController, /record\.userNik\s*===\s*req\.user\.nik/);
-  assert.match(ielpController, /requestedCheckerNik\s*===\s*req\.user\.nik/);
-  assert.match(medexController, /requestedCheckerNik\s*===\s*req\.user\.nik/);
+  assert.match(ielpController, /assertManualDeclaration\(req.body, file\)/);
+  assert.match(medexController, /assertManualDeclaration\(req.body, file\)/);
   assert.match(verificationController, /new Set\(\["CHECKER"\]\)/);
   assert.doesNotMatch(verificationController, /new Set\(\["CHECKER",\s*"GENERAL CHECKER"/);
 });
@@ -53,10 +53,11 @@ test("IELP and MEDEX checker selection is limited to the applicant's assigned br
   const ielp = fs.readFileSync(new URL("../controller/ielpUserController.js", import.meta.url), "utf8");
   const medex = fs.readFileSync(new URL("../controller/medexUserController.js", import.meta.url), "utf8");
 
-  for (const controller of [verification, ielp, medex]) {
+  for (const controller of [verification]) {
     assert.match(controller, /req\.user\.branchUnitId\s*==\s*null/);
     assert.match(controller, /branchUnitId:\s*req\.user\.branchUnitId/);
   }
+  for (const controller of [ielp, medex]) assert.doesNotMatch(controller, /Please select a checker/);
   assert.doesNotMatch(verification, /role:\s*"GENERAL CHECKER"/);
   assert.doesNotMatch(verification, /checkerRatings:\s*\{\s*some:/);
 });

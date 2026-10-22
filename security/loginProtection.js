@@ -6,6 +6,7 @@ export const calculateCooldownMs = (failedLoginCount, config) => {
 };
 
 export const calculateFailureState = ({ previous, now, config }) => {
+  if (previous?.blockedAt || previous?.lockedUntil > now) return previous;
   const withinWindow = previous?.lastFailedAt &&
     now.getTime() - new Date(previous.lastFailedAt).getTime() <= config.failureWindowMs;
   const failedLoginCount = withinWindow ? previous.failedLoginCount + 1 : 1;
@@ -16,5 +17,6 @@ export const calculateFailureState = ({ previous, now, config }) => {
     firstFailedAt: withinWindow ? previous.firstFailedAt || now : now,
     lastFailedAt: now,
     lockedUntil: cooldownMs ? new Date(now.getTime() + cooldownMs) : null,
+    blockedAt: failedLoginCount >= (config.blockThreshold || 10) ? now : null,
   };
 };

@@ -828,6 +828,7 @@ model Verification {
 }
 
 model AppRating {
+  examAccessExtensions ExamAccessExtension[]
   id               Int       @id @default(autoincrement())
   applicationDocId Int?      @db.Int
   ratingId         Int?      @db.Int
@@ -858,6 +859,18 @@ model AppRating {
 
   @@index([applicationDocId, deletedAt])
   @@index([statusId, deletedAt])
+}
+
+model ExamAccessExtension {
+  id Int @id @default(autoincrement())
+  appRatingId Int
+  accessUntil DateTime @db.DateTime(3)
+  actorNik String @db.VarChar(150)
+  reason String @db.VarChar(500)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  appRating AppRating @relation(fields: [appRatingId], references: [id], onDelete: Restrict)
+
+  @@index([appRatingId, id])
 }
 
 model PracticalRecheckAuthorization {
@@ -954,6 +967,20 @@ model User {
   supervisedProposalLetters ProposalLetter[] @relation("ProposalLetterSupervisor")
 }
 
+model ApplicationCorrectionAudit {
+  id Int @id @default(autoincrement())
+  applicationDocId Int
+  actorNik String @db.VarChar(150)
+  branchUnitId Int
+  kind String @db.VarChar(30)
+  reason String @db.Text
+  before Json
+  after Json
+  createdAt DateTime @default(now())
+
+  @@index([applicationDocId, createdAt])
+}
+
 model ProposalLetter {
   id               Int       @id @default(autoincrement())
   applicationDocId Int
@@ -1001,6 +1028,7 @@ model UserLoginSecurity {
   firstFailedAt         DateTime?
   lastFailedAt          DateTime?
   lockedUntil           DateTime?
+  blockedAt             DateTime?
   lastSuccessfulLoginAt DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -1204,6 +1232,16 @@ model FinalScore {
 
   @@index([appRatingId, isInvalidated, deletedAt])
   @@index([essayResultEmailQueuedAt, essayResultEmailSentAt, essayResultEmailClaimedAt], map: "FinalScore_essay_email_queue_idx")
+}
+
+model EssayScoringAudit {
+  id Int @id @default(autoincrement())
+  finalScoreId Int @unique
+  actorNik String @db.VarChar(150)
+  branchUnitId Int
+  reason String @db.Text
+  scores Json
+  createdAt DateTime @default(now())
 }
 
 model FinalScoreCwp {
@@ -1934,6 +1972,15 @@ model Supervisor {
   cwpSupervisors CwpSupervisor[]
   dutyReports    DutyReport[]
   branchUnit     BranchUnit?     @relation(fields: [branchUnitId], references: [id])
+}
+
+// Security counters only; no business/examination records are changed.
+model ApiRateLimitBucket {
+  id        String   @id @db.VarChar(64)
+  totalHits Int      @default(0) @db.UnsignedInt
+  resetAt   DateTime @db.DateTime(3)
+
+  @@index([resetAt])
 }
 
 model CwpSupervisor {

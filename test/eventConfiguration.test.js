@@ -83,6 +83,7 @@ test('examination uses saved groups/MATS and locks against further finalization'
   const fake = fakeDatabase();
   try {
     await captureConfiguration({ eventId: 1 });
+    await getExamConfiguration(1);
     fake.live.sector.subBranchUnitRatings[0].questionGroups[1].quantity = 200;
     fake.live.mats.allocations[0].quantity = 100;
     const exam = await getExamConfiguration(1);
@@ -92,6 +93,49 @@ test('examination uses saved groups/MATS and locks against further finalization'
     assert.ok(fake.versions[0].lockedAt);
     await assert.rejects(captureConfiguration({ eventId: 1, reason: 'Forbidden update' }), /locked/);
     assert.equal(fake.versions.length, 1);
+  } finally { fake.restore(); }
+});
+
+test('General Admin MATS changes after finalization are captured before first examination for both modes', async () => {
+  for (const mode of ['MODE_1', 'MODE_2']) {
+    const fake = fakeDatabase();
+    try {
+      fake.live.theoryMode = mode;
+      await captureConfiguration({ eventId: 1 });
+      fake.live.mats.allocations[0].quantity = 2;
+      const exam = await getExamConfiguration(1, { trigger: `${mode}_OPEN` });
+      assert.equal(exam.mats.allocations[0].quantity, 2);
+      assert.equal(exam.configurationVersion, 2);
+      assert.equal(fake.versions[0].snapshot.mats.allocations[0].quantity, 1);
+      assert.match(fake.versions[1].reason, /General Admin MATS/);
+      assert.ok(fake.versions[1].lockedAt);
+    } finally { fake.restore(); }
+  }
+});
+
+test('new multiple-choice examinations cannot silently start without MATS; essay-only exams unaffected', async () => {
+  for (const mode of ['CATEGORY_PORTION', 'SEPARATE_POOL']) {
+    const fake = fakeDatabase();
+    try {
+      fake.live.mats.mode = mode;
+      fake.live.mats.quantity = 0;
+      fake.live.mats.allocations = [];
+      await assert.rejects(getExamConfiguration(1), /MATS/);
+      assert.equal(fake.versions.length, 0);
+      fake.live.eventQuestions = [{ ...fake.live.eventQuestions[0], persentage: 1 }];
+      await getExamConfiguration(1);
+    } finally { fake.restore(); }
+  }
+});
+
+test('invalid new MATS allocation stops examination and does not overwrite the finalized version', async () => {
+  const fake = fakeDatabase();
+  try {
+    await captureConfiguration({ eventId: 1 });
+    fake.live.mats.allocations[0].quantity = 4;
+    await assert.rejects(getExamConfiguration(1), /MATS allocation/);
+    assert.equal(fake.versions.length, 1);
+    assert.equal(fake.versions[0].lockedAt, null);
   } finally { fake.restore(); }
 });
 

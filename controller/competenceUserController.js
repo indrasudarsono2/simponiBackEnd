@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { assertDocumentDeletable } from '../services/scoredDocumentProtection.js';
 import config from "../utils/config.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -109,6 +110,7 @@ const getCompetenceById = async (req, res) => {
 
 const deleteCompetenceById = async (req, res) => {
   try {
+    await assertDocumentDeletable('competence', Number(req.params.id));
     const now = new Date();
     const { id } = req.params;
   
@@ -120,7 +122,7 @@ const deleteCompetenceById = async (req, res) => {
       });
     res.status(201).json({ success: true,});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
   
 };

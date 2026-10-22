@@ -2,10 +2,11 @@ import sanitizeHtml from "sanitize-html";
 
 const RICH_TEXT_KEYS = new Set([
   "answer", "content", "contentOfBriefing", "description", "question", "userAnswer",
+  "remark", "selectedAnswer", "a", "b", "c", "d", "key",
 ]);
 
 const clean = (value, key = "") => {
-  if (Array.isArray(value)) return value.map((item) => clean(item));
+  if (Array.isArray(value)) return value.map((item) => clean(item, key));
   if (value && typeof value === "object") {
     for (const [childKey, childValue] of Object.entries(value)) {
       value[childKey] = clean(childValue, childKey);
@@ -24,6 +25,11 @@ const clean = (value, key = "") => {
 export const sanitizeRichText = (req, _res, next) => {
   if (req.body) clean(req.body);
   next();
+};
+
+// Multipart fields exist only after multer has parsed the request.
+export const sanitizeUploadedFields = (req) => {
+  if (req.body) clean(req.body);
 };
 
 export const sanitizeRichTextResponses = (_req, res, next) => {

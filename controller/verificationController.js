@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import {isCheckerAdmin, sameBranchUnit} from '../utils/checkerAdminScope.js';
 import { ensureDefaultRoom } from '../services/defaultModeOneRoom.js';
 import config from "../utils/config.js";
 import dayjs from "dayjs";
@@ -9,6 +10,7 @@ import path from "path";
 dayjs.extend(utc);
 
 const getVerificationInit = async (req, res) => {
+  if (!req.user.branchUnitId) return res.status(403).json({message:'Your branch unit is not configured.'});
   const userN = req.user.nik
   // const userN = "10077770"
   const branchUnitId = req.user.branchUnitId
@@ -18,7 +20,8 @@ const getVerificationInit = async (req, res) => {
     const group = await prisma.group.findMany({
       where: {
         deletedAt: null,
-        pic: userN
+        ...(isCheckerAdmin(req.user)?{}:{pic:userN}),
+        event:{deletedAt:null,sector:{branchUnitId:req.user.branchUnitId}}
       },
       select: {
         id: true,
@@ -46,7 +49,7 @@ const getVerificationInit = async (req, res) => {
         createdAt: 'desc'
       }
     })
-    const event = group.map(e => e.event).flat();
+    const event = [...new Map(group.filter(g => g.event).map(g => [g.event.id, g.event])).values()];
     res.json({event});
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -76,6 +79,7 @@ const getVerificationItem = async(req, res) => {
 }
 
 const getVerification = async (req, res) => {
+  if (!req.user.branchUnitId) return res.status(403).json({message:'Your branch unit is not configured.'});
   const {eventId} = req.body
   // const userN = "10077770"
   const userN = req.user.nik
@@ -84,7 +88,8 @@ const getVerification = async (req, res) => {
     const eventUsr = await prisma.group.findMany({
       where: {
         deletedAt: null,
-        pic: userN
+        ...(isCheckerAdmin(req.user)?{}:{pic:userN}),
+        event:{deletedAt:null,sector:{branchUnitId:req.user.branchUnitId}}
       },
       select: {
         id: true,
@@ -110,7 +115,8 @@ const getVerification = async (req, res) => {
         deletedAt: null,
         id: Number(eventId),
         session: { branchUnitId: req.user.branchUnitId },
-        groups: { some: { deletedAt: null, pic: userN } }
+        sector:{branchUnitId:req.user.branchUnitId},
+        groups: { some: { deletedAt: null, ...(isCheckerAdmin(req.user)?{}:{pic:userN}) } }
       },
       select: {
         sector: {
@@ -135,7 +141,7 @@ const getVerification = async (req, res) => {
     const group = await prisma.group.findMany({
       where: {
         deletedAt: null,
-        pic: userN,
+        ...(isCheckerAdmin(req.user)?{}:{pic:userN}),
         event: {
           id: eventId
         }
@@ -164,6 +170,7 @@ const getVerification = async (req, res) => {
           }
         },
         checkerGroups: {
+          where: { deletedAt: null },
           select: {
             id: true,
             userChecker: {
@@ -175,6 +182,7 @@ const getVerification = async (req, res) => {
           }
         },
         groupMembers: {
+          where:{deletedAt:null,...(isCheckerAdmin(req.user)?{userMember:{branchUnitId:req.user.branchUnitId,deletedAt:null}}:{})},
           select: {
             id: true,
             userMember: {
@@ -246,9 +254,15 @@ const getVerification = async (req, res) => {
             },
             verification: {
               select: {
+                id: true,
+                isValid: true,
+                deletedAt: true,
                 applicationDoc: {
                   select: {
-                    number: true
+                    id: true,
+                    number: true,
+                    statusId: true,
+                    deletedAt: true
                   }
                 },
                 verificationData: true,
@@ -268,6 +282,7 @@ const getVerification = async (req, res) => {
 
 const postVerification = async(req, res) => {
   try {
+    if (!req.user.branchUnitId) return res.status(403).json({message:'Your branch unit is not configured.'});
     const {applicationDocId, groupMemberId, verificationItems} = req.body
     const parsedApplicationDocId = Number(applicationDocId);
     const parsedGroupMemberId = Number(groupMemberId);
@@ -281,12 +296,16 @@ const postVerification = async(req, res) => {
     if (!Array.isArray(verificationItems) || verificationItems.length === 0) {
       return res.status(400).json({ message: "Verification items are required." });
     }
+    if (verificationItems.some(item=>!item || typeof item!=='object' || Array.isArray(item))) return res.status(400).json({message:'Invalid verification items.'});
+    const verifiedAt=new Date().toISOString();
+    const auditedItems=verificationItems.map(item=>({...item,verifiedByNik:req.user.nik,verifiedAt}));
 
     const [applicationDoc, groupMember] = await Promise.all([
       prisma.applicationDoc.findFirst({
-        where: { id: parsedApplicationDocId, deletedAt: null },
+        where: { id: parsedApplicationDocId, deletedAt: null, ...(isCheckerAdmin(req.user)?{user:{branchUnitId:req.user.branchUnitId}}:{}) },
         select: {
           id: true,
+          userNik:true,
           ojtRecommendationStatus: true,
           ojtUser: { select: { nik: true } },
           eventUser: { select: { id: true, eventId: true, event: { select: { sector: { select: { branchUnitId: true } }, remarkDoc: { select: { remark: true } } } } } },
@@ -297,6 +316,7 @@ const postVerification = async(req, res) => {
         where: { id: parsedGroupMemberId, deletedAt: null },
         select: {
           id: true,
+          member:true,
           group: { select: { eventId: true, pic: true, deletedAt: true } }
         }
       })
@@ -311,10 +331,12 @@ const postVerification = async(req, res) => {
     if (Number(applicationDoc.eventUser?.eventId) !== Number(groupMember.group.eventId)) {
       return res.status(409).json({ message: "The application document and group member belong to different events." });
     }
-    if (groupMember.group.pic !== req.user.nik) {
+    if (applicationDoc.userNik !== groupMember.member) return res.status(409).json({message:'The application document does not belong to this group member.'});
+    if (isCheckerAdmin(req.user) && applicationDoc.userNik===req.user.nik) return res.status(403).json({message:'You cannot verify your own application document.'});
+    if (groupMember.group.pic !== req.user.nik && !isCheckerAdmin(req.user)) {
       return res.status(403).json({ message: "You are not authorized to verify this group member." });
     }
-    if (Number(applicationDoc.eventUser?.event?.sector?.branchUnitId) !== Number(req.user.branchUnitId)) return res.status(403).json({ message: 'This application document is outside your branch unit.' });
+    if (!sameBranchUnit(req.user,applicationDoc.eventUser?.event?.sector?.branchUnitId)) return res.status(403).json({ message: 'This application document is outside your branch unit.' });
     const isPenerbitan = applicationDoc.eventUser?.event?.remarkDoc?.remark?.trim().toUpperCase() === "PENERBITAN";
     if (!applicationDoc.appRatings.length || applicationDoc.appRatings.some((rating) => rating.proposalLetter?.status !== "VALIDATED" || (isPenerbitan && rating.proposalLetter?.supervisorNik !== applicationDoc.ojtUser?.nik)) || (isPenerbitan && applicationDoc.ojtRecommendationStatus !== "ACCEPTED")) {
       const reviewer = isPenerbitan ? "OJTI approval" : "Supervisor validation";
@@ -330,14 +352,14 @@ const postVerification = async(req, res) => {
         where: { applicationDocId: parsedApplicationDocId },
         update: {
           groupMemberId: parsedGroupMemberId,
-          verificationData: JSON.stringify(verificationItems),
+          verificationData: JSON.stringify(auditedItems),
           isValid: true,
           deletedAt: null
         },
         create: {
           applicationDocId: parsedApplicationDocId,
           groupMemberId: parsedGroupMemberId,
-          verificationData: JSON.stringify(verificationItems),
+          verificationData: JSON.stringify(auditedItems),
           isValid: true
         }
       });
@@ -353,12 +375,15 @@ const postVerification = async(req, res) => {
 
 const getVerificationDetail = async (req, res) => {
   try {
+    if (!req.user.branchUnitId) return res.status(403).json({message:'Your branch unit is not configured.'});
     const {applicationDocId, groupMemberId} = req.body
 
     const verification = await prisma.verification.findFirst({
       where: {
         applicationDocId,
-        groupMemberId
+        groupMemberId,
+        applicationDoc:{deletedAt:null,eventUser:{event:{sector:{branchUnitId:req.user.branchUnitId}}},...(isCheckerAdmin(req.user)?{user:{branchUnitId:req.user.branchUnitId}}:{})},
+        groupMembers:{deletedAt:null,group:{deletedAt:null,...(isCheckerAdmin(req.user)?{}:{pic:req.user.nik}),event:{sector:{branchUnitId:req.user.branchUnitId}}}}
       }
     })
 

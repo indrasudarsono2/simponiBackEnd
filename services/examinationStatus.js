@@ -1,3 +1,4 @@
+import { hasExtendedAccess } from './examAccessExtension.js';
 const toTime = (value) => {
   if (!value) return null;
   const time = new Date(value).getTime();
@@ -51,6 +52,11 @@ export const deriveRatingExaminationStatus = ({
   const finalStatusName = String(latestFinalScore?.status?.status || "").toUpperCase();
   const completedAt = latestFinalScore?.updatedAt || latestFinalScore?.createdAt || null;
 
+  const finished = ["SUCCESS", "WAITING PRACTICAL", "PRACTICAL RECHECK"].includes(finalStatusName || statusName) || (statusName !== 'RECHECK' && (finalStatusName || statusName) === 'FAILED');
+  if (!finished && ((eventFinish !== null && nowTime > eventFinish) || (roomFinish !== null && nowTime > roomFinish)) && !hasExtendedAccess(appRating, now)) {
+    return { status: EXAMINATION_STATUSES.EXPIRED, message: 'The event access period has ended. Ask Checker Admin for an individual extension.', completedAt: null, canStart: false };
+  }
+
   if (statusName === "RECHECK" && finalStatusName !== "SUCCESS") {
     return {
       status: EXAMINATION_STATUSES.IN_PROGRESS,
@@ -103,7 +109,7 @@ export const deriveRatingExaminationStatus = ({
   }
 
   const effectiveFinish = roomFinish ?? eventFinish;
-  if (effectiveFinish !== null && nowTime > effectiveFinish) {
+  if (effectiveFinish !== null && nowTime > effectiveFinish && !hasExtendedAccess(appRating, now)) {
     return {
       status: EXAMINATION_STATUSES.EXPIRED,
       message: "The examination period has ended.",

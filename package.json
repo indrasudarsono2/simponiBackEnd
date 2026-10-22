@@ -9,8 +9,10 @@
   "scripts": {
     "start": "node app.js",
     "start:production": "node app.js",
-    "test": "node test/security.test.js && node test/eventAuthorization.test.js && node test/eventConfiguration.test.js && node test/airnav.test.js && node test/https.test.js && node test/credentialVerification.test.js && node test/examinationStatus.test.js && node test/theorySession.test.js && node test/evidenceZip.test.js && node test/theoryEvidencePdf.test.js && node test/certificate.test.js && node test/checkerExamReset.test.js && node test/practicalLicense.test.js",
-    "dev": "nodemon --exec tsx app.js",
+    "test:security-hardening": "node --test test/securityHardening.test.js",
+    "test:login-lock": "node --test test/loginAdminLock.test.js test/loginAdminLockController.test.js",
+    "test": "node test/security.test.js && node test/eventAuthorization.test.js && node test/eventConfiguration.test.js && node test/matsSelection.test.js && node test/airnav.test.js && node test/https.test.js && node test/credentialVerification.test.js && node test/examinationStatus.test.js && node test/theorySession.test.js && node test/evidenceZip.test.js && node test/theoryEvidencePdf.test.js && node test/certificate.test.js && node test/checkerExamReset.test.js && node test/practicalLicense.test.js",
+    "dev": "tsx watch app.js",
     "generate": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status",
@@ -41,20 +43,22 @@
     "mysql2": "3.24.3",
     "node-cron": "^4.6.0",
     "nodemailer": "^10.0.13",
-    "sanitize-html": "2.17.7"
+    "sanitize-html": "2.18.1"
   },
   "overrides": {
-    "mariadb": "3.4.7",
+    "mariadb": "3.5.4",
+    "proxy-addr": "2.0.8",
+    "source-map-js": "1.2.2",
     "mysql2": "$mysql2",
     "deepmerge-ts": "8.0.0",
     "fast-uri": "4.2.1",
     "ip-address": "10.7.3",
     "nanoid": "3.3.18",
-    "qs": "6.16.0"
+    "qs": "6.16.0",
+    "esbuild": "0.28.1"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
-    "nodemon": "^3.1.14",
     "prisma": "^7.4.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"

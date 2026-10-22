@@ -1,4 +1,6 @@
+import { assertDocumentDeletable } from '../services/scoredDocumentProtection.js';
 import prisma from "../lib/prisma.js";
+import { requireApplicationLogbook } from '../services/applicationLogbook.js';
 import config from "../utils/config.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -103,7 +105,8 @@ const getApplicationDoc = async (req, res) => {
         },
         eventUsers: {
           some: {
-            userNik: userN
+            userNik: userN,
+            deletedAt: null
           },
         }
       },
@@ -123,15 +126,18 @@ const getApplicationDoc = async (req, res) => {
         isSimulator: true,
         eventUsers: {
           where: {
-            userNik: userN
+            userNik: userN,
+            deletedAt: null
           },
           select: {
             id: true,
             userNik: true,
             applicationDocs: {
               where: {
+                deletedAt: null,
                 appRatings: {
                   some: {
+                    deletedAt: null,
                     statusId: {
                       not: 6
                     }
@@ -347,7 +353,9 @@ const getApplicationDoc = async (req, res) => {
         },
         logbookUsers: {
           where: {
-            deletedAt: null
+            deletedAt: null,
+            file: { not: null },
+            NOT: { file: '' },
           },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 6
@@ -418,6 +426,7 @@ const addApplicationDoc = async (req, res) => {
   try {
     const {eventId, groupMemberId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtLicenseId, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
     const parsedOjtLicenseId = (ojtLicenseId ?? ojtNik) !== '' ? (ojtLicenseId ?? ojtNik) : null
+    await requireApplicationLogbook(prisma, logbookUserId, req.user.nik);
     const [medexValidation, ielpValidation] = await Promise.all([
       getApprovedCredential(prisma.medex, medexId, req.user.nik, "MEDEX"),
       getApprovedCredential(prisma.ielp, ielpId, req.user.nik, "IELP"),
@@ -543,6 +552,8 @@ const addApplicationDoc = async (req, res) => {
     })
 
     if (!eventUser?.event) return res.status(404).json({ message: 'Your event assignment was not found.' });
+    const applicationWindow = await prisma.event.findFirst({ where: { id: eventUser.event.id, deletedAt: null }, select: { formFillingDate: true } });
+    if (!applicationWindow?.formFillingDate || new Date(applicationWindow.formFillingDate) < new Date()) return res.status(409).json({ message: 'The application submission period for this event has ended or is not configured.' });
     const assignment = await getApplicationAssignment(prisma, { eventId: eventUser.event.id, memberNik: req.user.nik, branchUnitId: req.user.branchUnitId, ratings: appRating, groupMemberId });
     const baseNumber = `${eventUser.user.professionInBranch.profession.profession}/${eventUser.event.remarkDoc.remark}/${eventUser.user.licenseUserId}-${eventUser.event.id}`
     const isPenerbitan = eventUser.event.remarkDoc.remark?.trim().toUpperCase() === "PENERBITAN";
@@ -558,6 +569,9 @@ const addApplicationDoc = async (req, res) => {
  
     await prisma.$transaction(async tx => {
       await tx.$queryRawUnsafe('SELECT id FROM `Event` WHERE id = ? FOR UPDATE', eventUser.event.id);
+      const activeApplication = await tx.applicationDoc.findFirst({ where: { eventUserId: Number(eventUserId), deletedAt: null, appRatings: { some: { deletedAt: null, statusId: { not: 6 } } } }, select: { id: true } });
+      if (activeApplication) throw Object.assign(new Error('You already have an active application for this event. Delete it before submitting a replacement.'), { status: 409 });
+      await requireApplicationLogbook(tx, logbookUserId, req.user.nik);
       const assignment = await getApplicationAssignment(tx, { eventId: eventUser.event.id, memberNik: req.user.nik, branchUnitId: req.user.branchUnitId, ratings: appRating });
       const appDoc = await tx.applicationDoc.create({
       data: {
@@ -650,6 +664,7 @@ const getApplicationDocById = async (req, res) => {
     const {eventId, eventUserId, licenseId, logbookUserId, atsName, address, appRating, confirmRating, reason, ratings, location, dateForExpired, confirmOjt, letterNumber, letterDate, controlHour, ojtLicenseId, ojtNik, isDrugs, isFailed, medexId, ielpId } = req.body
     const parsedOjtLicenseId = (ojtLicenseId ?? ojtNik) !== '' ? (ojtLicenseId ?? ojtNik) : null
     const existingIsPenerbitan = ownedDocument.eventUser?.event?.remarkDoc?.remark?.trim().toUpperCase() === "PENERBITAN";
+    await requireApplicationLogbook(prisma, logbookUserId, req.user.nik);
     if (existingIsPenerbitan && (ownedDocument.ojtRecommendationStatus === "ACCEPTED" || ownedDocument.appRatings.some((rating) => rating.proposalLetter?.status === "VALIDATED")) && parsedOjtLicenseId !== ownedDocument.ojtLicenseId) {
       return res.status(409).json({ message: "An accepted OJTI recommendation cannot be reassigned." });
     }
@@ -680,6 +695,7 @@ const getApplicationDocById = async (req, res) => {
       }
       const ratingById = new Map(ownedDocument.appRatings.map((rating) => [rating.ratingId, rating]));
       await prisma.$transaction(async (tx) => {
+        await requireApplicationLogbook(tx, logbookUserId, req.user.nik);
         await tx.applicationDoc.update({ where: { id: Number(id) }, data: {
           medexId: medexValidation.record.id,
           ielpId: ielpValidation.record.id,
@@ -824,6 +840,7 @@ const getApplicationDocById = async (req, res) => {
     await prisma.$transaction(async tx => {
       await tx.$queryRawUnsafe('SELECT id FROM `Event` WHERE id = ? FOR UPDATE', eventUser.event.id);
       const assignment = await getApplicationAssignment(tx, { eventId: eventUser.event.id, memberNik: req.user.nik, branchUnitId: req.user.branchUnitId, ratings: appRating });
+      await requireApplicationLogbook(tx, logbookUserId, req.user.nik);
       const appDoc = await tx.applicationDoc.update({
       where: {
         id: parseInt(id)
@@ -877,12 +894,12 @@ const getApplicationDocById = async (req, res) => {
 
 const deleteApplicationDoc = async (req, res) => {
   try {
+    await assertDocumentDeletable('application', Number(req.params.id));
     const now = dayjs.utc().toDate();
     const { id } = req.params;
     const ownedDocument = await prisma.applicationDoc.findFirst({ where: { id: Number(id), userNik: req.user.nik, deletedAt: null }, select: { id: true } });
     if (!ownedDocument) return res.status(404).json({ message: "Application document not found." });
-    const existingLetter = await prisma.proposalLetter.findFirst({ where: { applicationDocId: Number(id) }, select: { id: true } });
-    if (existingLetter) return res.status(409).json({ message: "This application has proposal-letter audit history and cannot be deleted." });
+    // Soft deletion retains proposal-letter history; only scored evidence is locked.
   
     await prisma.applicationDoc.update({
       where: { id: parseInt(id) },

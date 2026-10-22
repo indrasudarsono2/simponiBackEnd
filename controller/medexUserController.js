@@ -1,4 +1,6 @@
+import { SELF_DECLARATION, assertManualDeclaration, assertCredentialUnlinked, credentialIsLinked } from "../services/credentialPolicy.js";
 import prisma from "../lib/prisma.js";
+import { assertDocumentDeletable } from '../services/scoredDocumentProtection.js';
 import { appendCredentialHistory } from "../utils/credentialHistory.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -212,12 +214,13 @@ const getMedexUser = async (req, res) => {
         createdAt: 'desc'
       },
       include: {
+        _count: { select: { applicationDocs: true } },
         requestedChecker: { select: { nik: true, name: true } },
         verifiedBy: { select: { nik: true, name: true } },
       }
     })
 
-    res.json(license);
+    res.json(license.map(record => ({ ...record, isApplicationLinked: record._count.applicationDocs > 0 })));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -411,29 +414,28 @@ const receiveMedexUserVerifiedFromEchain = async (req, res) => {
       medexData.file = downloadedFile.url;
     }
 
-    let medex = existingMedex
-      ? await prisma.medex.update({
-          where: { id: existingMedex.id },
-          data: medexData,
-        })
-      : await prisma.medex.create({
-          data: medexData,
-        });
-    if (!medex.rootVersionId) {
-      medex = await prisma.medex.update({ where: { id: medex.id }, data: { rootVersionId: medex.id } });
-    }
+    let refreshedExisting = false;
+    let medex = await prisma.$transaction(async (tx) => {
+      refreshedExisting = Boolean(existingMedex) && !await credentialIsLinked(tx, "medex", existingMedex.id);
+      const data = { ...medexData };
+      if (!refreshedExisting && existingMedex?.file && !data.file) data.file = existingMedex.file;
+      const saved = refreshedExisting
+        ? await tx.medex.update({ where: { id: existingMedex.id }, data })
+        : await tx.medex.create({ data });
+      return saved.rootVersionId ? saved : await tx.medex.update({ where: { id: saved.id }, data: { rootVersionId: saved.id } });
+    }, { isolationLevel: "Serializable" });
     await appendCredentialHistory(prisma, {
       type: "MEDEX", record: medex, eventType: "ECHAIN_SYNCED", actorNik: nik,
-      note: existingMedex ? "Verified MEDEX data refreshed by e-chain." : "Verified MEDEX data received from e-chain.",
+      note: refreshedExisting ? "Verified MEDEX data refreshed by e-chain." : "Verified MEDEX data received from e-chain.",
     });
     await appendCredentialHistory(prisma, { type: "MEDEX", record: medex, eventType: "APPROVED", actorNik: nik, note: "Verified by e-chain" });
 
-    return res.status(existingMedex ? 200 : 201).json({
+    return res.status(refreshedExisting ? 200 : 201).json({
       success: true,
-      message: existingMedex ? "MEDEX webhook processed; existing SIMPONI record updated." : "MEDEX webhook processed; SIMPONI record created.",
+      message: refreshedExisting ? "MEDEX webhook processed; existing SIMPONI record updated." : "MEDEX webhook processed; SIMPONI record created.",
       data: {
         eventId,
-        action: existingMedex ? "updated" : "created",
+        action: refreshedExisting ? "updated" : "created",
         nik,
         medexId: medex.id,
         fileStored: Boolean(downloadedFile),
@@ -465,40 +467,22 @@ const addMedexUser = async (req, res) => {
       try {medexDate(released);medexDate(expired);if(expired<released) throw new Error();} catch {return res.status(400).json({message:'Invalid MEDEX dates. Please sync again.'});}
     }
     if (!isEchain && echainFileUrl) return res.status(400).json({message:'External files require a valid ECHAIN sync receipt.'});
-    if (!isEchain && !requestedCheckerNik) {
-      return res.status(400).json({ message: "Please select a checker for manual MEDEX verification." });
-    }
-    if (!isEchain && requestedCheckerNik === req.user.nik) {
-      return res.status(400).json({ message: "You cannot select yourself to verify your own MEDEX record." });
-    }
-    if (!isEchain) {
-      if (req.user.branchUnitId == null) return res.status(400).json({ message: "Your branch unit is not assigned. Ask an administrator to assign it before selecting a MEDEX checker." });
-      const checker = await prisma.user.findFirst({
-        where: {
-          nik: requestedCheckerNik,
-          deletedAt: null,
-          branchUnitId: req.user.branchUnitId,
-          userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } },
-        },
-        select: { nik: true },
-      });
-      if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
-    }
+    if (!isEchain) assertManualDeclaration(req.body, file);
 
     const downloadedFile = isEchain && echainFileUrl ? await downloadEchainMedexUserFile({fileUrl:echainFileUrl,fileName:echainFileName,fileMimeType:echainFileMimeType}) : null;
     const verificationNote = isEchain ? 'Verified by e-chain; expiry and file selected by user from latest examination records.'
       + (receiptData.institutionMissing ? ' Institution supplied by user because the API does not provide it.' : '')
-      + (receiptData.examinerMissing ? ' Examiner supplied by user because ECHAIN examiner was missing; please correct ECHAIN.' : '') : null;
+      + (receiptData.examinerMissing ? ' Examiner supplied by user because ECHAIN examiner was missing; please correct ECHAIN.' : '') : SELF_DECLARATION;
     const now = new Date();
     const medex = await prisma.$transaction(async (tx) => {
       const created = await tx.medex.create({ data: {
         userNik: req.user.nik,
-        isConfirmed: isEchain,
-        isCurrent: isEchain,
+        isConfirmed: true,
+        isCurrent: true,
         userConfirmedAt: now,
         source: isEchain ? "ECHAIN" : "MANUAL",
-        verificationStatus: isEchain ? "APPROVED" : "PENDING",
-        requestedCheckerNik: isEchain ? null : requestedCheckerNik,
+        verificationStatus: "APPROVED",
+        requestedCheckerNik: null,
         verifiedAt: isEchain ? now : null,
         verificationNote,
         institution,
@@ -508,13 +492,10 @@ const addMedexUser = async (req, res) => {
         file: file ? `/uploads/medex/${file.filename}` : downloadedFile?.url || null,
       }});
       const rooted = await tx.medex.update({ where: { id: created.id }, data: { rootVersionId: created.id } });
-      await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: isEchain ? "ECHAIN_SYNCED" : "CREATED", actorNik: req.user.nik, checkerNik: requestedCheckerNik || null });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: isEchain ? "ECHAIN_SYNCED" : "CREATED", actorNik: req.user.nik, note: isEchain ? verificationNote : SELF_DECLARATION });
       await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
       if (isEchain) {
         await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "APPROVED", actorNik: req.user.nik, note: verificationNote });
-      } else {
-        await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "CHECKER_ASSIGNED", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
-        await appendCredentialHistory(tx, { type: "MEDEX", record: rooted, eventType: "SUBMITTED_FOR_VERIFICATION", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
       }
       return rooted;
     });
@@ -534,7 +515,7 @@ const addMedexUser = async (req, res) => {
       files: savedFiles
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -550,34 +531,25 @@ const getMedexById = async (req, res) => {
       where: { id: parseInt(id), userNik: req.user.nik, deletedAt: null },
     })
     if (!existingMedex) return res.status(404).json({ message: "MEDEX record was not found." });
+    await assertCredentialUnlinked(prisma, "medex", existingMedex.id);
+    assertManualDeclaration(req.body, file || existingMedex.file);
     if (existingMedex?.source === "ECHAIN") {
       return res.status(409).json({ message: "e-chain MEDEX records cannot be edited manually. Sync a new record instead." });
     }
-    const revisionCheckerNik = requestedCheckerNik || existingMedex.requestedCheckerNik || existingMedex.verifiedByNik;
-    if (!revisionCheckerNik || revisionCheckerNik === req.user.nik) {
-      return res.status(400).json({ message: "Please select another checker to verify this MEDEX revision." });
-    }
-    if (req.user.branchUnitId == null) return res.status(400).json({ message: "Your branch unit is not assigned. Ask an administrator to assign it before selecting a MEDEX checker." });
-    const checker = await prisma.user.findFirst({
-      where: { nik: revisionCheckerNik, deletedAt: null, branchUnitId: req.user.branchUnitId, userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } } },
-      select: { nik: true },
-    });
-    if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
-
     const revisionData = {
       userNik: req.user.nik,
-      isConfirmed: false,
-      isCurrent: false,
+      isConfirmed: true,
+      isCurrent: true,
       rootVersionId: existingMedex.rootVersionId || existingMedex.id,
       previousVersionId: existingMedex.id,
       version: (existingMedex.version || 1) + 1,
       userConfirmedAt: new Date(),
       source: "MANUAL",
-      verificationStatus: "PENDING",
+      verificationStatus: "APPROVED",
       verifiedByNik: null,
       verifiedAt: null,
-      verificationNote: null,
-      requestedCheckerNik: revisionCheckerNik,
+      verificationNote: SELF_DECLARATION,
+      requestedCheckerNik: null,
       institution,
       examiner,
       released: dayjs.utc(released).toDate(),
@@ -585,33 +557,37 @@ const getMedexById = async (req, res) => {
       file: file ? `/uploads/medex/${file.filename}` : existingMedex.file,
     }
     const revision = await prisma.$transaction(async (tx) => {
+      await assertCredentialUnlinked(tx, "medex", existingMedex.id);
       const created = await tx.medex.create({ data: revisionData });
       await appendCredentialHistory(tx, { type: "MEDEX", record: created, eventType: "REVISION_STARTED", actorNik: req.user.nik, checkerNik: created.requestedCheckerNik, previous: existingMedex });
-      await appendCredentialHistory(tx, { type: "MEDEX", record: created, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
+      await appendCredentialHistory(tx, { type: "MEDEX", record: created, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik, note: SELF_DECLARATION });
       await appendCredentialHistory(tx, { type: "MEDEX", record: created, eventType: "REVISION_SUBMITTED", actorNik: req.user.nik, checkerNik: created.requestedCheckerNik, previous: existingMedex });
+      await tx.medex.update({ where: { id: existingMedex.id }, data: { isCurrent: false } });
       return created;
-    });
+    }, { isolationLevel: "Serializable" });
 
     res.status(201).json({ success: true, revision }); 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
 const deleteMedexById = async (req, res) => {
   try {
+    await assertDocumentDeletable('medex', Number(req.params.id));
     const now = new Date();
     const { id } = req.params;
   
     const record = await prisma.medex.findFirst({ where: { id: parseInt(id), userNik: req.user.nik, deletedAt: null } });
     if (!record) return res.status(404).json({ message: "MEDEX record was not found." });
     await prisma.$transaction(async (tx) => {
+      await assertCredentialUnlinked(tx, "medex", record.id);
       const deleted = await tx.medex.update({ where: { id: record.id }, data: { deletedAt: now, isCurrent: false } });
       await appendCredentialHistory(tx, { type: "MEDEX", record: deleted, eventType: "DELETED", actorNik: req.user.nik, note: "Credential removed by its owner." });
-    });
+    }, { isolationLevel: "Serializable" });
     res.status(201).json({ success: true,});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   } 
 };
 

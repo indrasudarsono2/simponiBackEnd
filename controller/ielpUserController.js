@@ -1,4 +1,6 @@
+import { SELF_DECLARATION, assertManualDeclaration, assertCredentialUnlinked, credentialIsLinked } from "../services/credentialPolicy.js";
 import prisma from "../lib/prisma.js";
+import { assertDocumentDeletable } from '../services/scoredDocumentProtection.js';
 import config from "../utils/config.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -227,12 +229,13 @@ const getIelpUser = async (req, res) => {
         createdAt: 'desc'
       },
       include: {
+        _count: { select: { applicationDocs: true } },
         requestedChecker: { select: { nik: true, name: true } },
         verifiedBy: { select: { nik: true, name: true } },
       }
     })
 
-    res.json(ielp);
+    res.json(ielp.map(record => ({ ...record, isApplicationLinked: record._count.applicationDocs > 0 })));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -429,29 +432,28 @@ const receiveIelpUserVerifiedFromEchain = async (req, res) => {
       ielpData.file = downloadedFile.url;
     }
 
-    let ielp = existingIelp
-      ? await prisma.ielp.update({
-          where: { id: existingIelp.id },
-          data: ielpData,
-        })
-      : await prisma.ielp.create({
-          data: ielpData,
-        });
-    if (!ielp.rootVersionId) {
-      ielp = await prisma.ielp.update({ where: { id: ielp.id }, data: { rootVersionId: ielp.id } });
-    }
+    let refreshedExisting = false;
+    let ielp = await prisma.$transaction(async (tx) => {
+      refreshedExisting = Boolean(existingIelp) && !await credentialIsLinked(tx, "ielp", existingIelp.id);
+      const data = { ...ielpData };
+      if (!refreshedExisting && existingIelp?.file && !data.file) data.file = existingIelp.file;
+      const saved = refreshedExisting
+        ? await tx.ielp.update({ where: { id: existingIelp.id }, data })
+        : await tx.ielp.create({ data });
+      return saved.rootVersionId ? saved : await tx.ielp.update({ where: { id: saved.id }, data: { rootVersionId: saved.id } });
+    }, { isolationLevel: "Serializable" });
     await appendCredentialHistory(prisma, {
       type: "IELP", record: ielp, eventType: "ECHAIN_SYNCED", actorNik: nik,
-      note: existingIelp ? "Verified IELP data refreshed by e-chain." : "Verified IELP data received from e-chain.",
+      note: refreshedExisting ? "Verified IELP data refreshed by e-chain." : "Verified IELP data received from e-chain.",
     });
     await appendCredentialHistory(prisma, { type: "IELP", record: ielp, eventType: "APPROVED", actorNik: nik, note: "Verified by e-chain" });
 
-    return res.status(existingIelp ? 200 : 201).json({
+    return res.status(refreshedExisting ? 200 : 201).json({
       success: true,
-      message: existingIelp ? "IELP webhook processed; existing SIMPONI record updated." : "IELP webhook processed; SIMPONI record created.",
+      message: refreshedExisting ? "IELP webhook processed; existing SIMPONI record updated." : "IELP webhook processed; SIMPONI record created.",
       data: {
         eventId,
-        action: existingIelp ? "updated" : "created",
+        action: refreshedExisting ? "updated" : "created",
         nik,
         ielpId: ielp.id,
         fileStored: Boolean(downloadedFile),
@@ -479,41 +481,23 @@ const addIelpUser = async (req, res) => {
     const isEchain = source === "ECHAIN" && req.user.authenticationType === "AIRNAV_SSO" && verifyCredentialSyncReceipt({ receipt: syncReceipt, type: "IELP", nik: req.user.nik, data: receiptData });
     if (source === "ECHAIN" && !isEchain) return res.status(400).json({ message: "The e-chain synchronization receipt is invalid or expired. Please sync again." });
     if (isEchain && (typeof institution !== 'string' || institution.trim().length < 2 || institution.trim().length > 150)) return res.status(400).json({message:'Enter the institution name before saving. Please also correct the missing institution in ECHAIN.'});
-    if (!isEchain && !requestedCheckerNik) {
-      return res.status(400).json({ message: "Please select a checker for manual IELP verification." });
-    }
-    if (!isEchain && requestedCheckerNik === req.user.nik) {
-      return res.status(400).json({ message: "You cannot select yourself to verify your own IELP record." });
-    }
-    if (!isEchain) {
-      if (req.user.branchUnitId == null) return res.status(400).json({ message: "Your branch unit is not assigned. Ask an administrator to assign it before selecting an IELP checker." });
-      const checker = await prisma.user.findFirst({
-        where: {
-          nik: requestedCheckerNik,
-          deletedAt: null,
-          branchUnitId: req.user.branchUnitId,
-          userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } },
-        },
-        select: { nik: true },
-      });
-      if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
-    }
+    if (!isEchain) assertManualDeclaration(req.body, file);
 
     const validity = isEchain ? selectedIelpValidity(receiptData) : normalizeIelpValidity({ level, released });
     if (!isEchain && echainFileUrl) return res.status(400).json({message:'External file downloads require a verified ECHAIN receipt.'});
     const downloadedFile = isEchain && !file && echainFileUrl
       ? await downloadEchainIelpUserFile({fileUrl:echainFileUrl,fileName:echainFileName,fileMimeType:echainFileMimeType}) : null;
-    const verificationNote = isEchain ? `Imported from ECHAIN; expiry chosen: ${receiptData.expirySource}; ECHAIN: ${receiptData.echainExpired || 'Lifetime'}; PERFORMA: ${receiptData.calculatedExpired || 'Lifetime'}.${receiptData.expirySource === 'PERFORMA' && receiptData.echainExpired !== receiptData.calculatedExpired ? ' Please correct the IELP expiry in ECHAIN.' : ''}` : null;
+    const verificationNote = isEchain ? `Imported from ECHAIN; expiry chosen: ${receiptData.expirySource}; ECHAIN: ${receiptData.echainExpired || 'Lifetime'}; PERFORMA: ${receiptData.calculatedExpired || 'Lifetime'}.${receiptData.expirySource === 'PERFORMA' && receiptData.echainExpired !== receiptData.calculatedExpired ? ' Please correct the IELP expiry in ECHAIN.' : ''}` : SELF_DECLARATION;
     const now = new Date();
     const ielp = await prisma.$transaction(async (tx) => {
       const created = await tx.ielp.create({ data: {
         userNik: req.user.nik,
-        isConfirmed: isEchain,
-        isCurrent: isEchain,
+        isConfirmed: true,
+        isCurrent: true,
         userConfirmedAt: now,
         source: isEchain ? "ECHAIN" : "MANUAL",
-        verificationStatus: isEchain ? "APPROVED" : "PENDING",
-        requestedCheckerNik: isEchain ? null : requestedCheckerNik,
+        verificationStatus: "APPROVED",
+        requestedCheckerNik: null,
         verifiedAt: isEchain ? now : null,
         verificationNote: isEchain && receiptData.institutionMissing ? verificationNote + ' Institution supplied by user because ECHAIN institution was missing; please correct the institution in ECHAIN.' : verificationNote,
         institution,
@@ -524,13 +508,10 @@ const addIelpUser = async (req, res) => {
         file: file ? `/uploads/ielp/${file.filename}` : downloadedFile?.url || null,
       }});
       const rooted = await tx.ielp.update({ where: { id: created.id }, data: { rootVersionId: created.id } });
-      await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: isEchain ? "ECHAIN_SYNCED" : "CREATED", actorNik: req.user.nik, checkerNik: requestedCheckerNik || null });
+      await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: isEchain ? "ECHAIN_SYNCED" : "CREATED", actorNik: req.user.nik, note: isEchain ? verificationNote : SELF_DECLARATION });
       await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
       if (isEchain) {
         await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "APPROVED", actorNik: req.user.nik, note: verificationNote });
-      } else {
-        await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "CHECKER_ASSIGNED", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
-        await appendCredentialHistory(tx, { type: "IELP", record: rooted, eventType: "SUBMITTED_FOR_VERIFICATION", actorNik: req.user.nik, checkerNik: requestedCheckerNik });
       }
       return rooted;
     });
@@ -550,7 +531,7 @@ const addIelpUser = async (req, res) => {
       files: savedFiles
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -565,67 +546,62 @@ const getIelpById = async (req, res) => {
       where: { id: parseInt(id), userNik: req.user.nik, deletedAt: null },
     })
     if (!existingIelp) return res.status(404).json({ message: "IELP record was not found." });
+    await assertCredentialUnlinked(prisma, "ielp", existingIelp.id);
+    assertManualDeclaration(req.body, file || existingIelp.file);
     if (existingIelp?.source === "ECHAIN") {
       return res.status(409).json({ message: "e-chain IELP records cannot be edited manually. Sync a new record instead." });
     }
-    const revisionCheckerNik = requestedCheckerNik || existingIelp.requestedCheckerNik || existingIelp.verifiedByNik;
-    if (!revisionCheckerNik || revisionCheckerNik === req.user.nik) {
-      return res.status(400).json({ message: "Please select another checker to verify this IELP revision." });
-    }
-    if (req.user.branchUnitId == null) return res.status(400).json({ message: "Your branch unit is not assigned. Ask an administrator to assign it before selecting an IELP checker." });
-    const checker = await prisma.user.findFirst({
-      where: { nik: revisionCheckerNik, deletedAt: null, branchUnitId: req.user.branchUnitId, userRoles: { some: { deletedAt: null, roles: { deletedAt: null, role: "CHECKER" } } } },
-      select: { nik: true },
-    });
-    if (!checker) return res.status(400).json({ message: "Selected checker is not eligible." });
-
     const validity = normalizeIelpValidity({ level, released });
     const revisionData = {
       userNik: req.user.nik,
-      isConfirmed: false,
-      isCurrent: false,
+      isConfirmed: true,
+      isCurrent: true,
       rootVersionId: existingIelp.rootVersionId || existingIelp.id,
       previousVersionId: existingIelp.id,
       version: (existingIelp.version || 1) + 1,
       userConfirmedAt: new Date(),
       source: "MANUAL",
-      verificationStatus: "PENDING",
+      verificationStatus: "APPROVED",
       verifiedByNik: null,
       verifiedAt: null,
-      verificationNote: null,
+      verificationNote: SELF_DECLARATION,
       institution,
       ...validity,
       rater,
-      requestedCheckerNik: revisionCheckerNik,
+      requestedCheckerNik: null,
       file: file ? `/uploads/ielp/${file.filename}` : existingIelp.file,
     }
     const revision = await prisma.$transaction(async (tx) => {
+      await assertCredentialUnlinked(tx, "ielp", existingIelp.id);
       const created = await tx.ielp.create({ data: revisionData });
       await appendCredentialHistory(tx, { type: "IELP", record: created, eventType: "REVISION_STARTED", actorNik: req.user.nik, checkerNik: created.requestedCheckerNik, previous: existingIelp });
-      await appendCredentialHistory(tx, { type: "IELP", record: created, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik });
+      await appendCredentialHistory(tx, { type: "IELP", record: created, eventType: "PERSONALLY_CONFIRMED", actorNik: req.user.nik, note: SELF_DECLARATION });
       await appendCredentialHistory(tx, { type: "IELP", record: created, eventType: "REVISION_SUBMITTED", actorNik: req.user.nik, checkerNik: created.requestedCheckerNik, previous: existingIelp });
+      await tx.ielp.update({ where: { id: existingIelp.id }, data: { isCurrent: false } });
       return created;
-    });
+    }, { isolationLevel: "Serializable" });
 
     res.status(201).json({ success: true, revision }); 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
 const deleteIelpById = async (req, res) => {
   try {
+    await assertDocumentDeletable('ielp', Number(req.params.id));
     const now = new Date();
     const { id } = req.params;
     const record = await prisma.ielp.findFirst({ where: { id: parseInt(id), userNik: req.user.nik, deletedAt: null } });
     if (!record) return res.status(404).json({ message: "IELP record was not found." });
     await prisma.$transaction(async (tx) => {
+      await assertCredentialUnlinked(tx, "ielp", record.id);
       const deleted = await tx.ielp.update({ where: { id: record.id }, data: { deletedAt: now, isCurrent: false } });
       await appendCredentialHistory(tx, { type: "IELP", record: deleted, eventType: "DELETED", actorNik: req.user.nik, note: "Credential removed by its owner." });
-    });
+    }, { isolationLevel: "Serializable" });
     res.status(201).json({ success: true,});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
   
 };

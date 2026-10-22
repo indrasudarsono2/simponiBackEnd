@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { assertCredentialUnlinked } from '../services/credentialPolicy.js';
 import { appendCredentialHistory } from "../utils/credentialHistory.js";
 import path from "node:path";
 import { createSignedFileUrl } from "../middleware/privateFiles.js";
@@ -213,6 +214,7 @@ const reviewCredential = async (req, res) => {
       return res.status(403).json({ message: "You cannot verify your own IELP or MEDEX record." });
     }
 
+    await assertCredentialUnlinked(prisma, String(req.params.type).toLowerCase(), id);
     const echain = status === "APPROVED"
       ? await sendApprovedCredentialToEchain(String(req.params.type).toLowerCase(), record, req)
       : null;
@@ -221,6 +223,7 @@ const reviewCredential = async (req, res) => {
     const modelName = type === "IELP" ? "ielp" : "medex";
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
+      await assertCredentialUnlinked(tx, modelName, id);
       let superseded = [];
       if (status === "APPROVED") {
         superseded = await tx[modelName].findMany({
@@ -232,7 +235,7 @@ const reviewCredential = async (req, res) => {
           },
         });
         await tx[modelName].updateMany({
-          where: { rootVersionId: record.rootVersionId || record.id, isCurrent: true, deletedAt: null },
+          where: { rootVersionId: record.rootVersionId || record.id, isCurrent: true, deletedAt: null, applicationDocs: { none: {} } },
           data: { isCurrent: false },
         });
       }

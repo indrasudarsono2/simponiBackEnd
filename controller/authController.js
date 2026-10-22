@@ -33,21 +33,10 @@ const createMailTransporter = () => {
   });
 };
 
-const cooldownResponse = (res, lockedUntil, now = new Date()) => {
-  const retryAfterSeconds = Math.max(
-    1,
-    Math.ceil((new Date(lockedUntil).getTime() - now.getTime()) / 1000),
-  );
-  const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
-  res.set("Retry-After", String(retryAfterSeconds));
-  return res.status(423).json({
-    success: false,
-    code: "ACCOUNT_COOLDOWN",
-    message: `Too many failed login attempts. Try again in ${retryAfterMinutes} minute${retryAfterMinutes === 1 ? "" : "s"}.`,
-    retryAfterSeconds,
-    lockedUntil,
-  });
-};
+// Keep lockout details in administrative audit records, not anonymous responses.
+const cooldownResponse = (res) => res.status(401).json({
+  success: false, message: INVALID_LOGIN_MESSAGE,
+});
 
 const requestAuditContext = (req) => ({
   ipAddress: String(req.ip || req.socket?.remoteAddress || "").slice(0, 100) || null,
@@ -70,9 +59,23 @@ const recordAnonymousFailure = async (req) => {
 };
 
 const recordUserFailure = async (userNik, req, now) => prisma.$transaction(async (tx) => {
+  // Lock the parent even when the security row does not exist yet; shared across workers.
+  await tx.$queryRaw`SELECT nik FROM User WHERE nik = ${userNik} FOR UPDATE`;
   const previous = await tx.userLoginSecurity.findUnique({ where: { userNik } });
+  if (previous?.blockedAt || previous?.lockedUntil > now) return previous;
+  const reset = await tx.authenticationAudit.findFirst({
+    where: { userNik, eventType: { in: ['LOGIN_SUCCEEDED', 'ACCOUNT_COOLDOWN_CLEARED', 'ACCOUNT_LOGIN_UNLOCKED'] }, success: true },
+    orderBy: { id: 'desc' }, select: { id: true },
+  });
+  const failures = await tx.authenticationAudit.findMany({
+    where: { userNik, success: false, id: { gt: reset?.id || 0 },
+      createdAt: { gte: new Date(now.getTime() - securityConfig.loginProtection.failureWindowMs) },
+      eventType: { in: ['LOGIN_FAILED', 'ACCOUNT_COOLDOWN_STARTED', 'ACCOUNT_LOGIN_LOCKED'] },
+      reason: { in: ['INVALID_CREDENTIALS', 'FAILURE_THRESHOLD_REACHED', 'FAILURE_LIMIT_REACHED'] } },
+    orderBy: { id: 'asc' }, select: { createdAt: true },
+  });
   const failureState = calculateFailureState({
-    previous,
+    previous: failures.length ? { failedLoginCount: failures.length, firstFailedAt: failures[0].createdAt, lastFailedAt: failures[failures.length - 1].createdAt } : null,
     now,
     config: securityConfig.loginProtection,
   });
@@ -85,28 +88,34 @@ const recordUserFailure = async (userNik, req, now) => prisma.$transaction(async
   await tx.authenticationAudit.create({
     data: {
       userNik,
-      eventType: failureState.lockedUntil ? "ACCOUNT_COOLDOWN_STARTED" : "LOGIN_FAILED",
+      eventType: failureState.blockedAt ? "ACCOUNT_LOGIN_LOCKED" : failureState.lockedUntil ? "ACCOUNT_COOLDOWN_STARTED" : "LOGIN_FAILED",
       success: false,
-      reason: failureState.lockedUntil ? "FAILURE_THRESHOLD_REACHED" : "INVALID_CREDENTIALS",
+      reason: failureState.blockedAt ? "FAILURE_LIMIT_REACHED" : failureState.lockedUntil ? "FAILURE_THRESHOLD_REACHED" : "INVALID_CREDENTIALS",
       ...requestAuditContext(req),
     },
   });
   return failureState;
 });
 
-const recordSuccessfulLogin = async (userNik, req, now) => prisma.$transaction([
-  prisma.userLoginSecurity.upsert({
+const recordSuccessfulLogin = async (userNik, req, now, enforceLock = false) => prisma.$transaction(async (tx) => {
+  await tx.$queryRaw`SELECT nik FROM User WHERE nik = ${userNik} FOR UPDATE`;
+  const security = await tx.userLoginSecurity.findUnique({ where: { userNik } });
+  if (enforceLock && (security?.blockedAt || security?.lockedUntil > now)) {
+    const error = new Error('Local login unavailable'); error.code = 'LOCAL_LOGIN_LOCKED'; throw error;
+  }
+  await tx.userLoginSecurity.upsert({
     where: { userNik },
     create: { userNik, lastSuccessfulLoginAt: now },
     update: {
-      failedLoginCount: 0,
+      failedLoginCount: !enforceLock && security?.blockedAt ? security.failedLoginCount : 0,
       firstFailedAt: null,
       lastFailedAt: null,
       lockedUntil: null,
+      blockedAt: enforceLock ? null : security?.blockedAt || null,
       lastSuccessfulLoginAt: now,
     },
-  }),
-  prisma.authenticationAudit.create({
+  });
+  await tx.authenticationAudit.create({
     data: {
       userNik,
       eventType: "LOGIN_SUCCEEDED",
@@ -114,8 +123,8 @@ const recordSuccessfulLogin = async (userNik, req, now) => prisma.$transaction([
       reason: "VALID_CREDENTIALS",
       ...requestAuditContext(req),
     },
-  }),
-]);
+  });
+});
 
 const sessionCookieOptions = () => ({
   httpOnly: true,
@@ -234,7 +243,7 @@ const establishLocalSession = async (user, req, res, now = new Date()) => {
     audience: securityConfig.jwtAudience, subject: user.nik,
   });
   const csrfToken = crypto.randomBytes(32).toString("base64url");
-  await recordSuccessfulLogin(user.nik, req, now);
+  await recordSuccessfulLogin(user.nik, req, now, user.authenticationType !== 'AIRNAV_SSO');
   res.cookie("auth_token", token, sessionCookieOptions());
   res.cookie("csrf_token", csrfToken, csrfCookieOptions());
   return {
@@ -338,7 +347,8 @@ const login = async (req, res) => {
   try {
     const { nik, password } = req.body;
     
-    if (!nik || !password) {
+    if (typeof nik !== 'string' || typeof password !== 'string'
+      || !/^[A-Za-z0-9]{8}$/.test(nik) || !password || password.length > 256) {
       return res.status(400).json({
         success: false,
         message: "nik and password are required",
@@ -377,9 +387,9 @@ const login = async (req, res) => {
           ...requestAuditContext(req),
         },
       });
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
-        message: "This account must sign in with AirNav SSO",
+        message: INVALID_LOGIN_MESSAGE,
       });
     }
 
@@ -387,7 +397,7 @@ const login = async (req, res) => {
     const securityState = await prisma.userLoginSecurity.findUnique({
       where: { userNik: user.nik },
     });
-    if (!securityConfig.allowTestLoginBypass && securityState?.lockedUntil > now) {
+    if (securityState?.blockedAt || (!securityConfig.allowTestLoginBypass && securityState?.lockedUntil > now)) {
       await prisma.authenticationAudit.create({
         data: {
           userNik: user.nik,
@@ -417,6 +427,7 @@ const login = async (req, res) => {
       ...session,
     });
   } catch (error) {
+    if (error.code === 'LOCAL_LOGIN_LOCKED') return cooldownResponse(res);
     console.error("Login failed", error);
 
     return res.status(500).json({

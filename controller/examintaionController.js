@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { categoryMatsCounts, matchesCategoryMatsCounts } from '../utils/matsSelection.js';
 import config from "../utils/config.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -230,6 +231,7 @@ const getRandomMatsQuestions = async ({
     };
   }
   const canReuseExistingSelection = existingSelections.length > 0
+    && (mode !== 'CATEGORY_PORTION' || !savedConfiguration || matchesCategoryMatsCounts(existingSelections, categoryMatsCounts(savedConfiguration, questionGroups)))
     && existingSelections[0]?.mode === mode
     && (
       mode !== "SEPARATE_POOL"
@@ -312,6 +314,9 @@ const getRandomMatsQuestions = async ({
     },
     orderBy: { slot: "asc" },
   });
+  if (persisted.length !== selected.length || (mode === 'CATEGORY_PORTION' && savedConfiguration && !matchesCategoryMatsCounts(persisted, categoryMatsCounts(savedConfiguration, questionGroups)))) {
+    throw new Error('The saved MATS question selection does not match the examination configuration. Please retry before starting.');
+  }
   return {
     quantity: persisted.length,
     mode,
@@ -407,6 +412,7 @@ const getExamination = async (req, res) => {
                   select: {
                     id: true,
                     rating: true,
+                    examAccessExtensions: { orderBy: { id: 'desc' }, take: 1 },
                     statusId: true,
                     status: { select: { status: true } },
                     monitorTimes: {

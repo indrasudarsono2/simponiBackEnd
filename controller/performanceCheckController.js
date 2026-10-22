@@ -5,7 +5,10 @@ import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
 import { scoreTheorySessionEssay } from "../services/scoreTheorySessionEssay.js";
-import { assertRatingChecker, assignedForRating, groupPolicyInclude } from '../services/groupRatingPolicy.js';
+import { isCheckerAdmin } from '../utils/checkerAdminScope.js';
+import { assertEssayScorer, auditAdminEssayScore } from '../services/essayScoringAuthority.js';
+import { assignedForRating, groupPolicyInclude } from '../services/groupRatingPolicy.js';
+import { essayViewUser } from '../services/essayViewScope.js';
 
 const getEvent = async (req, res) => {
 
@@ -16,6 +19,8 @@ const getEvent = async (req, res) => {
   // const userN = "10077770"
 
   try {
+    const admin = isCheckerAdmin(essayViewUser(req));
+    if (!req.user.branchUnitId) return res.status(403).json({ message: 'Your branch unit is not configured.' });
     const eventId = req.query.eventId === undefined ? null : Number(req.query.eventId);
     if (eventId !== null && (!Number.isSafeInteger(eventId) || eventId <= 0)) {
       return res.status(400).json({ message: "Invalid event ID." });
@@ -24,7 +29,7 @@ const getEvent = async (req, res) => {
       deletedAt: null,
       session: { branchUnitId: req.user.branchUnitId },
       ...(eventId !== null ? { id: eventId } : {}),
-      groups: { some: { checkerGroups: { some: { deletedAt: null, checker: userN } } } },
+      groups: { some: { deletedAt: null, ...(admin ? {} : { checkerGroups: { some: { deletedAt: null, checker: userN } } }) } },
     };
     if (req.query.mode === "options") {
       const event = await prisma.event.findMany({
@@ -71,11 +76,11 @@ const getEvent = async (req, res) => {
         groups: {
           where: {
             deletedAt: null,
-            checkerGroups: {
+            ...(admin ? {} : { checkerGroups: {
               some: {
-                checker: userN
+                checker: userN, deletedAt: null
               }
-            }
+            } })
           },
           select: {
             id: true,
@@ -83,6 +88,7 @@ const getEvent = async (req, res) => {
             groupMembers: {
               where: {
                 deletedAt: null,
+                ...(admin ? { member: { not: userN }, userMember: { deletedAt: null, branchUnitId: req.user.branchUnitId } } : {}),
               },
               select: {
                 id: true,
@@ -98,7 +104,8 @@ const getEvent = async (req, res) => {
                   where: {
                     deletedAt: null,
                     isInvalidated: false,
-                    statusId: 3
+                    statusId: 3,
+                    ...(admin ? { essaySubmittedAt: { not: null }, OR: [{ theorySessionParticipant: null }, { theorySessionParticipant: { session: { status: 'ENDED' } } }] } : {})
                   },
                   select: {
                     id: true,
@@ -139,6 +146,7 @@ const getEvent = async (req, res) => {
                   where: {
                     deletedAt: null,
                     checker: userN,
+                    ...(admin ? { checker: { not: null }, finalScore: { essaySubmittedAt: { not: null }, isInvalidated: false, deletedAt: null } } : {}),
                   },
                   select: {
                     id: true,
@@ -181,21 +189,23 @@ const getEvent = async (req, res) => {
     for (const e of event) for (const g of e.groups) {
       const policy = policies.find(p => p.id === g.id);
       for (const m of g.groupMembers) {
-        m.finalScores = m.finalScores.filter(s => assignedForRating(policy, userN, s.appRating?.ratingId));
-        m.essayCorrections = m.essayCorrections.filter(s => assignedForRating(policy, userN, s.appRating?.ratingId));
+        m.finalScores = m.finalScores.filter(s => admin || assignedForRating(policy, userN, s.appRating?.ratingId));
+        m.essayCorrections = m.essayCorrections.filter(s => admin || assignedForRating(policy, userN, s.appRating?.ratingId));
       }
     }
     res.json({event});
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
 const postEssayAnswer = async (req, res) => {
   try {
+    req.user = essayViewUser({ ...req, method: 'POST' });
     const {finalScoreId, persentage, essayCorrection} = req.body
     const mode2Score = await prisma.finalScore.findUnique({ where: { id: Number(finalScoreId) }, select: {
       id: true, statusId: true, isInvalidated: true, deletedAt: true, multipleChoiceScore: true,
+      groupMemberId: true, essaySubmittedAt: true,
       appRating: { select: { ratingId: true } },
       configurationVersion: { select: { snapshot: true } },
       theorySessionParticipant: { select: { id: true } },
@@ -206,10 +216,10 @@ const postEssayAnswer = async (req, res) => {
       essayCorrections: { where: { deletedAt: null, checker: null, score: null },
         select: { id: true, essay: { select: { value: true } } } },
     } });
-    if (mode2Score) await assertRatingChecker(mode2Score.groupMember?.groupId, mode2Score.appRating?.ratingId, req.user);
+    if (mode2Score) await assertEssayScorer(mode2Score, req.user, req.body.takeoverReason);
     if (mode2Score?.theorySessionParticipant) return scoreTheorySessionEssay(req, res, mode2Score);
     if (!mode2Score || mode2Score.deletedAt || mode2Score.isInvalidated || mode2Score.statusId !== 3 ||
-        !mode2Score.groupMember?.group?.checkerGroups?.some((item) => item.checker === req.user.nik) ||
+        (!isCheckerAdmin(req.user) && !mode2Score.groupMember?.group?.checkerGroups?.some((item) => item.checker === req.user.nik)) ||
         Number(mode2Score.groupMember.group.event?.sector?.branchUnitId) !== Number(req.user.branchUnitId)) {
       return res.status(403).json({ message: 'This pending Essay score is not assigned to you.' });
     }
@@ -240,10 +250,11 @@ const postEssayAnswer = async (req, res) => {
 
     const essayScore = sumScore/sumValue*100*Number(scoringWeight)
     await prisma.$transaction(async tx => {
-      await assertRatingChecker(mode2Score.groupMember.groupId, mode2Score.appRating.ratingId, req.user, tx);
+      await assertEssayScorer(mode2Score, req.user, req.body.takeoverReason, tx);
       const claimed = await tx.finalScore.updateMany({ where: { id: Number(finalScoreId), statusId: 3, deletedAt: null, isInvalidated: false },
         data: { statusId: 4, essayScore, finalScore: essayScore, essayResultEmailQueuedAt: new Date() } });
       if (claimed.count !== 1) throw Object.assign(new Error('This essay has already been scored. Refresh the list.'), { status: 409 });
+      await auditAdminEssayScore(tx, mode2Score, req.user, req.body.takeoverReason, submitted);
       for (const item of submitted) await tx.essayCorrection.update({ where: { id: Number(item.essayCorrectionId) }, data: { score: Number(item.score), checker: req.user.nik } });
       const finalScoreUpdate = await tx.finalScore.findUnique({ where: { id: Number(finalScoreId) }, select: { appRatingId: true } });
       await tx.appRating.update({ where: { id: finalScoreUpdate.appRatingId }, data: { statusId: 4 } });

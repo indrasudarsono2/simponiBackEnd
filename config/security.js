@@ -51,7 +51,8 @@ const securityConfig = Object.freeze({
   jwtIssuer: process.env.JWT_ISSUER || "simponi-api",
   jwtAudience: process.env.JWT_AUDIENCE || "simponi-web",
   loginProtection: Object.freeze({
-    failureWindowMs: positiveInteger("LOGIN_FAILURE_WINDOW_MINUTES", 30) * 60 * 1000,
+    failureWindowMs: positiveInteger("LOGIN_FAILURE_WINDOW_MINUTES", 1440) * 60 * 1000,
+    blockThreshold: positiveInteger("LOGIN_BLOCK_THRESHOLD", 10),
     cooldownThreshold: positiveInteger("LOGIN_COOLDOWN_THRESHOLD", 5),
     firstCooldownMs: positiveInteger("LOGIN_FIRST_COOLDOWN_MINUTES", 5) * 60 * 1000,
     secondCooldownMs: positiveInteger("LOGIN_SECOND_COOLDOWN_MINUTES", 15) * 60 * 1000,

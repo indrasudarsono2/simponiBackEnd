@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma.js';
+import { examinationActivity } from '../services/examinationActivity.js';
 import { roomRecoveryWhere } from '../services/defaultModeOneRoom.js';
 
 const normalizeStatus = (value) => String(value || '').trim().toUpperCase();
@@ -103,6 +104,7 @@ const getCheckerAdminDashboard = async (req, res) => {
       }) : [];
     const ratingIds = new Set(sectors.flatMap((sector) => sector.subBranchUnitRatings.map((item) => item.ratingId).filter((id) => id != null)));
     return res.json({
+      examinationActivity: await examinationActivity(prisma, branchUnitId),
       missingRoomCount: await prisma.eventUser.count({ where: roomRecoveryWhere(branchUnitId) }),
       ratingCount: ratingIds.size,
       sectors: sectors.map((sector) => ({

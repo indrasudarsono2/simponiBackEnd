@@ -19,6 +19,9 @@ import { startTheorySessionScheduler } from './workers/theorySessionScheduler.js
 import { startModeOneExamScheduler } from './workers/modeOneExamScheduler.js';
 import { requireHttps, shouldEnforceHttpsRedirect } from './middleware/requireHttps.js';
 import { skipGeneralApiLimit } from './middleware/rateLimitPolicy.js';
+import { sharedRateLimitStore } from './security/databaseRateLimitStore.js';
+import { startSecurityCounterCleanup } from './workers/securityCounterCleanup.js';
+import { apiRateLimitKey } from './security/apiRateLimitIdentity.js';
 
 // 2. Initializations
 const app = express();
@@ -110,6 +113,8 @@ app.get('/', (req, res) => {
 
 // Issue #5: General rate limiter for ALL API routes (prevents enumeration / DoS)
 const apiLimiter = rateLimit({
+  store: sharedRateLimitStore('api-general'),
+  keyGenerator: apiRateLimitKey,
   windowMs: 15 * 60 * 1000,
   limit: 300,
   standardHeaders: 'draft-8',
@@ -122,6 +127,7 @@ app.use('/api', apiLimiter);
 // Room participants may share one IP. Count failed attempts, with both a
 // shared-IP ceiling and the original ten-attempt ceiling per e-NIK.
 app.use('/api/auth/login', rateLimit({
+  store: sharedRateLimitStore('login-ip'),
   windowMs: 15 * 60 * 1000,
   limit: 120,
   skipSuccessfulRequests: true,
@@ -129,6 +135,7 @@ app.use('/api/auth/login', rateLimit({
   legacyHeaders: false,
 }));
 app.use('/api/auth/login', rateLimit({
+  store: sharedRateLimitStore('login-account'),
   windowMs: 15 * 60 * 1000,
   limit: 10,
   keyGenerator: (req) => String(req.body?.nik || '').trim().toUpperCase(),
@@ -137,8 +144,8 @@ app.use('/api/auth/login', rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
 }));
-app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }));
-app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
+app.use('/api/auth/forgot-password', rateLimit({ store: sharedRateLimitStore('forgot-password'), windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }));
+app.use('/api/auth/reset-password', rateLimit({ store: sharedRateLimitStore('reset-password'), windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
 
 app.get('/api/integrations/echain/user-preview', authenticateToken, showEchainPreview);
 app.use('/api', apiRouter);
@@ -150,7 +157,7 @@ app.use((err, req, res, next) => {
   // Issue #4: Handle multer errors with safe, user-facing messages (no internal leakage)
   if (err instanceof multer.MulterError) {
     const safeMulterMessages = {
-      LIMIT_FILE_SIZE: 'File too large. Max size is 5MB.',
+      LIMIT_FILE_SIZE: 'The uploaded file exceeds the allowed size. Please choose a smaller file.',
       LIMIT_UNEXPECTED_FILE: 'Unexpected file field in upload.',
       LIMIT_FILE_COUNT: 'Too many files uploaded.',
       LIMIT_FIELD_KEY: 'Field name too long.',
@@ -158,8 +165,9 @@ app.use((err, req, res, next) => {
       LIMIT_FIELD_COUNT: 'Too many form fields.',
       INVALID_FILE_CONTENT: 'Uploaded file content does not match an allowed file type.',
     };
-    return res.status(400).json({
+    return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({
       message: safeMulterMessages[err.code] || 'File upload error.',
+      statusMessage: safeMulterMessages[err.code] || 'File upload error.',
     });
   }
   
@@ -170,6 +178,7 @@ app.use((err, req, res, next) => {
 let escalationScheduler;
 let theorySessionScheduler;
 let modeOneExamScheduler;
+let securityCounterCleanup;
 const server = app.listen(PORT, securityConfig.serverHost, () => {
   console.log(`🚀 Server is listening on ${securityConfig.serverHost}:${PORT}`);
   if (process.env.RUN_ESCALATION_SCHEDULER !== 'false') {
@@ -180,8 +189,12 @@ const server = app.listen(PORT, securityConfig.serverHost, () => {
   }
   if (process.env.RUN_MODE_ONE_EXAM_SCHEDULER !== 'false') {
     modeOneExamScheduler = startModeOneExamScheduler();
+    securityCounterCleanup = startSecurityCounterCleanup();
   }
 });
+server.headersTimeout = 15_000;
+server.requestTimeout = 120_000;
+server.maxHeadersCount = 100;
 
 let isShuttingDown = false;
 const shutdown = (signal) => {
@@ -191,6 +204,7 @@ const shutdown = (signal) => {
   escalationScheduler?.stop();
   theorySessionScheduler?.stop();
   modeOneExamScheduler?.stop();
+  securityCounterCleanup?.stop();
 
   const forceExitTimer = setTimeout(() => {
     console.error('Graceful shutdown timed out; forcing exit.');

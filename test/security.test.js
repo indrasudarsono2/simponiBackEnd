@@ -183,11 +183,13 @@ test("attempt invalidation role policy allows only Checker Admin or General Chec
   assert.equal(denied.state.status, 403);
 });
 
-test("interrupted attempt reset endpoints require the Checker role and Performance Check menu", () => {
+test("interrupted attempt reset endpoints require Checker or Checker Admin and Performance Check menu", () => {
   for (const route of ["/performanceCheck/reset-options/7", "/performanceCheck/reset-attempt"]) {
     for (const [role, menu, allowed] of [
       [ROLES.CHECKER, "performanceCheck", true],
-      [ROLES.CHECKER_ADMIN, "performanceCheck", false],
+      [ROLES.CHECKER_ADMIN, "performanceCheck", true],
+      [ROLES.CHECKER_ADMIN, "dashboardCheckerAdmin", false],
+      [ROLES.OPERATIONAL, "performanceCheck", false],
       [ROLES.CHECKER, "dashboardChecker", false],
     ]) {
       let nextCalled = false;

@@ -29,7 +29,7 @@ export async function readLiveConfiguration(db, eventId) {
   return { ...event, mats: { mode: configuration?.mode === 'CATEGORY_PORTION' ? 'CATEGORY_PORTION' : 'SEPARATE_POOL', quantity: Number(configuration?.quantity || 0), allocations } };
 }
 
-export function configurationIssues(snapshot) {
+export function configurationIssues(snapshot, { requireMats = false } = {}) {
   const issues = [];
   const settings = snapshot.eventQuestions;
   if (!settings.length || new Set(settings.map(s => s.kindOfQuestionId)).size !== settings.length || settings.some(s => ![1, 2].includes(s.kindOfQuestionId))) issues.push('Configure at least one examination part, with no duplicate question types.');
@@ -45,11 +45,13 @@ export function configurationIssues(snapshot) {
       if (!groups.length || groups.some(g => !Number.isInteger(g.quantity) || g.quantity < 1)) issues.push(`${r.rating?.rating}: configure valid ${s.kindOfQuestionId === 1 ? 'Essay' : 'Multiple Choice'} groups.`);
       if (groups.reduce((sum, g) => sum + Number(g.quantity || 0), 0) !== s.quantity) issues.push(`${r.rating?.rating}: group quantities must match the configured ${s.kindOfQuestionId === 1 ? 'Essay' : 'Multiple Choice'} count (${s.quantity}).`);
       if (s.kindOfQuestionId === 2 && snapshot.mats.mode === 'CATEGORY_PORTION') {
+        if (requireMats && !groups.some(g => Number(snapshot.mats.allocations.find(a => a.mandatoryItemId === g.mandatoryRating?.mandatoryItemId)?.quantity || 0) > 0)) issues.push(`${r.rating?.rating}: configure a positive MATS allocation for at least one examination category.`);
         for (const g of groups) {
           const portion = snapshot.mats.allocations.find(a => a.mandatoryItemId === g.mandatoryRating?.mandatoryItemId)?.quantity || 0;
           if (portion > g.quantity) issues.push(`${r.rating?.rating}: MATS allocation exceeds the quantity for ${g.group}.`);
         }
       }
+      if (requireMats && s.kindOfQuestionId === 2 && snapshot.mats.mode !== 'CATEGORY_PORTION' && (!Number.isInteger(snapshot.mats.quantity) || snapshot.mats.quantity < 1)) issues.push('Configure a positive MATS question quantity before starting a multiple-choice examination.');
     }
   }
   return [...new Set(issues)];
@@ -98,23 +100,30 @@ export async function getExamConfiguration(eventId, { actorNik = null, trigger =
     const normalized = rows => JSON.stringify([...rows].sort((a, b) => a.kindOfQuestionId - b.kindOfQuestionId).map(q => [q.id, q.kindOfQuestionId, q.quantity, q.persentage, q.minutes]));
     if (!current) throw Object.assign(new Error('Event not found.'), { status: 404 });
     const changed = saved && (current.sectorId !== saved.snapshot.sector?.id || current.theoryMode !== saved.snapshot.theoryMode || current.difficulty !== saved.snapshot.difficulty || normalized(current.eventQuestions) !== normalized(saved.snapshot.eventQuestions));
+    // General Admin MATS settings apply until the event is first locked. Keep
+    // finalized category/group settings intact when only MATS has changed.
+    const liveBeforeStart = saved && !saved.lockedAt ? await readLiveConfiguration(db, Number(eventId)) : null;
+    const normalizedMats = mats => JSON.stringify({ mode: mats?.mode, quantity: mats?.quantity, allocations: [...(mats?.allocations || [])].sort((a, b) => a.mandatoryItemId - b.mandatoryItemId).map(a => [a.mandatoryItemId, a.quantity]) });
+    const matsChanged = liveBeforeStart && normalizedMats(liveBeforeStart.mats) !== normalizedMats(saved.snapshot.mats);
     if (changed && saved.lockedAt) throw conflict('Event settings differ from the locked examination configuration. Contact the Checker Admin.');
-    if (!saved || changed || (saved.source === 'BACKFILL_CURRENT' && !saved.lockedAt)) {
+    if (!saved || changed || matsChanged || (saved.source === 'BACKFILL_CURRENT' && !saved.lockedAt)) {
       await assertConfigurationEditable(db, Number(eventId));
-      const snapshot = await readLiveConfiguration(db, Number(eventId));
-      const issues = configurationIssues(snapshot);
+      const snapshot = matsChanged && !changed && saved.source !== 'BACKFILL_CURRENT'
+        ? { ...saved.snapshot, mats: liveBeforeStart.mats }
+        : liveBeforeStart || await readLiveConfiguration(db, Number(eventId));
+      const issues = configurationIssues(snapshot, { requireMats: true });
       if (issues.length) throw conflict(`Examination cannot start. Ask the Checker Admin to fix the configuration: ${issues.join(' ')}`);
       const actor = actorNik ? await db.user.findUnique({ where: { nik: actorNik }, select: { name: true } }) : null;
       saved = await db.eventConfigurationVersion.create({ data: {
         eventId: Number(eventId), version: (saved?.version || 0) + 1,
         source: 'AUTO_FINALIZED', actorNik, actorName: actor?.name || null,
-        reason: `Automatically finalized before examination (${trigger}). ${changed ? 'Event settings changed after the previous capture.' : 'No finalized configuration was available.'}`,
+        reason: `Automatically finalized before examination (${trigger}). ${matsChanged ? 'General Admin MATS settings changed before examination start.' : changed ? 'Event settings changed after the previous capture.' : 'No finalized configuration was available.'}`,
         snapshot: { ...snapshot, captureIssues: [] }, lockedAt: new Date(),
       } });
     }
     // Backfilled snapshots preserve legacy, potentially incomplete settings; do not invent historical settings.
     if (['FINALIZED', 'AUTO_FINALIZED'].includes(saved.source)) {
-      const issues = configurationIssues(saved.snapshot);
+      const issues = configurationIssues(saved.snapshot, { requireMats: !saved.lockedAt });
       if (issues.length) throw conflict(issues.join(' '));
     }
     if (!saved.lockedAt) await db.eventConfigurationVersion.update({ where: { id: saved.id }, data: { lockedAt: new Date() } });

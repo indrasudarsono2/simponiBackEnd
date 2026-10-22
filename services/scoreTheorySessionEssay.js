@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
-import { assertRatingChecker } from './groupRatingPolicy.js';
+import { isCheckerAdmin } from '../utils/checkerAdminScope.js';
+import { assertEssayScorer, auditAdminEssayScore } from './essayScoringAuthority.js';
 
 export const scoreTheorySessionEssay = async (req, res, finalScore) => {
   try {
@@ -16,7 +17,7 @@ export const scoreTheorySessionEssay = async (req, res, finalScore) => {
       where: { checker: req.user.nik, deletedAt: null, groupId: finalScore.groupMember?.groupId },
       select: { id: true },
     });
-    if (!assignedChecker) return res.status(403).json({ message: "You are not the assigned checker for this Essay." });
+    if (!isCheckerAdmin(req.user) && !assignedChecker) return res.status(403).json({ message: "You are not the assigned checker for this Essay." });
     const submitted = req.body?.essayCorrection;
     if (!Array.isArray(submitted) || !submitted.length) return res.status(400).json({ message: "All Essay scores are required." });
     const corrections = await prisma.essayCorrection.findMany({
@@ -44,9 +45,10 @@ export const scoreTheorySessionEssay = async (req, res, finalScore) => {
     const status = await prisma.status.findFirst({ where: { status: statusName, deletedAt: null }, select: { id: true } });
     if (!status) return res.status(500).json({ message: `Status ${statusName} is not configured.` });
     const changed = await prisma.$transaction(async (tx) => {
-      await assertRatingChecker(finalScore.groupMember?.groupId, participant.appRating?.ratingId, req.user, tx);
+      await assertEssayScorer(finalScore, req.user, req.body.takeoverReason, tx);
       const claim = await tx.finalScore.updateMany({ where: { id: finalScore.id, statusId: finalScore.statusId, isInvalidated: false, deletedAt: null }, data: { statusId: status.id, essayScore, finalScore: total } });
       if (claim.count !== 1) return false;
+      await auditAdminEssayScore(tx, finalScore, req.user, req.body.takeoverReason, submitted);
       for (const item of corrections) {
         await tx.essayCorrection.update({ where: { id: item.id }, data: { score: requested.get(item.id), checker: req.user.nik } });
       }

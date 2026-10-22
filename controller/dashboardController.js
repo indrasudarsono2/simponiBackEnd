@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import fs from "fs";
 import path from "path";
+import {isBlankHours} from '../services/missingControlHours.js';
 
 const dashboardBriefingInclude = {
   speakerUser: {
@@ -70,16 +71,18 @@ const getDashboardOperational = async (req, res) => {
             where: {
               applicationDocs: {
                 some: {
-                  statusId: 2
+                  deletedAt: null,
+                  OR: [{statusId:2},{statusId:1,appRatings:{some:{deletedAt:null,OR:[{controlHour:null},{controlHour:''}]}}}]
                 }
               }
             },
             include: {
               event: true,
               applicationDocs: {
+                include: {appRatings:{where:{deletedAt:null},select:{controlHour:true}}},
                 where: {
                   deletedAt: null,
-                  statusId: 2,
+                  OR: [{statusId:2},{statusId:1,appRatings:{some:{deletedAt:null,OR:[{controlHour:null},{controlHour:''}]}}}],
                 },
                 orderBy: {
                   createdAt: 'desc'
@@ -338,10 +341,9 @@ const postDashboardToken = async(req, res) => {
       where: {
         id: parsedApplicationDocId,
         userNik: req.user.nik,
-        statusId: 2,
         deletedAt: null,
       },
-      select: { id: true },
+      select: { id: true, statusId: true, appRatings:{where:{deletedAt:null},select:{controlHour:true}} },
     });
     if (!applicationDoc) {
       return res.status(404).json({ message: "Application document was not found." });
@@ -361,6 +363,8 @@ const postDashboardToken = async(req, res) => {
     })
 
     if(tokenDb && tokenDb.token === token){
+      if(applicationDoc.appRatings.some(r=>isBlankHours(r.controlHour)))return res.json({message:'complete_hours',redirectTo:`/applicationDoc/complete-hours?applicationDocId=${applicationDoc.id}`});
+      if(applicationDoc.statusId!==2)return res.status(409).json({message:'Your application still requires verification before the briefing token can be accepted.'});
       await prisma.applicationDoc.update({
         where: {
           id: applicationDoc.id
